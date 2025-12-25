@@ -57,3 +57,8 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# agents
+.claude
+CLAUDE.md
+
