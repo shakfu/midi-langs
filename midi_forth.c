@@ -4,6 +4,8 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include <libremidi/libremidi-c.h>
 
@@ -286,14 +288,36 @@ void on_output_port_found(void* ctx, const libremidi_midi_out_port* port) {
     out_port_count++;
 }
 
-int midi_init_observer(void) {
-    if (midi_observer != NULL) return 0;  // Already initialized
+// Debug: list available APIs
+void on_api_found(void* ctx, libremidi_api api) {
+    const char* name = libremidi_api_display_name(api);
+    printf("  %s\n", name ? name : "(unknown)");
+}
 
+void op_midi_apis(Stack* stack) {
+    printf("Available MIDI APIs:\n");
+    libremidi_midi1_available_apis(NULL, on_api_found);
+}
+
+int midi_init_observer(void) {
     int ret = 0;
+
+    // Free existing observer if any
+    if (midi_observer != NULL) {
+        for (int i = 0; i < out_port_count; i++) {
+            libremidi_midi_out_port_free(out_ports[i]);
+        }
+        out_port_count = 0;
+        libremidi_midi_observer_free(midi_observer);
+        midi_observer = NULL;
+    }
 
     libremidi_observer_configuration observer_conf;
     ret = libremidi_midi_observer_configuration_init(&observer_conf);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        printf("Failed to init observer config: %d\n", ret);
+        return ret;
+    }
 
     observer_conf.track_hardware = true;
     observer_conf.track_virtual = true;
@@ -301,20 +325,26 @@ int midi_init_observer(void) {
 
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        printf("Failed to init api config: %d\n", ret);
+        return ret;
+    }
 
     api_conf.configuration_type = Observer;
-    api_conf.api = COREMIDI;  // macOS
+    api_conf.api = UNSPECIFIED;  // Let libremidi auto-detect
 
     ret = libremidi_midi_observer_new(&observer_conf, &api_conf, &midi_observer);
     if (ret != 0) {
-        printf("Failed to create MIDI observer\n");
+        printf("Failed to create MIDI observer: %d\n", ret);
         return ret;
     }
 
     // Enumerate output ports
     out_port_count = 0;
     ret = libremidi_midi_observer_enumerate_output_ports(midi_observer, NULL, on_output_port_found);
+    if (ret != 0) {
+        printf("Failed to enumerate ports: %d\n", ret);
+    }
 
     return ret;
 }
@@ -325,16 +355,24 @@ void op_midi_list(Stack* stack) {
         return;
     }
 
-    printf("MIDI output ports:\n");
+    // Clear and re-enumerate
     for (int i = 0; i < out_port_count; i++) {
-        const char* name = NULL;
-        size_t len = 0;
-        if (libremidi_midi_out_port_name(out_ports[i], &name, &len) == 0) {
-            printf("  %d: %s\n", i, name);
-        }
+        libremidi_midi_out_port_free(out_ports[i]);
     }
+    out_port_count = 0;
+    libremidi_midi_observer_enumerate_output_ports(midi_observer, NULL, on_output_port_found);
+
+    printf("Hardware MIDI outputs:\n");
     if (out_port_count == 0) {
-        printf("  (no ports found)\n");
+        printf("  (none - use midi-virtual to create a virtual port)\n");
+    } else {
+        for (int i = 0; i < out_port_count; i++) {
+            const char* name = NULL;
+            size_t len = 0;
+            if (libremidi_midi_out_port_name(out_ports[i], &name, &len) == 0) {
+                printf("  %d: %s\n", i, name);
+            }
+        }
     }
 }
 
@@ -377,7 +415,7 @@ void op_midi_open(Stack* stack) {
     }
 
     api_conf.configuration_type = Output;
-    api_conf.api = COREMIDI;
+    api_conf.api = UNSPECIFIED;  // Let libremidi auto-detect
 
     ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
     if (ret != 0) {
@@ -419,7 +457,7 @@ void op_midi_open_virtual(Stack* stack) {
     }
 
     api_conf.configuration_type = Output;
-    api_conf.api = COREMIDI;
+    api_conf.api = UNSPECIFIED;  // Let libremidi auto-detect
 
     ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
     if (ret != 0) {
@@ -1124,6 +1162,7 @@ void init_dictionary(void) {
     add_word("ms", op_ms, 1);
 
     // MIDI words
+    add_word("midi-apis", op_midi_apis, 1);
     add_word("midi-list", op_midi_list, 1);
     add_word("midi-open", op_midi_open, 1);
     add_word("midi-virtual", op_midi_open_virtual, 1);
@@ -1302,32 +1341,43 @@ void print_help(void) {
 
 // Interactive interpreter loop
 void interpreter_loop(void) {
-    char input[MAX_INPUT_LENGTH];
+    char* input;
 
     printf("MIDI Forth (type 'help' for commands, 'quit' to exit)\n");
 
     while (1) {
-        printf("> ");
-        fflush(stdout);
+        input = readline("> ");
 
-        if (!fgets(input, sizeof(input), stdin)) {
+        if (input == NULL) {
+            // EOF (Ctrl-D)
+            printf("\n");
             break;
         }
 
-        // Remove newline
-        input[strcspn(input, "\n")] = 0;
+        // Skip empty lines
+        if (input[0] == '\0') {
+            free(input);
+            continue;
+        }
+
+        // Add to history
+        add_history(input);
 
         if (strcmp(input, "quit") == 0) {
+            free(input);
             break;
         }
 
         if (strcmp(input, "help") == 0) {
             print_help();
+            free(input);
             continue;
         }
 
         execute_line(input);
         printf(" ok\n");
+
+        free(input);
     }
 }
 

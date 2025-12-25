@@ -9,7 +9,7 @@ LIBREMIDI_INCLUDE = $(LIBREMIDI_DIR)/include
 
 # Compiler flags
 CFLAGS = -Wall -I$(LIBREMIDI_INCLUDE)
-LDFLAGS = -L$(LIBREMIDI_BUILD) -llibremidi -framework CoreMIDI -framework CoreFoundation -framework CoreAudio -lc++
+LDFLAGS = -L$(LIBREMIDI_BUILD) -llibremidi -framework CoreMIDI -framework CoreFoundation -framework CoreAudio -lc++ -lreadline
 
 all: forth midi_forth
 

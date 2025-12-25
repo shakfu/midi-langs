@@ -1,6 +1,7 @@
 .DS_Store
 
 forth
+midi_forth
 
 # Prerequisites
 *.d
