@@ -1,35 +1,44 @@
+# Makefile frontend for CMake build
 
-.PHONY: all clean test libremidi
+BUILD_DIR := build
+CMAKE := cmake
+CTEST := ctest
 
-# Directories
-LIBREMIDI_DIR = thirdparty/libremidi
-LIBREMIDI_BUILD = $(LIBREMIDI_DIR)/build
-LIBREMIDI_LIB = $(LIBREMIDI_BUILD)/liblibremidi.a
-LIBREMIDI_INCLUDE = $(LIBREMIDI_DIR)/include
+.PHONY: all build configure clean test test-quick test-verbose rebuild help
 
-# Compiler flags
-CFLAGS = -Wall -I$(LIBREMIDI_INCLUDE)
-LDFLAGS = -L$(LIBREMIDI_BUILD) -llibremidi -framework CoreMIDI -framework CoreFoundation -framework CoreAudio -lc++ -lreadline
+all: build
 
-all: forth midi_forth
+configure:
+	@$(CMAKE) -B $(BUILD_DIR)
 
-forth:
-	@gcc -o forth forth.c
-
-midi_forth: $(LIBREMIDI_LIB) midi_forth.c
-	@gcc $(CFLAGS) -o midi_forth midi_forth.c $(LDFLAGS)
-
-$(LIBREMIDI_LIB): libremidi
-
-libremidi:
-	@mkdir -p $(LIBREMIDI_BUILD)
-	@cd $(LIBREMIDI_BUILD) && cmake .. -DCMAKE_BUILD_TYPE=Release -DLIBREMIDI_EXAMPLES=OFF -DLIBREMIDI_TESTS=OFF > /dev/null 2>&1
-	@$(MAKE) -C $(LIBREMIDI_BUILD) -j4 > /dev/null 2>&1
-	@echo "libremidi built"
+build: configure
+	@$(CMAKE) --build $(BUILD_DIR) -j4
 
 clean:
-	@rm -f forth midi_forth
-	@rm -rf $(LIBREMIDI_BUILD)
+	@rm -rf $(BUILD_DIR)
 
-test: midi_forth
-	@./tests/test_midi_forth.sh
+test: build
+	@$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure
+
+test-quick: build
+	@$(CTEST) --test-dir $(BUILD_DIR) -L quick --output-on-failure
+
+test-verbose: build
+	@$(CTEST) --test-dir $(BUILD_DIR) -V
+
+rebuild: clean build
+
+help:
+	@echo "Targets:"
+	@echo "  all          Build everything (default)"
+	@echo "  build        Build all targets"
+	@echo "  configure    Run CMake configuration"
+	@echo "  clean        Remove build directory"
+	@echo "  test         Run all tests"
+	@echo "  test-quick   Run quick tests only"
+	@echo "  test-verbose Run tests with verbose output"
+	@echo "  rebuild      Clean and build"
+	@echo ""
+	@echo "Executables (after build):"
+	@echo "  $(BUILD_DIR)/forth"
+	@echo "  $(BUILD_DIR)/midi_forth"
