@@ -23,6 +23,11 @@
 - [x] Program change (`pc`)
 - [x] Removed legacy note words (`C`, `D`, etc., `note-on`, `octave`)
 - [x] Error recovery (stack checks, `clear` word)
+- [x] Articulation suffixes (`c4.` staccato, `c4>` accent, `c4-` tenuto)
+- [x] Pitch bend (`pb`)
+- [x] Random number generator (`random`)
+- [x] Anonymous blocks (`{ ... } N *`)
+- [x] Conditionals (`if` `else` `then`)
 
 ---
 
@@ -159,26 +164,25 @@ c4, ^, v,               \ C4, C5, C4
 
 ---
 
-## Priority 4: Advanced
+## Priority 4: Advanced (COMPLETE)
 
 Extended features for complex compositions.
 
 ### Articulation
 
-- [ ] Staccato (reduced duration)
-- [ ] Accent (increased velocity)
-- [ ] Tenuto (full duration)
+- [x] Staccato (reduced duration) - suffix `.` on pitch name
+- [x] Accent (increased velocity) - suffix `>` on pitch name
+- [x] Tenuto (full duration) - suffix `-` on pitch name
 
 ```forth
-c4.,                    \ Staccato
-c4>,                    \ Accent
+c4.,                    \ Staccato (50% duration)
+c4>,                    \ Accent (+20 velocity)
+c4-,                    \ Tenuto (full duration)
 ```
-
-**Note**: May require tokenizer changes for suffixes.
 
 ### Pitch Bend
 
-- [ ] Implement `pb` word for pitch bend messages
+- [x] Implement `pb` word for pitch bend messages
 
 ```forth
 1 8192 pb               \ Center
@@ -187,19 +191,17 @@ c4>,                    \ Accent
 
 ### Anonymous Blocks
 
-- [ ] Implement `{ ... }` for deferred execution
-- [ ] Combine with multiplier for repetition
+- [x] Implement `{ ... }` for deferred execution
+- [x] Combine with `*` for repetition
 
 ```forth
 { c4, e4, g4, } 4 *
 ```
 
-**Note**: Less idiomatic than named word definitions.
-
 ### Conditionals
 
-- [ ] Implement `if` `else` `then`
-- [ ] Implement `random` word
+- [x] Implement `if` `else` `then`
+- [x] Implement `random` word
 
 ```forth
 : maybe-play
@@ -218,18 +220,25 @@ c4>,                    \ Accent
 
 ---
 
-## Documentation
+## Documentation (COMPLETE)
 
 - [x] `docs/syntax.md` - syntax reference
-- [ ] Update `CLAUDE.md` with new notation examples
-- [ ] Add tutorial/getting started guide
-- [ ] Document sequence system (`seq-*` words)
+- [x] Update `CLAUDE.md` with new notation examples
+- [x] `docs/tutorial.md` - getting started guide
+- [x] `docs/sequences.md` - sequence system documentation
 
 ---
 
-## Testing
+## Testing (COMPLETE)
 
-- [ ] Add automated tests for pitch parsing
-- [ ] Add tests for chord notation
-- [ ] Add tests for probability (statistical)
-- [ ] Add tests for word definitions (once implemented)
+- [x] Test infrastructure (`tests/test_midi_forth.sh`)
+- [x] Pitch parsing tests (notes, accidentals, octaves, articulation)
+- [x] Stack and arithmetic tests
+- [x] Word definition tests
+- [x] Conditional tests (if/else/then, nesting)
+- [x] Anonymous block tests
+- [x] Loop tests (times)
+- [x] Random and probability tests (statistical)
+- [x] Alternatives tests (using `pick` word)
+- [x] Packed note tests
+- [x] Error handling tests

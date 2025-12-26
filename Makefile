@@ -32,5 +32,4 @@ clean:
 	@rm -rf $(LIBREMIDI_BUILD)
 
 test: midi_forth
-	@echo "Testing midi_forth..."
-	@echo "midi-list" | ./midi_forth
+	@./tests/test_midi_forth.sh

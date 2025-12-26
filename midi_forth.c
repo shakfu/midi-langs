@@ -43,6 +43,24 @@ char current_definition_name[MAX_WORD_LENGTH];
 char current_definition_body[MAX_DEFINITION_LENGTH];
 int definition_body_len = 0;
 
+// Anonymous block state
+#define MAX_BLOCKS 32
+char* block_storage[MAX_BLOCKS];  // Storage for anonymous blocks
+int block_count = 0;
+int block_capture_mode = 0;       // 1 = capturing block content
+char current_block_body[MAX_DEFINITION_LENGTH];
+int block_body_len = 0;
+int block_nesting = 0;            // Track nested { }
+
+// Block marker on stack (high bit set to distinguish from other values)
+#define BLOCK_MARKER 0x40000000
+
+// Conditional execution state
+#define MAX_IF_NESTING 16
+int cond_skip_mode = 0;          // 1 = skipping tokens until else/then
+int cond_skip_nesting = 0;       // Track nested if within skip
+int cond_in_true_branch = 0;     // 1 = currently in true branch (skip at else)
+
 // Rest marker (sentinel value)
 #define REST_MARKER 0x7FFFFFFE
 
@@ -124,6 +142,10 @@ int default_channel = 1;      // 1-16
 int default_velocity = 80;    // 0-127
 int default_duration = 500;   // milliseconds
 int current_pitch = 60;       // Track last played pitch for relative intervals
+
+// Articulation flags (set by pitch parser, consumed by play)
+int articulation_staccato = 0;   // Reduce duration to 50%
+int articulation_accent = 0;     // Increase velocity by 20
 
 // Chord marker (sentinel value on stack)
 #define CHORD_MARKER 0x7FFFFFFF
@@ -583,6 +605,41 @@ void op_all_notes_off(Stack* stack) {
     }
 }
 
+// Pitch bend ( ch value -- ) value is 0-16383, center is 8192
+void op_pitch_bend(Stack* stack) {
+    if (stack->top < 1) {
+        printf("pb needs channel and value (0-16383)\n");
+        return;
+    }
+
+    int32_t value = pop(stack);
+    int32_t channel = pop(stack);
+
+    if (channel < 1 || channel > 16) {
+        printf("Channel must be 1-16\n");
+        return;
+    }
+    if (value < 0) value = 0;
+    if (value > 16383) value = 16383;
+
+    if (midi_out == NULL) {
+        printf("No MIDI output open\n");
+        return;
+    }
+
+    // Pitch bend is 14-bit: LSB (bits 0-6) then MSB (bits 7-13)
+    unsigned char msg[3];
+    msg[0] = 0xE0 | ((channel - 1) & 0x0F);
+    msg[1] = value & 0x7F;         // LSB
+    msg[2] = (value >> 7) & 0x7F;  // MSB
+    libremidi_midi_out_send_message(midi_out, msg, 3);
+}
+
+// Random ( -- n ) push random number 0-99
+void op_random(Stack* stack) {
+    push(stack, rand() % 100);
+}
+
 // ============================================================================
 // Concise Notation System
 // ============================================================================
@@ -677,6 +734,32 @@ void op_bracket_close(Stack* stack) {
     // No-op - comma will handle the explicit params
 }
 
+// Pick: select one alternative from ALT_MARKER group (for testing)
+// ( ALT_MARKER v1 v2 ... vn -- picked )
+void op_pick_alt(Stack* stack) {
+    // Find ALT_MARKER
+    int alt_pos = -1;
+    for (int i = stack->top; i >= 0; i--) {
+        if (stack->data[i] == ALT_MARKER) {
+            alt_pos = i;
+            break;
+        }
+    }
+    if (alt_pos < 0) {
+        // No alternatives, leave stack unchanged
+        return;
+    }
+    int alt_count = stack->top - alt_pos;
+    if (alt_count < 1) {
+        pop(stack);  // Remove marker
+        return;
+    }
+    int pick = rand() % alt_count;
+    int32_t picked = stack->data[alt_pos + 1 + pick];
+    stack->top = alt_pos - 1;
+    push(stack, picked);
+}
+
 // Probability: % pops probability (0-100), decides whether to keep the top value
 // If random >= probability, drop the top value (skip the note)
 void op_percent(Stack* stack) {
@@ -754,9 +837,21 @@ void op_program_change(Stack* stack) {
 }
 
 // Helper: play a single note with given params
+// Applies and resets articulation flags
 static void play_single_note(int channel, int pitch, int velocity, int duration) {
     // Always track current pitch for relative intervals
     current_pitch = pitch;
+
+    // Apply articulation
+    if (articulation_staccato) {
+        duration = duration / 2;  // 50% duration
+        articulation_staccato = 0;
+    }
+    if (articulation_accent) {
+        velocity = velocity + 20;
+        if (velocity > 127) velocity = 127;
+        articulation_accent = 0;
+    }
 
     if (midi_out == NULL) {
         printf("No MIDI output open\n");
@@ -796,10 +891,22 @@ static void play_single_note(int channel, int pitch, int velocity, int duration)
 }
 
 // Helper: play chord with given params
+// Applies and resets articulation flags
 static void play_chord_notes(int* pitches, int count, int channel, int velocity, int duration) {
     // Always track current pitch (use highest note in chord)
     if (count > 0) {
         current_pitch = pitches[count - 1];
+    }
+
+    // Apply articulation
+    if (articulation_staccato) {
+        duration = duration / 2;  // 50% duration
+        articulation_staccato = 0;
+    }
+    if (articulation_accent) {
+        velocity = velocity + 20;
+        if (velocity > 127) velocity = 127;
+        articulation_accent = 0;
     }
 
     if (midi_out == NULL) {
@@ -1548,6 +1655,34 @@ void op_arp_to_seq(Stack* stack) {
 // Forward declaration for execute_line (defined later)
 void execute_line(const char* input);
 
+// Block repeat ( block-id n -- ) execute block n times
+void op_block_repeat(Stack* stack) {
+    if (stack->top < 1) {
+        printf("* needs block and count\n");
+        return;
+    }
+    int32_t n = pop(stack);
+    int32_t block_id = pop(stack);
+
+    // Check if it's a valid block reference
+    if ((block_id & BLOCK_MARKER) != BLOCK_MARKER) {
+        // Not a block - treat as multiplication
+        push(stack, block_id * n);
+        return;
+    }
+
+    int idx = block_id & 0x0FFFFFFF;
+    if (idx < 0 || idx >= block_count || block_storage[idx] == NULL) {
+        printf("Invalid block reference\n");
+        return;
+    }
+
+    // Execute block n times
+    for (int i = 0; i < n; i++) {
+        execute_line(block_storage[idx]);
+    }
+}
+
 // times - repeat the last user-defined word N times
 void op_times(Stack* stack) {
     int32_t n = pop(stack);
@@ -1579,7 +1714,7 @@ void init_dictionary(void) {
     // Arithmetic
     add_word("+", op_plus, 1);
     add_word("-", op_minus, 1);
-    add_word("*", op_multiply, 1);
+    add_word("*", op_block_repeat, 1);  // Also handles multiplication
     add_word("/", op_divide, 1);
 
     // Stack manipulation
@@ -1634,6 +1769,7 @@ void init_dictionary(void) {
     add_word("[", op_bracket_open, 1);
     add_word("]", op_bracket_close, 1);
     add_word("%", op_percent, 1);
+    add_word("pick", op_pick_alt, 1);
 
     // Dynamics
     add_word("ppp", op_ppp, 1);
@@ -1649,6 +1785,10 @@ void init_dictionary(void) {
     add_word("^", op_octave_up, 1);
     add_word("v", op_octave_down, 1);
     add_word("pc", op_program_change, 1);
+
+    // Priority 4: Advanced
+    add_word("pb", op_pitch_bend, 1);
+    add_word("random", op_random, 1);
 
     // Phase 1: Packed notes
     add_word("note", op_note, 1);
@@ -1698,7 +1838,9 @@ void init_dictionary(void) {
 }
 
 // Parse pitch name like c4, C#4, Db5, etc.
+// Also handles articulation suffixes: c4. (staccato), c4> (accent), c4- (tenuto)
 // Returns MIDI note number (0-127) or -1 if not a valid pitch name
+// Sets global articulation flags as side effect
 int parse_pitch(const char* token) {
     int note = -1, accidental = 0, octave = -1;
     int i = 0;
@@ -1730,6 +1872,19 @@ int parse_pitch(const char* token) {
         i++;
     } else {
         return -1;
+    }
+
+    // Optional articulation suffix
+    if (token[i] == '.') {
+        articulation_staccato = 1;
+        i++;
+    } else if (token[i] == '>') {
+        articulation_accent = 1;
+        i++;
+    } else if (token[i] == '-') {
+        // Tenuto: full duration (clear staccato if set, no other effect)
+        articulation_staccato = 0;
+        i++;
     }
 
     // Must be end of token
@@ -1806,7 +1961,22 @@ void execute_word(const char* word) {
 
 // Check if character is a special single-char token
 static int is_special_char(char c) {
-    return c == ',' || c == '(' || c == ')' || c == '|' || c == '[' || c == ']' || c == '%';
+    return c == ',' || c == '(' || c == ')' || c == '|' || c == '[' || c == ']' || c == '%'
+        || c == '{' || c == '}';
+}
+
+// Append a word to the current block body
+static void append_to_block(const char* word) {
+    int len = strlen(word);
+    if (block_body_len + len + 2 >= MAX_DEFINITION_LENGTH) {
+        printf("Block too long\n");
+        return;
+    }
+    if (block_body_len > 0) {
+        current_block_body[block_body_len++] = ' ';
+    }
+    strcpy(current_block_body + block_body_len, word);
+    block_body_len += len;
 }
 
 // Append a word to the current definition body
@@ -1897,6 +2067,113 @@ void execute_line(const char* input) {
             continue;
         }
 
+        // Handle block capture mode
+        if (block_capture_mode) {
+            if (strcmp(word, "{") == 0) {
+                // Nested block - just accumulate the braces
+                block_nesting++;
+                append_to_block(word);
+            } else if (strcmp(word, "}") == 0) {
+                if (block_nesting > 0) {
+                    // Closing a nested block
+                    block_nesting--;
+                    append_to_block(word);
+                } else {
+                    // End of this block - store it and push reference
+                    current_block_body[block_body_len] = '\0';
+                    if (block_count >= MAX_BLOCKS) {
+                        printf("Too many blocks\n");
+                        block_capture_mode = 0;
+                    } else {
+                        block_storage[block_count] = strdup(current_block_body);
+                        push(&stack, BLOCK_MARKER | block_count);
+                        block_count++;
+                    }
+                    block_capture_mode = 0;
+                    block_body_len = 0;
+                }
+            } else {
+                append_to_block(word);
+            }
+            continue;
+        }
+
+        // Interpret mode: check for block start
+        if (strcmp(word, "{") == 0) {
+            block_capture_mode = 1;
+            block_nesting = 0;
+            block_body_len = 0;
+            current_block_body[0] = '\0';
+            continue;
+        }
+
+        if (strcmp(word, "}") == 0) {
+            printf("Unexpected '}' outside of block\n");
+            continue;
+        }
+
+        // Handle conditional skip mode
+        if (cond_skip_mode) {
+            if (strcmp(word, "if") == 0) {
+                // Nested if within skip - track depth
+                cond_skip_nesting++;
+            } else if (strcmp(word, "then") == 0) {
+                if (cond_skip_nesting > 0) {
+                    cond_skip_nesting--;
+                } else {
+                    // End of skip - resume normal execution
+                    cond_skip_mode = 0;
+                    cond_in_true_branch = 0;
+                }
+            } else if (strcmp(word, "else") == 0) {
+                if (cond_skip_nesting == 0) {
+                    // At our level - if we were skipping false branch, now execute
+                    // if we were in true branch, keep skipping
+                    if (!cond_in_true_branch) {
+                        cond_skip_mode = 0;  // Start executing the else branch
+                    }
+                    // Note: if cond_in_true_branch, we keep skipping until then
+                }
+            }
+            // Skip all other tokens
+            continue;
+        }
+
+        // Handle if/else/then
+        if (strcmp(word, "if") == 0) {
+            if (stack.top < 0) {
+                printf("if needs a condition on stack\n");
+                continue;
+            }
+            int32_t cond = pop(&stack);
+            if (cond == 0) {
+                // False - skip to else or then
+                cond_skip_mode = 1;
+                cond_skip_nesting = 0;
+                cond_in_true_branch = 0;
+            } else {
+                // True - execute until else or then
+                cond_in_true_branch = 1;
+            }
+            continue;
+        }
+
+        if (strcmp(word, "else") == 0) {
+            // If we get here, we were in the true branch - skip to then
+            if (cond_in_true_branch) {
+                cond_skip_mode = 1;
+                cond_skip_nesting = 0;
+            }
+            // else: we already executed false branch via skip logic
+            continue;
+        }
+
+        if (strcmp(word, "then") == 0) {
+            // End of conditional - reset state
+            cond_in_true_branch = 0;
+            continue;
+        }
+
         // Interpret mode
         if (strcmp(word, ":") == 0) {
             // Start a new definition
@@ -1959,6 +2236,16 @@ void print_help(void) {
     printf("  c4, ^, v,               Plays C4, C5, C4\n");
     printf("  pc ( ch prog -- )       Program/instrument change\n");
 
+    printf("\nAdvanced:\n");
+    printf("  c4.,                    Staccato (50%% duration)\n");
+    printf("  c4>,                    Accent (+20 velocity)\n");
+    printf("  c4-,                    Tenuto (full duration)\n");
+    printf("  pb ( ch val -- )        Pitch bend (0-16383, center=8192)\n");
+    printf("  random ( -- n )         Push random number 0-99\n");
+    printf("  { c4, e4, } 4 *         Anonymous block, repeat 4 times\n");
+    printf("  flag if ... then        Conditional execution\n");
+    printf("  flag if ... else ... then   If-else conditional\n");
+
     printf("\nMIDI Output:\n");
     printf("  midi-list               List available MIDI output ports\n");
     printf("  midi-open ( n -- )      Open MIDI output port by index\n");
@@ -1998,6 +2285,9 @@ void print_help(void) {
     printf("  c4, r, e4, r, g4,\n");
     printf("  mf c4|e4|g4, c4|e4|g4,   Random note selection\n");
     printf("  : maybe c4 50%%, ; maybe 8 times\n");
+    printf("  c4., e4>, g4,            Staccato, accent, normal\n");
+    printf("  { c4., e4., g4., } 4 *   Anonymous block, repeat 4x\n");
+    printf("  : coin random 50 > if c4, else e4, then ;\n");
 }
 
 // Interactive interpreter loop
