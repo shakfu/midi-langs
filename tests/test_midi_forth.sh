@@ -328,6 +328,141 @@ test_number "dur@" "60 80 1 480 note dur@ ." "480"
 echo ""
 
 # ============================================
+echo "--- File Loading ---"
+# ============================================
+
+# Create temp test files
+TMPDIR=$(mktemp -d)
+trap "rm -rf $TMPDIR" EXIT
+
+cat > "$TMPDIR/simple.4th" << 'EOF'
+\ Simple test file
+: double 2 * ;
+42 double .
+EOF
+
+cat > "$TMPDIR/inner.4th" << 'EOF'
+\ Inner file
+: add3 3 + ;
+EOF
+
+cat > "$TMPDIR/outer.4th" << 'EOF'
+\ Outer file - loads inner
+load INNER_PATH
+10 add3 .
+EOF
+# Substitute actual path
+sed -i.bak "s|INNER_PATH|$TMPDIR/inner.4th|" "$TMPDIR/outer.4th"
+
+test_contains "load simple file" "load $TMPDIR/simple.4th" "84"
+test_contains "load nested files" "load $TMPDIR/outer.4th" "13"
+test_contains "load missing file" "load /nonexistent/file.4th" "cannot open file"
+
+echo ""
+
+# ============================================
+echo "--- Recording ---"
+# ============================================
+
+# Test recording start message
+test_contains "rec starts recording" "rec" "Recording started"
+
+# Test stop message
+TOTAL=$((TOTAL + 1))
+output=$(printf 'rec\n: test 42 ;\nstop\n' | $MIDI_FORTH 2>&1)
+if echo "$output" | grep -q "Recording stopped. 1 lines"; then
+    echo -e "${GREEN}PASS${NC}: stop shows line count"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: stop shows line count"
+    echo "  Got: $output"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test save creates file
+TOTAL=$((TOTAL + 1))
+rm -f "$TMPDIR/saved.4th"
+printf 'rec\n: triple 3 * ;\nstop\nsave %s/saved.4th\n' "$TMPDIR" | $MIDI_FORTH > /dev/null 2>&1
+if [ -f "$TMPDIR/saved.4th" ]; then
+    echo -e "${GREEN}PASS${NC}: save creates file"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: save creates file"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test saved file can be loaded and executed
+TOTAL=$((TOTAL + 1))
+output=$(printf 'load %s/saved.4th\n10 triple .\n' "$TMPDIR" | $MIDI_FORTH 2>&1)
+if echo "$output" | grep -q "30"; then
+    echo -e "${GREEN}PASS${NC}: saved file loads and runs"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: saved file loads and runs"
+    echo "  Got: $output"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test control commands not recorded
+TOTAL=$((TOTAL + 1))
+rm -f "$TMPDIR/control.4th"
+printf 'rec\nload %s/simple.4th\nstop\nsave %s/control.4th\n' "$TMPDIR" "$TMPDIR" | $MIDI_FORTH > /dev/null 2>&1
+if grep -q "load" "$TMPDIR/control.4th" 2>/dev/null; then
+    echo -e "${RED}FAIL${NC}: control commands not recorded (load was recorded)"
+    FAILED=$((FAILED + 1))
+else
+    echo -e "${GREEN}PASS${NC}: control commands not recorded"
+    PASSED=$((PASSED + 1))
+fi
+
+echo ""
+
+# ============================================
+echo "--- MIDI Capture ---"
+# ============================================
+
+# Test capture start message
+test_contains "capture starts" "capture" "MIDI capture started"
+
+# Test capture stop shows event count
+TOTAL=$((TOTAL + 1))
+output=$(printf 'midi-virtual\ncapture\n100 dur!\nc4,\nstop\nmidi-close\n' | $MIDI_FORTH 2>&1)
+if echo "$output" | grep -q "2 events captured"; then
+    echo -e "${GREEN}PASS${NC}: capture stop shows event count"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: capture stop shows event count"
+    echo "  Got: $output"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test save-midi creates file with sequence commands
+TOTAL=$((TOTAL + 1))
+rm -f "$TMPDIR/captured.4th"
+printf 'midi-virtual\ncapture\n100 dur!\nc4,\ne4,\nstop\nsave-midi %s/captured.4th\nmidi-close\n' "$TMPDIR" | $MIDI_FORTH > /dev/null 2>&1
+if [ -f "$TMPDIR/captured.4th" ] && grep -q "seq-note-ch" "$TMPDIR/captured.4th"; then
+    echo -e "${GREEN}PASS${NC}: save-midi creates sequence file"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: save-midi creates sequence file"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test captured file can be loaded and sequence shown
+TOTAL=$((TOTAL + 1))
+output=$(printf 'load %s/captured.4th\nseq-show\n' "$TMPDIR" | $MIDI_FORTH 2>&1)
+if echo "$output" | grep -q "Sequence 0:" && echo "$output" | grep -q "ON"; then
+    echo -e "${GREEN}PASS${NC}: captured file loads as sequence"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: captured file loads as sequence"
+    echo "  Got: $output"
+    FAILED=$((FAILED + 1))
+fi
+
+echo ""
+
+# ============================================
 echo "--- Error Handling ---"
 # ============================================
 

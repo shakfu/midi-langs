@@ -1,4 +1,4 @@
-# Forth
+# midi-forth
 
 A Forth-like interpreter with MIDI capabilities for generating and transforming MIDI sequences.
 
