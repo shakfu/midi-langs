@@ -3,10 +3,6 @@
 # Build directory
 build/
 
-# Old binary locations (now in build/)
-forth
-midi_forth
-
 # Prerequisites
 *.d
 
