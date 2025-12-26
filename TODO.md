@@ -14,6 +14,10 @@
 - [x] Word definitions (`: name ... ;`)
 - [x] Rests (`r`, `r 250,`)
 - [x] Loops (`name N times`)
+- [x] Probability (`c4 75%,`)
+- [x] Alternatives (`c4|e4|g4,`)
+- [x] Dynamics (`ppp` through `fff`)
+- [x] Explicit brackets (`[1 c4 100 500],`)
 
 ---
 
@@ -60,14 +64,14 @@ phrase 4 times
 
 ---
 
-## Priority 2: Generative / Expression
+## Priority 2: Generative / Expression (COMPLETE)
 
 Enable generative music and expressive notation.
 
 ### Probability with `%`
 
-- [ ] Implement `%` as probabilistic play trigger
-- [ ] Pops probability (0-100), plays if random < probability
+- [x] Implement `%` as probabilistic play trigger
+- [x] Pops probability (0-100), plays if random < probability
 
 ```forth
 c4 75%,                 \ 75% chance to play
@@ -76,8 +80,8 @@ c4, e4 50%, g4,         \ C always, E maybe, G always
 
 ### Alternatives with `|`
 
-- [ ] Tokenizer treats `|` as word boundary
-- [ ] Implement alternative selection (equal probability)
+- [x] Tokenizer treats `|` as word boundary
+- [x] Implement alternative selection (equal probability)
 
 ```forth
 c4|e4,                  \ 50% C4, 50% E4
@@ -87,8 +91,8 @@ c4|r,                   \ 50% play, 50% silence
 
 ### Dynamics
 
-- [ ] Implement velocity presets: `ppp` `pp` `p` `mp` `mf` `f` `ff` `fff`
-- [ ] Each sets `default_velocity`
+- [x] Implement velocity presets: `ppp` `pp` `p` `mp` `mf` `f` `ff` `fff`
+- [x] Each sets `default_velocity`
 
 ```forth
 mf c4, e4, ff g4,
@@ -107,9 +111,9 @@ mf c4, e4, ff g4,
 
 ### Square Brackets for Explicit Form
 
-- [ ] Tokenizer treats `[` `]` as word boundaries
-- [ ] `[` pushes marker, `]` is no-op
-- [ ] `,` detects bracket marker for explicit params
+- [x] Tokenizer treats `[` `]` as word boundaries
+- [x] `[` pushes marker, `]` is no-op
+- [x] `,` detects bracket marker for explicit params
 
 ```forth
 [1 c4 100 500],

@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <time.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -125,6 +126,8 @@ int default_duration = 500;   // milliseconds
 
 // Chord marker (sentinel value on stack)
 #define CHORD_MARKER 0x7FFFFFFF
+#define ALT_MARKER   0x7FFFFFFD    // Start of alternatives group
+#define EXPLICIT_MARKER 0x7FFFFFFC // Explicit parameter mode
 
 // Stack operations
 void push(Stack* s, int32_t value) {
@@ -702,6 +705,79 @@ void op_chord_close(Stack* stack) {
     // We leave the pitches and marker on the stack
 }
 
+// Alternative grouping with |
+// First | after a value: push ALT_MARKER before the value
+// Subsequent |: just continue (values accumulate on stack)
+void op_pipe(Stack* stack) {
+    if (stack->top < 0) {
+        printf("Stack empty for |\n");
+        return;
+    }
+
+    // Check if we already have an ALT_MARKER in the stack
+    int has_alt_marker = 0;
+    for (int i = stack->top; i >= 0; i--) {
+        if (stack->data[i] == ALT_MARKER) {
+            has_alt_marker = 1;
+            break;
+        }
+        // Stop at other markers (chord, explicit)
+        if (stack->data[i] == CHORD_MARKER || stack->data[i] == EXPLICIT_MARKER) {
+            break;
+        }
+    }
+
+    if (!has_alt_marker) {
+        // First | - insert ALT_MARKER before the top value
+        int32_t top_val = pop(stack);
+        push(stack, ALT_MARKER);
+        push(stack, top_val);
+    }
+    // Otherwise, just continue - next value will be pushed by following word
+}
+
+// Explicit parameter brackets
+void op_bracket_open(Stack* stack) {
+    push(stack, EXPLICIT_MARKER);
+}
+
+void op_bracket_close(Stack* stack) {
+    // No-op - comma will handle the explicit params
+}
+
+// Probability: % pops probability (0-100), decides whether to keep the top value
+// If random >= probability, drop the top value (skip the note)
+void op_percent(Stack* stack) {
+    if (stack->top < 1) {  // Need at least probability and a value
+        printf("Stack needs value and probability for %%\n");
+        return;
+    }
+
+    int32_t probability = pop(stack);
+    if (probability < 0) probability = 0;
+    if (probability > 100) probability = 100;
+
+    int32_t roll = rand() % 100;  // 0-99
+
+    if (roll >= probability) {
+        // Failed probability check - drop the value
+        pop(stack);
+        // Push a "skip" marker so comma knows not to play
+        push(stack, REST_MARKER);  // Treat as rest (silence)
+    }
+    // Otherwise, leave the value on stack to be played
+}
+
+// Dynamics - set default velocity
+void op_ppp(Stack* stack) { (void)stack; default_velocity = 16; }
+void op_pp(Stack* stack)  { (void)stack; default_velocity = 32; }
+void op_p(Stack* stack)   { (void)stack; default_velocity = 48; }
+void op_mp(Stack* stack)  { (void)stack; default_velocity = 64; }
+void op_mf(Stack* stack)  { (void)stack; default_velocity = 80; }
+void op_f(Stack* stack)   { (void)stack; default_velocity = 96; }
+void op_ff(Stack* stack)  { (void)stack; default_velocity = 112; }
+void op_fff(Stack* stack) { (void)stack; default_velocity = 127; }
+
 // Helper: play a single note with given params
 static void play_single_note(int channel, int pitch, int velocity, int duration) {
     if (midi_out == NULL) {
@@ -784,18 +860,61 @@ void op_comma(Stack* stack) {
         return;
     }
 
-    // Count items and find chord marker
+    // First, check for alternatives (ALT_MARKER)
+    // Stack could be: ALT_MARKER v1 v2 v3 ... (pick one randomly)
+    int alt_pos = -1;
+    for (int i = stack->top; i >= 0; i--) {
+        if (stack->data[i] == ALT_MARKER) {
+            alt_pos = i;
+            break;
+        }
+        // Stop at other markers
+        if (stack->data[i] == CHORD_MARKER || stack->data[i] == EXPLICIT_MARKER) {
+            break;
+        }
+    }
+
+    if (alt_pos >= 0) {
+        // Alternatives mode: pick one randomly
+        int alt_count = stack->top - alt_pos;  // number of alternatives
+        if (alt_count < 1) {
+            printf("Empty alternatives\n");
+            pop(stack);  // Remove marker
+            return;
+        }
+
+        // Pick random index
+        int pick = rand() % alt_count;
+
+        // Get the picked value (index from alt_pos + 1)
+        int32_t picked = stack->data[alt_pos + 1 + pick];
+
+        // Clear all alternatives and marker from stack
+        stack->top = alt_pos - 1;
+
+        // Push the picked value back
+        push(stack, picked);
+
+        // Continue to process the single picked value (fall through)
+    }
+
+    // Count items and find markers
     int count = 0;
-    int marker_pos = -1;
+    int chord_pos = -1;
+    int explicit_pos = -1;
     for (int i = stack->top; i >= 0; i--) {
         if (stack->data[i] == CHORD_MARKER) {
-            marker_pos = i;
+            chord_pos = i;
+            break;
+        }
+        if (stack->data[i] == EXPLICIT_MARKER) {
+            explicit_pos = i;
             break;
         }
         count++;
     }
 
-    if (marker_pos >= 0) {
+    if (chord_pos >= 0) {
         // Chord mode: marker found
         // Stack could be: MARKER p1 p2 p3 ,           (defaults)
         //             or: MARKER p1 p2 p3 ch vel dur , (explicit)
@@ -851,6 +970,21 @@ void op_comma(Stack* stack) {
         pop(stack);
 
         play_chord_notes(pitches, pitch_count, channel, velocity, duration);
+    } else if (explicit_pos >= 0) {
+        // Explicit mode with [ ] brackets
+        // Stack: EXPLICIT_MARKER ch pitch vel dur
+        if (count != 4) {
+            printf("Explicit mode [ch pitch vel dur] requires exactly 4 values, got %d\n", count);
+            // Clean up
+            while (stack->top >= explicit_pos) pop(stack);
+            return;
+        }
+        int duration = pop(stack);
+        int velocity = pop(stack);
+        int pitch = pop(stack);
+        int channel = pop(stack);
+        pop(stack);  // Remove EXPLICIT_MARKER
+        play_single_note(channel, pitch, velocity, duration);
     } else {
         // Single note mode
         if (count == 1) {
@@ -1522,6 +1656,22 @@ void init_dictionary(void) {
     add_word("r", op_rest, 1);
     add_word("times", op_times, 1);
 
+    // Priority 2: Generative / Expression
+    add_word("|", op_pipe, 1);
+    add_word("[", op_bracket_open, 1);
+    add_word("]", op_bracket_close, 1);
+    add_word("%", op_percent, 1);
+
+    // Dynamics
+    add_word("ppp", op_ppp, 1);
+    add_word("pp", op_pp, 1);
+    add_word("p", op_p, 1);
+    add_word("mp", op_mp, 1);
+    add_word("mf", op_mf, 1);
+    add_word("f", op_f, 1);
+    add_word("ff", op_ff, 1);
+    add_word("fff", op_fff, 1);
+
     // Phase 1: Packed notes
     add_word("note", op_note, 1);
     add_word("pitch@", op_pitch_fetch, 1);
@@ -1673,7 +1823,7 @@ void execute_word(const char* word) {
 
 // Check if character is a special single-char token
 static int is_special_char(char c) {
-    return c == ',' || c == '(' || c == ')';
+    return c == ',' || c == '(' || c == ')' || c == '|' || c == '[' || c == ']' || c == '%';
 }
 
 // Append a word to the current definition body
@@ -1806,6 +1956,17 @@ void print_help(void) {
     printf("  name                    Execute the word\n");
     printf("  name N times            Execute word N times total\n");
 
+    printf("\nGenerative / Expression:\n");
+    printf("  c4|e4,                  Alternative (50%% each)\n");
+    printf("  c4|e4|g4,               Alternative (33%% each)\n");
+    printf("  c4|r,                   50%% play, 50%% silence\n");
+    printf("  c4 75%%,                 75%% chance to play\n");
+    printf("  [1 c4 100 500],         Explicit params with brackets\n");
+
+    printf("\nDynamics:\n");
+    printf("  ppp pp p mp mf f ff fff Set velocity (16-127)\n");
+    printf("  mf c4, ff g4,           Change dynamics inline\n");
+
     printf("\nMIDI Output:\n");
     printf("  midi-list               List available MIDI output ports\n");
     printf("  midi-open ( n -- )      Open MIDI output port by index\n");
@@ -1843,6 +2004,8 @@ void print_help(void) {
     printf("  midi-virtual (c4 e4 g4),\n");
     printf("  : melody c4, e4, g4, ; melody 4 times\n");
     printf("  c4, r, e4, r, g4,\n");
+    printf("  mf c4|e4|g4, c4|e4|g4,   Random note selection\n");
+    printf("  : maybe c4 50%%, ; maybe 8 times\n");
 }
 
 // Interactive interpreter loop
@@ -1906,6 +2069,9 @@ void cleanup_midi(void) {
 }
 
 int main(void) {
+    // Seed random number generator
+    srand((unsigned int)time(NULL));
+
     // Initialize stack
     stack.top = -1;
 
