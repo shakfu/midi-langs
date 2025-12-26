@@ -31,8 +31,22 @@ typedef struct {
 typedef struct {
     char name[MAX_WORD_LENGTH];
     void (*function)(Stack* stack);
-    int is_primitive;
+    char* body;             // For user-defined words: the token string
+    int is_primitive;       // 1 = C function, 0 = user-defined
 } Word;
+
+// Compile mode state
+#define MAX_DEFINITION_LENGTH 4096
+int compile_mode = 0;
+char current_definition_name[MAX_WORD_LENGTH];
+char current_definition_body[MAX_DEFINITION_LENGTH];
+int definition_body_len = 0;
+
+// Rest marker (sentinel value)
+#define REST_MARKER 0x7FFFFFFE
+
+// Track last executed word for 'times' loop
+char last_executed_word[MAX_WORD_LENGTH] = "";
 
 // ============================================================================
 // Phase 1: Packed Note Format
@@ -155,7 +169,37 @@ void add_word(const char* name, void (*function)(Stack* stack), int is_primitive
 
     strcpy(dictionary[dict_count].name, name);
     dictionary[dict_count].function = function;
+    dictionary[dict_count].body = NULL;
     dictionary[dict_count].is_primitive = is_primitive;
+    dict_count++;
+}
+
+// Add a user-defined word
+void add_user_word(const char* name, const char* body) {
+    if (dict_count >= MAX_WORDS) {
+        printf("Dictionary full!\n");
+        return;
+    }
+
+    // Check if word already exists and warn
+    int existing = find_word(name);
+    if (existing >= 0) {
+        printf("Warning: redefining '%s'\n", name);
+        // Free old body if it was user-defined
+        if (!dictionary[existing].is_primitive && dictionary[existing].body) {
+            free(dictionary[existing].body);
+        }
+        // Reuse the slot
+        dictionary[existing].function = NULL;
+        dictionary[existing].body = strdup(body);
+        dictionary[existing].is_primitive = 0;
+        return;
+    }
+
+    strcpy(dictionary[dict_count].name, name);
+    dictionary[dict_count].function = NULL;
+    dictionary[dict_count].body = strdup(body);
+    dictionary[dict_count].is_primitive = 0;
     dict_count++;
 }
 
@@ -812,7 +856,26 @@ void op_comma(Stack* stack) {
         if (count == 1) {
             // Defaults: just pitch on stack
             int pitch = pop(stack);
-            play_single_note(default_channel, pitch, default_velocity, default_duration);
+            if (pitch == REST_MARKER) {
+                // Rest: just sleep
+                if (default_duration > 0) {
+                    usleep(default_duration * 1000);
+                }
+            } else {
+                play_single_note(default_channel, pitch, default_velocity, default_duration);
+            }
+        } else if (count == 2) {
+            // Could be: r dur, (rest with explicit duration)
+            int dur_or_pitch = pop(stack);
+            int first = pop(stack);
+            if (first == REST_MARKER) {
+                // Rest with explicit duration
+                if (dur_or_pitch > 0) {
+                    usleep(dur_or_pitch * 1000);
+                }
+            } else {
+                printf("Invalid note: expected 1 (pitch) or 4 (ch pitch vel dur) items, got 2\n");
+            }
         } else if (count == 4) {
             // Explicit: ch pitch vel dur
             int duration = pop(stack);
@@ -824,6 +887,11 @@ void op_comma(Stack* stack) {
             printf("Invalid note: expected 1 (pitch) or 4 (ch pitch vel dur) items, got %d\n", count);
         }
     }
+}
+
+// Rest - push rest marker
+void op_rest(Stack* stack) {
+    push(stack, REST_MARKER);
 }
 
 // ============================================================================
@@ -1370,6 +1438,35 @@ void op_octave(Stack* stack) {
     push(stack, pc + (oct + 1) * 12);
 }
 
+// Forward declaration for execute_line (defined later)
+void execute_line(const char* input);
+
+// times - repeat the last user-defined word N times
+void op_times(Stack* stack) {
+    int32_t n = pop(stack);
+    if (n <= 0) return;
+
+    if (last_executed_word[0] == '\0') {
+        printf("No word to repeat\n");
+        return;
+    }
+
+    int index = find_word(last_executed_word);
+    if (index < 0) {
+        printf("Word '%s' not found\n", last_executed_word);
+        return;
+    }
+
+    // Already executed once, so repeat n-1 more times
+    for (int i = 1; i < n; i++) {
+        if (dictionary[index].is_primitive) {
+            dictionary[index].function(stack);
+        } else if (dictionary[index].body) {
+            execute_line(dictionary[index].body);
+        }
+    }
+}
+
 // Initialize the dictionary with primitive words
 void init_dictionary(void) {
     // Arithmetic
@@ -1422,6 +1519,8 @@ void init_dictionary(void) {
     add_word("ch!", op_ch_store, 1);
     add_word("vel!", op_vel_store, 1);
     add_word("dur!", op_dur_store, 1);
+    add_word("r", op_rest, 1);
+    add_word("times", op_times, 1);
 
     // Phase 1: Packed notes
     add_word("note", op_note, 1);
@@ -1548,19 +1647,72 @@ void execute_word(const char* word) {
         return;
     }
 
-    // Execute the function for this word
-    dictionary[index].function(&stack);
+    // Store the word name for 'times' loop (only for user-defined words)
+    if (!dictionary[index].is_primitive) {
+        strcpy(last_executed_word, word);
+    }
+
+    // Execute the word
+    if (dictionary[index].is_primitive) {
+        // Primitive: call the C function
+        dictionary[index].function(&stack);
+    } else {
+        // User-defined: execute the body
+        if (dictionary[index].body) {
+            int initial_depth = stack.top;
+            execute_line(dictionary[index].body);
+            int final_depth = stack.top;
+            if (final_depth > initial_depth) {
+                printf("Note: '%s' left %d item(s) on stack\n",
+                       word, final_depth - initial_depth);
+            }
+        }
+    }
 }
+
 
 // Check if character is a special single-char token
 static int is_special_char(char c) {
     return c == ',' || c == '(' || c == ')';
 }
 
+// Append a word to the current definition body
+static void append_to_definition(const char* word) {
+    int len = strlen(word);
+    if (definition_body_len + len + 2 >= MAX_DEFINITION_LENGTH) {
+        printf("Definition too long\n");
+        return;
+    }
+    if (definition_body_len > 0) {
+        current_definition_body[definition_body_len++] = ' ';
+    }
+    strcpy(current_definition_body + definition_body_len, word);
+    definition_body_len += len;
+}
+
+// End compilation and register the word
+static void end_definition(void) {
+    if (!compile_mode) {
+        printf("Not in compile mode\n");
+        return;
+    }
+
+    current_definition_body[definition_body_len] = '\0';
+
+    // Register the word
+    add_user_word(current_definition_name, current_definition_body);
+
+    // Reset compile state
+    compile_mode = 0;
+    current_definition_name[0] = '\0';
+    definition_body_len = 0;
+}
+
 // Parse and execute a command line
 void execute_line(const char* input) {
     char word[MAX_WORD_LENGTH];
     int i = 0;
+    int awaiting_name = 0;  // After seeing ':', next word is the name
 
     while (input[i] != '\0') {
         // Skip whitespace
@@ -1570,29 +1722,62 @@ void execute_line(const char* input) {
 
         if (input[i] == '\0') break;
 
+        // Extract the word
+        int start = i;
+        int len = 0;
+
         // Special single-character tokens: , ( )
         if (is_special_char(input[i])) {
             word[0] = input[i];
             word[1] = '\0';
+            len = 1;
             i++;
-            execute_word(word);
+        } else {
+            // Regular word (until whitespace or special char)
+            while (!isspace(input[i]) && input[i] != '\0' && !is_special_char(input[i])) {
+                i++;
+            }
+            len = i - start;
+            if (len >= MAX_WORD_LENGTH) {
+                printf("Word too long\n");
+                return;
+            }
+            strncpy(word, input + start, len);
+            word[len] = '\0';
+        }
+
+        // Handle compile mode
+        if (awaiting_name) {
+            // This word is the name of the definition
+            strcpy(current_definition_name, word);
+            awaiting_name = 0;
             continue;
         }
 
-        // Extract next word (until whitespace or special char)
-        int start = i;
-        while (!isspace(input[i]) && input[i] != '\0' && !is_special_char(input[i])) {
-            i++;
+        if (compile_mode) {
+            // In compile mode: check for ';' or accumulate
+            if (strcmp(word, ";") == 0) {
+                end_definition();
+            } else {
+                append_to_definition(word);
+            }
+            continue;
         }
 
-        int len = i - start;
-        if (len >= MAX_WORD_LENGTH) {
-            printf("Word too long\n");
-            return;
+        // Interpret mode
+        if (strcmp(word, ":") == 0) {
+            // Start a new definition
+            compile_mode = 1;
+            awaiting_name = 1;
+            definition_body_len = 0;
+            current_definition_body[0] = '\0';
+            continue;
         }
 
-        strncpy(word, input + start, len);
-        word[len] = '\0';
+        if (strcmp(word, ";") == 0) {
+            printf("Unexpected ';' outside of definition\n");
+            continue;
+        }
 
         // Execute the word
         execute_word(word);
@@ -1609,10 +1794,17 @@ void print_help(void) {
     printf("  (c4 e4 g4),             Chord (concurrent)\n");
     printf("  1 c4 100 500,           Explicit: ch pitch vel dur\n");
     printf("  (c4 e4 g4) 1 80 500,    Chord with explicit params\n");
+    printf("  r,                      Rest (silence) with default duration\n");
+    printf("  r 250,                  Rest with explicit duration\n");
     printf("\n");
     printf("  ch!  ( n -- )           Set default channel (1-16)\n");
     printf("  vel! ( n -- )           Set default velocity (0-127)\n");
     printf("  dur! ( n -- )           Set default duration (ms)\n");
+
+    printf("\nWord Definitions:\n");
+    printf("  : name ... ;            Define a new word\n");
+    printf("  name                    Execute the word\n");
+    printf("  name N times            Execute word N times total\n");
 
     printf("\nMIDI Output:\n");
     printf("  midi-list               List available MIDI output ports\n");
@@ -1649,7 +1841,8 @@ void print_help(void) {
     printf("\nExamples:\n");
     printf("  midi-virtual c4, e4, g4,\n");
     printf("  midi-virtual (c4 e4 g4),\n");
-    printf("  100 vel! 250 dur! c4, d4, e4,\n");
+    printf("  : melody c4, e4, g4, ; melody 4 times\n");
+    printf("  c4, r, e4, r, g4,\n");
 }
 
 // Interactive interpreter loop

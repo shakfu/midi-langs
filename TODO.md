@@ -11,20 +11,23 @@
 - [x] MIDI output (virtual and hardware ports)
 - [x] Control change messages (`cc`)
 - [x] Panic / all notes off
+- [x] Word definitions (`: name ... ;`)
+- [x] Rests (`r`, `r 250,`)
+- [x] Loops (`name N times`)
 
 ---
 
-## Priority 1: Core
+## Priority 1: Core (COMPLETE)
 
 Foundation for composition and reuse.
 
 ### Word Definitions
 
-- [ ] Implement `: ... ;` colon definitions
-- [ ] Compile mode vs interpret mode
-- [ ] Store word body as token list
-- [ ] Execute user-defined words by interpreting stored tokens
-- [ ] Warn if stack not empty after `;` (catches missing trailing comma)
+- [x] Implement `: ... ;` colon definitions
+- [x] Compile mode vs interpret mode
+- [x] Store word body as token list
+- [x] Execute user-defined words by interpreting stored tokens
+- [x] Warn if stack not empty after `;` (runtime check when word is executed)
 
 ```forth
 : cmaj (c4 e4 g4), ;
@@ -32,13 +35,14 @@ Foundation for composition and reuse.
 cmaj melody
 
 : broken c4, e4, g4, c5 ;
-Warning: definition 'broken' ended with 1 item(s) on stack
+broken
+Note: 'broken' left 1 item(s) on stack
 ```
 
 ### Rests
 
-- [ ] Implement `r` as rest (silence for default duration)
-- [ ] Support explicit duration: `r 250,`
+- [x] Implement `r` as rest (silence for default duration)
+- [x] Support explicit duration: `r 250,`
 
 ```forth
 c4, r, e4, r, g4,
@@ -46,8 +50,8 @@ c4, r, e4, r, g4,
 
 ### Loops
 
-- [ ] Implement `do ... loop` or simpler `times` word
-- [ ] Depends on word definitions
+- [x] Implement `times` word
+- [x] Works with user-defined words
 
 ```forth
 : phrase c4, e4, g4, ;
