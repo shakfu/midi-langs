@@ -27,4 +27,6 @@ elseif(UNIX)
     endif()
 endif()
 
+add_strip_command(midi_forth)
+
 install(TARGETS midi_forth RUNTIME DESTINATION bin)

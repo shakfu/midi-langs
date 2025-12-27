@@ -1,0 +1,215 @@
+#!/bin/bash
+# Test suite for lua_midi
+
+set -e
+
+LUAMIDI=${1:-./build/lua_midi}
+
+echo "Testing lua_midi..."
+
+# Test 1: Basic evaluation
+echo "Test 1: Basic evaluation..."
+result=$($LUAMIDI -e 'print(1 + 2)')
+[ "$result" = "3" ] || { echo "FAIL: 1+2 != 3, got $result"; exit 1; }
+echo "  PASS"
+
+# Test 2: Note parsing
+echo "Test 2: Note parsing..."
+result=$($LUAMIDI -e 'print(midi.note("C4"))')
+[ "$result" = "60" ] || { echo "FAIL: C4 != 60, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.note("C#4"))')
+[ "$result" = "61" ] || { echo "FAIL: C#4 != 61, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.note("A4"))')
+[ "$result" = "69" ] || { echo "FAIL: A4 != 69, got $result"; exit 1; }
+echo "  PASS"
+
+# Test 3: Pitch constants
+echo "Test 3: Pitch constants..."
+result=$($LUAMIDI -e 'print(midi.c4)')
+[ "$result" = "60" ] || { echo "FAIL: c4 != 60, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.cs4)')
+[ "$result" = "61" ] || { echo "FAIL: cs4 != 61, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.a4)')
+[ "$result" = "69" ] || { echo "FAIL: a4 != 69, got $result"; exit 1; }
+echo "  PASS"
+
+# Test 4: Dynamics constants
+echo "Test 4: Dynamics constants..."
+result=$($LUAMIDI -e 'print(midi.ppp)')
+[ "$result" = "16" ] || { echo "FAIL: ppp != 16, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.mf)')
+[ "$result" = "80" ] || { echo "FAIL: mf != 80, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.fff)')
+[ "$result" = "127" ] || { echo "FAIL: fff != 127, got $result"; exit 1; }
+echo "  PASS"
+
+# Test 5: Duration constants
+echo "Test 5: Duration constants..."
+result=$($LUAMIDI -e 'print(midi.quarter)')
+[ "$result" = "500" ] || { echo "FAIL: quarter != 500, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.whole)')
+[ "$result" = "2000" ] || { echo "FAIL: whole != 2000, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.dotted(midi.quarter))')
+[ "$result" = "750" ] || { echo "FAIL: dotted quarter != 750, got $result"; exit 1; }
+echo "  PASS"
+
+# Test 6: Tempo functions
+echo "Test 6: Tempo functions..."
+result=$($LUAMIDI -e 'print(midi.get_tempo())')
+[ "$result" = "120" ] || { echo "FAIL: default tempo != 120, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.bpm(120))')
+[ "$result" = "500" ] || { echo "FAIL: bpm 120 != 500, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.bpm(60))')
+[ "$result" = "1000" ] || { echo "FAIL: bpm 60 != 1000, got $result"; exit 1; }
+echo "  PASS"
+
+# Test 7: Chord builders
+echo "Test 7: Chord builders..."
+result=$($LUAMIDI -e 'local c = midi.major(60); print(c[1], c[2], c[3])')
+[ "$result" = "60	64	67" ] || { echo "FAIL: major c4 != 60 64 67, got $result"; exit 1; }
+result=$($LUAMIDI -e 'local c = midi.minor(60); print(c[1], c[2], c[3])')
+[ "$result" = "60	63	67" ] || { echo "FAIL: minor c4 != 60 63 67, got $result"; exit 1; }
+result=$($LUAMIDI -e 'local c = midi.dim(60); print(c[1], c[2], c[3])')
+[ "$result" = "60	63	66" ] || { echo "FAIL: dim c4 != 60 63 66, got $result"; exit 1; }
+result=$($LUAMIDI -e 'local c = midi.aug(60); print(c[1], c[2], c[3])')
+[ "$result" = "60	64	68" ] || { echo "FAIL: aug c4 != 60 64 68, got $result"; exit 1; }
+result=$($LUAMIDI -e 'local c = midi.dom7(60); print(c[1], c[2], c[3], c[4])')
+[ "$result" = "60	64	67	70" ] || { echo "FAIL: dom7 c4 != 60 64 67 70, got $result"; exit 1; }
+result=$($LUAMIDI -e 'local c = midi.maj7(60); print(c[1], c[2], c[3], c[4])')
+[ "$result" = "60	64	67	71" ] || { echo "FAIL: maj7 c4 != 60 64 67 71, got $result"; exit 1; }
+result=$($LUAMIDI -e 'local c = midi.min7(60); print(c[1], c[2], c[3], c[4])')
+[ "$result" = "60	63	67	70" ] || { echo "FAIL: min7 c4 != 60 63 67 70, got $result"; exit 1; }
+echo "  PASS"
+
+# Test 8: Transpose helpers
+echo "Test 8: Transpose helpers..."
+result=$($LUAMIDI -e 'print(midi.transpose(60, 2))')
+[ "$result" = "62" ] || { echo "FAIL: transpose 60 2 != 62, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.octave_up(60))')
+[ "$result" = "72" ] || { echo "FAIL: octave_up 60 != 72, got $result"; exit 1; }
+result=$($LUAMIDI -e 'print(midi.octave_down(60))')
+[ "$result" = "48" ] || { echo "FAIL: octave_down 60 != 48, got $result"; exit 1; }
+echo "  PASS"
+
+# Test 9: midi.list_ports returns table
+echo "Test 9: midi.list_ports..."
+result=$($LUAMIDI -e 'print(type(midi.list_ports()))')
+[ "$result" = "table" ] || { echo "FAIL: list_ports not returning table"; exit 1; }
+echo "  PASS"
+
+# Test 10: midi.open creates MidiOut
+echo "Test 10: midi.open..."
+result=$($LUAMIDI -e 'local m = midi.open(); print(type(m)); m:close()')
+[ "$result" = "userdata" ] || { echo "FAIL: midi.open not returning userdata"; exit 1; }
+result=$($LUAMIDI -e 'local m = midi.open("Test"); print(m); m:close()')
+echo "$result" | grep -q "Test" || { echo "FAIL: midi.open with name not working"; exit 1; }
+echo "  PASS"
+
+# Test 11: is_open method
+echo "Test 11: is_open method..."
+result=$($LUAMIDI -e 'local m = midi.open(); print(m:is_open()); m:close()')
+[ "$result" = "true" ] || { echo "FAIL: is_open should be true"; exit 1; }
+result=$($LUAMIDI -e 'local m = midi.open(); m:close(); print(m:is_open())')
+[ "$result" = "false" ] || { echo "FAIL: is_open should be false after close"; exit 1; }
+echo "  PASS"
+
+# Test 12: note method
+echo "Test 12: note method..."
+result=$($LUAMIDI -e 'local m = midi.open(); m:note(60, 80, 10); m:close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: note method failed"; exit 1; }
+echo "  PASS"
+
+# Test 13: chord method
+echo "Test 13: chord method..."
+result=$($LUAMIDI -e 'local m = midi.open(); m:chord(midi.major(60), 80, 10); m:close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: chord method failed"; exit 1; }
+echo "  PASS"
+
+# Test 14: note_on/note_off
+echo "Test 14: note_on/note_off..."
+result=$($LUAMIDI -e 'local m = midi.open(); m:note_on(60, 80); m:note_off(60); m:close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: note_on/off failed"; exit 1; }
+echo "  PASS"
+
+# Test 15: cc method
+echo "Test 15: cc method..."
+result=$($LUAMIDI -e 'local m = midi.open(); m:cc(1, 64); m:close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: cc method failed"; exit 1; }
+echo "  PASS"
+
+# Test 16: program method
+echo "Test 16: program method..."
+result=$($LUAMIDI -e 'local m = midi.open(); m:program(0); m:close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: program method failed"; exit 1; }
+echo "  PASS"
+
+# Test 17: all_notes_off method
+echo "Test 17: all_notes_off method..."
+result=$($LUAMIDI -e 'local m = midi.open(); m:all_notes_off(); m:close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: all_notes_off method failed"; exit 1; }
+echo "  PASS"
+
+# Test 18: arpeggio method
+echo "Test 18: arpeggio method..."
+result=$($LUAMIDI -e 'local m = midi.open(); m:arpeggio(midi.major(60), 80, 10); m:close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: arpeggio method failed"; exit 1; }
+echo "  PASS"
+
+# Test 19: rest function
+echo "Test 19: rest function..."
+result=$($LUAMIDI -e 'midi.rest(10); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: rest failed"; exit 1; }
+echo "  PASS"
+
+# Test 20: Error handling - invalid note
+echo "Test 20: Error handling..."
+result=$($LUAMIDI -e 'midi.note("invalid")' 2>&1 || true)
+echo "$result" | grep -qi "invalid\|error" || { echo "FAIL: invalid note should raise error"; exit 1; }
+echo "  PASS"
+
+# Test 21: REPL convenience - open/close globals
+echo "Test 21: REPL convenience - open/close..."
+result=$($LUAMIDI -e 'open(); print(midi._out); close()')
+echo "$result" | grep -q "MidiOut" || { echo "FAIL: open() should set midi._out"; exit 1; }
+echo "  PASS"
+
+# Test 22: REPL convenience - n function
+echo "Test 22: REPL convenience - n..."
+result=$($LUAMIDI -e 'open(); n(60, midi.mf, 10); close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: n() convenience function failed"; exit 1; }
+echo "  PASS"
+
+# Test 23: REPL convenience - ch function
+echo "Test 23: REPL convenience - ch..."
+result=$($LUAMIDI -e 'open(); ch(midi.major(60), midi.mf, 10); close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: ch() convenience function failed"; exit 1; }
+echo "  PASS"
+
+# Test 24: REPL convenience - arp function
+echo "Test 24: REPL convenience - arp..."
+result=$($LUAMIDI -e 'open(); arp(midi.major(60), midi.mf, 10); close(); print("ok")')
+[ "$result" = "ok" ] || { echo "FAIL: arp() convenience function failed"; exit 1; }
+echo "  PASS"
+
+# Test 25: REPL convenience - error without open
+echo "Test 25: REPL convenience - error without open..."
+result=$($LUAMIDI -e 'n(60)' 2>&1 || true)
+echo "$result" | grep -qi "no midi\|error" || { echo "FAIL: n() without open should raise error"; exit 1; }
+echo "  PASS"
+
+# Test 26: Musical example
+echo "Test 26: Musical example..."
+result=$($LUAMIDI -e '
+local m = midi.open()
+midi.set_tempo(240)
+m:chord(midi.major(60), midi.mf, 50)
+m:chord(midi.minor(57), midi.mp, 50)
+m:arpeggio(midi.dom7(55), midi.f, 10)
+m:close()
+print("ok")
+')
+[ "$result" = "ok" ] || { echo "FAIL: musical example failed, got $result"; exit 1; }
+echo "  PASS"
+
+echo ""
+echo "All tests passed!"

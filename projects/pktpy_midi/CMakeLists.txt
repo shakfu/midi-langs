@@ -23,4 +23,6 @@ elseif(UNIX)
     endif()
 endif()
 
+add_strip_command(pktpy_midi)
+
 install(TARGETS pktpy_midi RUNTIME DESTINATION bin)

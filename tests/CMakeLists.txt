@@ -128,3 +128,44 @@ set_tests_properties(
     s7_midi_virtual_port
     PROPERTIES LABELS "quick"
 )
+
+# lua_midi tests
+add_test(
+    NAME lua_midi_test_suite
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_lua_midi.sh $<TARGET_FILE:lua_midi>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(lua_midi_test_suite PROPERTIES
+    TIMEOUT 60
+    LABELS "integration"
+)
+
+# Quick lua_midi tests
+add_test(
+    NAME lua_midi_smoke
+    COMMAND sh -c "$<TARGET_FILE:lua_midi> -e 'print(1+2)' | grep -q '3'"
+)
+
+add_test(
+    NAME lua_midi_note_parsing
+    COMMAND sh -c "$<TARGET_FILE:lua_midi> -e 'print(midi.note(\"C4\"))' | grep -q '60'"
+)
+
+add_test(
+    NAME lua_midi_pitch_constants
+    COMMAND sh -c "$<TARGET_FILE:lua_midi> -e 'print(midi.c4)' | grep -q '60'"
+)
+
+add_test(
+    NAME lua_midi_virtual_port
+    COMMAND sh -c "$<TARGET_FILE:lua_midi> -e 'local m = midi.open(); print(m:is_open()); m:close()' | grep -q 'true'"
+)
+
+set_tests_properties(
+    lua_midi_smoke
+    lua_midi_note_parsing
+    lua_midi_pitch_constants
+    lua_midi_virtual_port
+    PROPERTIES LABELS "quick"
+)

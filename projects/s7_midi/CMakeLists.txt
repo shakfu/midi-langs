@@ -8,7 +8,14 @@ add_executable(s7_midi
 
 target_include_directories(s7_midi PRIVATE ${S7_DIR})
 
-target_compile_options(s7_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)
+# Use -Os for size optimization (s7.c is very large)
+# Disable some s7 features to reduce size
+target_compile_options(s7_midi PRIVATE -Wall -Wextra -Wno-unused-parameter -Os)
+target_compile_definitions(s7_midi PRIVATE
+    WITH_SYSTEM_EXTRAS=0
+    WITH_C_LOADER=0
+    DISABLE_AUTOLOAD=1
+)
 
 # s7 requires math and dl libraries
 target_link_libraries(s7_midi PRIVATE libremidi m)
@@ -27,5 +34,7 @@ elseif(UNIX)
         target_link_libraries(s7_midi PRIVATE ${ALSA_LIBRARIES})
     endif()
 endif()
+
+add_strip_command(s7_midi)
 
 install(TARGETS s7_midi RUNTIME DESTINATION bin)

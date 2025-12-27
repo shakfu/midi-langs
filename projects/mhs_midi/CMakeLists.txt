@@ -98,6 +98,9 @@ function(add_mhs_midi_example NAME MODULE)
 
     # Ensure midi_ffi is built before we try to link
     add_dependencies(${NAME} midi_ffi)
+
+    # Strip in Release mode
+    add_strip_command(${NAME})
 endfunction()
 
 # Build example executables (target_name, ModuleName)
@@ -161,3 +164,5 @@ elseif(UNIX)
         target_link_libraries(mhs-midi PRIVATE ${ALSA_LIBRARIES})
     endif()
 endif()
+
+add_strip_command(mhs-midi)

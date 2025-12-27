@@ -6,6 +6,39 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **lua_midi**: New Lua-based MIDI language using [Lua 5.5](https://www.lua.org/)
+  - `projects/lua_midi/` - Complete project structure
+  - `midi_module.c` - Lua FFI bindings wrapping libremidi
+  - Lua 5.5 interpreter (embedded from `thirdparty/lua-5.5.0/`)
+  - Core features:
+    - `midi.open()` - Virtual port with default name "luaMIDI"
+    - `midi.open("name")` - Virtual port with custom name
+    - `midi.open(index)` - Hardware port by index
+    - `midi.list_ports()` - List available MIDI ports
+    - `m:close()` - Close MIDI port
+    - `m:is_open()` - Check if port is open
+  - Note playing:
+    - `m:note(pitch, [vel], [dur], [ch])` - Play single note
+    - `m:chord(pitches, [vel], [dur], [ch])` - Play chord
+    - `m:arpeggio(pitches, [vel], [dur], [ch])` - Arpeggiate
+  - REPL convenience functions (use global `midi._out` port):
+    - `open()`, `open("name")`, `open(index)` - Open port and set default
+    - `close()` - Close default port
+    - `n(pitch, [vel], [dur], [ch])` - Play note on default port
+    - `ch(pitches, [vel], [dur], [ch])` - Play chord on default port
+    - `arp(pitches, [vel], [dur], [ch])` - Arpeggiate on default port
+  - Pitch helpers:
+    - `midi.note("C4")` - Parse note names to MIDI numbers
+    - `midi.c0`-`midi.c8`, `midi.cs0`-`midi.cs8`, etc. - Pitch constants
+    - `midi.transpose(pitch, semitones)`, `midi.octave_up()`, `midi.octave_down()`
+  - Dynamics: `midi.ppp` through `midi.fff` (velocity values 16-127)
+  - Durations: `midi.whole`, `midi.half`, `midi.quarter`, `midi.eighth`, `midi.sixteenth`, `midi.dotted(dur)`
+  - Chord builders: `midi.major()`, `midi.minor()`, `midi.dim()`, `midi.aug()`, `midi.dom7()`, `midi.maj7()`, `midi.min7()`
+  - Tempo: `midi.set_tempo(bpm)`, `midi.get_tempo()`, `midi.bpm(tempo)`
+  - Timing: `midi.sleep(ms)`, `midi.rest([dur])`
+  - Low-level: `m:note_on`, `m:note_off`, `m:cc`, `m:program`, `m:all_notes_off`
+  - Test suite with 26 tests
+
 - **s7_midi**: New Scheme-based MIDI language using [s7](https://ccrma.stanford.edu/software/snd/snd/s7.html)
   - `projects/s7_midi/` - Complete project structure
   - `midi_module.c` - s7 FFI bindings wrapping libremidi
