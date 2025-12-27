@@ -52,3 +52,38 @@ set_tests_properties(
     midi_forth_blocks
     PROPERTIES LABELS "quick"
 )
+
+# pktpy_midi tests
+add_test(
+    NAME pktpy_midi_test_suite
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_pktpy_midi.sh $<TARGET_FILE:pktpy_midi>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(pktpy_midi_test_suite PROPERTIES
+    TIMEOUT 60
+    LABELS "integration"
+)
+
+# Quick pktpy_midi tests
+add_test(
+    NAME pktpy_midi_smoke
+    COMMAND sh -c "echo 'import midi; print(\"ok\")' | $<TARGET_FILE:pktpy_midi> | grep -q 'ok'"
+)
+
+add_test(
+    NAME pktpy_midi_note_parsing
+    COMMAND sh -c "echo 'import midi; print(midi.note(\"C4\"))' | $<TARGET_FILE:pktpy_midi> | grep -q '60'"
+)
+
+add_test(
+    NAME pktpy_midi_virtual_port
+    COMMAND sh -c "echo 'import midi; m = midi.open(); print(m.is_open)' | $<TARGET_FILE:pktpy_midi> | grep -q 'True'"
+)
+
+set_tests_properties(
+    pktpy_midi_smoke
+    pktpy_midi_note_parsing
+    pktpy_midi_virtual_port
+    PROPERTIES LABELS "quick"
+)

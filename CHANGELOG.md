@@ -6,6 +6,34 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **pktpy_midi**: New Python-based MIDI language using [PocketPy](https://pocketpy.dev)
+  - `projects/pktpy_midi/` - Complete project structure
+  - `midi_module.c` - C bindings for libremidi with Pythonic API
+  - PocketPy v2.1.6 embedded interpreter
+  - Core features:
+    - `midi.open()` - Virtual port with default name "pktpyMIDI"
+    - `midi.open("name")` - Virtual port with custom name
+    - `midi.open(index)` - Hardware port by index
+    - `midi.list_ports()` - List available MIDI ports
+    - Context manager support (`with midi.open() as m:`)
+  - Note playing:
+    - `MidiOut.note(pitch, velocity, duration, channel)` - Play single note
+    - `MidiOut.chord(pitches, velocity, duration, channel)` - Play chord
+    - `MidiOut.arpeggio(pitches, velocity, note_duration, spacing, channel)` - Arpeggiate
+  - Pitch helpers:
+    - `midi.note("C4")` - Parse note names to MIDI numbers
+    - `midi.c4`, `midi.cs4`, etc. - Pitch constants (c0-b8)
+    - `midi.transpose(pitch, semitones)` - Transpose pitch
+    - `midi.octave_up()`, `midi.octave_down()` - Octave shifts
+  - Dynamics: `midi.ppp` through `midi.fff` (velocity values 16-127)
+  - Durations: `midi.whole`, `midi.half`, `midi.quarter`, `midi.eighth`, `midi.sixteenth`
+  - Chord builders: `midi.major()`, `midi.minor()`, `midi.dim()`, `midi.aug()`, `midi.dom7()`, `midi.maj7()`, `midi.min7()`
+  - Tempo: `midi.set_tempo(bpm)`, `midi.get_tempo()`, `midi.bpm(tempo)`
+  - Timing: `midi.sleep(ms)`, `midi.rest(duration)`
+  - CC helpers: `modulation()`, `volume()`, `pan()`, `sustain()`
+  - Low-level: `note_on`, `note_off`, `cc`, `program_change`, `all_notes_off`
+  - Test suite with 23 tests
+
 - **mhs-midi REPL**: Interactive Haskell REPL with MIDI FFI support
   - `./scripts/mhs-midi-repl` - Start REPL with caching for fast startup
   - `./scripts/mhs-midi-repl -r File.hs` - Run a Haskell file (interpreted)

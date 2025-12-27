@@ -1,9 +1,10 @@
 # midi-langs
 
-A couple of mini MIDI-capable languages for generating and transforming MIDI sequences:
+A collection of mini MIDI-capable languages for generating and transforming MIDI sequences:
 
 - **midi_forth** - A Forth-like interpreter with concise musical notation
-- **mhs-midi** - A Haskell-based MIDI language using the marvelous [MicroHs](https://github.com/augustss/MicroHs)
+- **mhs-midi** - A Haskell-based MIDI language using [MicroHs](https://github.com/augustss/MicroHs)
+- **pktpy_midi** - A Python-based MIDI language using [PocketPy](https://pocketpy.dev)
 
 ## Building
 
@@ -555,6 +556,153 @@ ppp, pp, p, mp, mf, ff, fff  -- Velocity values 16..112
 
 ---
 
+## pktpy_midi: Python MIDI Language
+
+A Pythonic approach to MIDI using PocketPy (a lightweight embeddable Python interpreter).
+
+### Running
+
+```bash
+./build/pktpy_midi              # Start Python REPL with MIDI support
+./build/pktpy_midi script.py    # Run a Python script
+```
+
+### Quick Example
+
+```python
+import midi
+
+with midi.open() as m:
+    m.note("C4")                    # Play middle C (500ms, velocity 80)
+    m.note("E4")
+    m.note("G4")
+    m.note("C4", 100, 1000)         # Louder, longer
+```
+
+### API Reference
+
+```python
+import midi
+
+# --- Port management ---
+ports = midi.list_ports()       # [(0, "Port Name"), ...]
+m = midi.open()                 # Virtual port (default name "pktpyMIDI")
+m = midi.open("CustomName")     # Virtual port with custom name
+m = midi.open(0)                # Hardware port by index
+
+# --- Pitch helpers ---
+midi.note("C4")                 # -> 60 (parse note name)
+midi.c4, midi.cs4, midi.d4      # Pitch constants (c0-b8, sharps: cs, ds, fs, gs, as)
+midi.transpose("C4", 2)         # -> 62 (transpose by semitones)
+midi.octave_up(60)              # -> 72
+midi.octave_down(60)            # -> 48
+
+# --- Dynamics (velocity values) ---
+midi.ppp    # 16
+midi.pp     # 33
+midi.p      # 49
+midi.mp     # 64
+midi.mf     # 80 (default)
+midi.f      # 96
+midi.ff     # 112
+midi.fff    # 127
+
+# --- Durations (milliseconds at 120 BPM) ---
+midi.whole      # 2000
+midi.half       # 1000
+midi.quarter    # 500
+midi.eighth     # 250
+midi.sixteenth  # 125
+midi.dotted(midi.quarter)  # 750 (1.5x)
+
+# --- Tempo ---
+midi.set_tempo(140)         # Set BPM (updates duration constants)
+midi.get_tempo()            # Get current BPM
+midi.bpm(60)                # -> 1000 (quarter note ms at 60 BPM)
+
+# --- Chord builders (return pitch lists) ---
+midi.major("C4")            # [60, 64, 67]
+midi.minor("C4")            # [60, 63, 67]
+midi.dim("C4")              # [60, 63, 66]
+midi.aug("C4")              # [60, 64, 68]
+midi.dom7("C4")             # [60, 64, 67, 70]
+midi.maj7("C4")             # [60, 64, 67, 71]
+midi.min7("C4")             # [60, 63, 67, 70]
+
+# --- Timing ---
+midi.sleep(500)             # Sleep 500ms
+midi.rest()                 # Rest for quarter note duration
+midi.rest(midi.half)        # Rest for half note
+
+# --- MidiOut methods ---
+m.note(pitch, velocity=80, duration=500, channel=1)
+m.note("C4")                # Pitch can be string or int
+m.note(midi.c4, midi.f, midi.quarter)  # Using constants
+
+m.chord(pitches, velocity=80, duration=500, channel=1)
+m.chord(midi.major("C4"))   # Using chord builder
+
+m.arpeggio(pitches, velocity=80, note_duration=eighth, spacing=None, channel=1)
+m.arpeggio(midi.dom7("G3"), midi.mf, midi.sixteenth)
+
+# --- CC helpers ---
+m.modulation(64)            # CC 1
+m.volume(100)               # CC 7
+m.pan(64)                   # CC 10 (0=left, 64=center, 127=right)
+m.sustain(True)             # CC 64
+m.sustain(False)
+
+# --- Low-level methods ---
+m.note_on(pitch, velocity=80, channel=1)
+m.note_off(pitch, velocity=0, channel=1)
+m.cc(control, value, channel=1)
+m.program_change(program, channel=1)
+m.all_notes_off(channel=None)
+m.close()
+m.is_open                   # Property
+
+# --- Context manager ---
+with midi.open() as m:
+    m.note("C4")
+```
+
+### Example: Simple Melody
+
+```python
+import midi
+
+with midi.open() as m:
+    for n in [midi.c4, midi.d4, midi.e4, midi.f4, midi.g4]:
+        m.note(n, midi.mf, midi.quarter)
+```
+
+### Example: Chord Progression
+
+```python
+import midi
+
+with midi.open() as m:
+    m.chord(midi.major("C4"), midi.mf, midi.half)
+    m.chord(midi.major("F4"), midi.mf, midi.half)
+    m.chord(midi.major("G4"), midi.f, midi.half)
+    m.chord(midi.major("C4"), midi.mf, midi.whole)
+```
+
+### Example: Arpeggio with Dynamics
+
+```python
+import midi
+
+midi.set_tempo(100)
+with midi.open() as m:
+    m.arpeggio(midi.maj7("C4"), midi.mp, midi.sixteenth)
+    m.arpeggio(midi.min7("A3"), midi.mf, midi.sixteenth)
+    m.arpeggio(midi.dom7("G3"), midi.f, midi.sixteenth)
+    m.chord(midi.major("C4"), midi.ff, midi.whole)
+```
+
+---
+
 ## Architecture
 
 - **projects/midi_forth/midi_forth.c** (~2700 lines)
@@ -571,6 +719,12 @@ ppp, pp, p, mp, mf, ff, fff  -- Velocity values 16..112
   - `lib/Midi.hs` - High-level Haskell MIDI library
   - `examples/` - Example programs
 
+- **projects/pktpy_midi/** - PocketPy MIDI language
+  - `midi_module.c` - C bindings for libremidi with Pythonic API
+  - `pocketpy.c/h` - PocketPy v2.1.6 interpreter
+  - Context manager support, note name parsing
+
 - **Dependencies**:
   - libremidi v5.3.1 (auto-built from `thirdparty/libremidi/`)
   - [MicroHs](https://github.com/augustss/MicroHs) (in `thirdparty/MicroHs/`)
+  - [PocketPy](https://pocketpy.dev) v2.1.6 (embedded in `projects/pktpy_midi/`)
