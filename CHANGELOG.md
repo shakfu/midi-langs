@@ -6,6 +6,39 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **s7_midi**: New Scheme-based MIDI language using [s7](https://ccrma.stanford.edu/software/snd/snd/s7.html)
+  - `projects/s7_midi/` - Complete project structure
+  - `midi_module.c` - s7 FFI bindings wrapping libremidi
+  - s7 Scheme interpreter (embedded from `thirdparty/s7/`)
+  - Core features:
+    - `(midi-open)` - Virtual port with default name "s7MIDI"
+    - `(midi-open "name")` - Virtual port with custom name
+    - `(midi-open index)` - Hardware port by index
+    - `(midi-list-ports)` - List available MIDI ports
+    - `(midi-close m)` - Close MIDI port
+    - `(midi-out? x)`, `(midi-open? m)` - Type predicates
+  - Note playing:
+    - `(midi-note m pitch [vel] [dur] [ch])` - Play single note
+    - `(midi-chord m pitches [vel] [dur] [ch])` - Play chord
+    - `(midi-arpeggio m pitches [vel] [dur] [ch])` - Arpeggiate
+  - REPL convenience functions (use global `*midi*` port):
+    - `(open)`, `(open "name")`, `(open index)` - Open port and set `*midi*`
+    - `(close)` - Close `*midi*` port
+    - `(n pitch [vel] [dur] [ch])` - Play note on `*midi*`
+    - `(ch pitches [vel] [dur] [ch])` - Play chord on `*midi*`
+    - `(arp pitches [vel] [dur] [ch])` - Arpeggiate on `*midi*`
+  - Pitch helpers:
+    - `(note "C4")` or `(note 'c4)` - Parse note names to MIDI numbers
+    - `c0`-`c8`, `cs0`-`cs8`, etc. - Pitch constants
+    - `(transpose pitch semitones)`, `(octave-up)`, `(octave-down)`
+  - Dynamics: `ppp` through `fff` (velocity values 16-127)
+  - Durations: `whole`, `half`, `quarter`, `eighth`, `sixteenth`, `(dotted dur)`
+  - Chord builders: `(major root)`, `(minor root)`, `(dim root)`, `(aug root)`, `(dom7 root)`, `(maj7 root)`, `(min7 root)`
+  - Tempo: `(set-tempo! bpm)`, `(get-tempo)`, `(bpm tempo)`
+  - Timing: `(midi-sleep ms)`, `(rest [dur])`
+  - Low-level: `midi-note-on`, `midi-note-off`, `midi-cc`, `midi-program`, `midi-all-notes-off`
+  - Test suite with 26 tests
+
 - **pktpy_midi**: New Python-based MIDI language using [PocketPy](https://pocketpy.dev)
   - `projects/pktpy_midi/` - Complete project structure
   - `midi_module.c` - C bindings for libremidi with Pythonic API

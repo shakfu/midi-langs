@@ -17,6 +17,7 @@ add_subdirectory(projects/forth)
 add_subdirectory(projects/midi_forth)
 add_subdirectory(projects/mhs_midi)
 add_subdirectory(projects/pktpy_midi)
+add_subdirectory(projects/s7_midi)
 
 # Enable testing
 enable_testing()

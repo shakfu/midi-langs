@@ -5,6 +5,7 @@ A collection of mini MIDI-capable languages for generating and transforming MIDI
 - **midi_forth** - A Forth-like interpreter with concise musical notation
 - **mhs-midi** - A Haskell-based MIDI language using [MicroHs](https://github.com/augustss/MicroHs)
 - **pktpy_midi** - A Python-based MIDI language using [PocketPy](https://pocketpy.dev)
+- **s7_midi** - A Scheme-based MIDI language using [s7](https://ccrma.stanford.edu/software/snd/snd/s7.html)
 
 ## Building
 
@@ -703,6 +704,167 @@ with midi.open() as m:
 
 ---
 
+## s7_midi: Scheme MIDI Language
+
+A Lisp/Scheme approach to MIDI using s7 (a lightweight embeddable Scheme interpreter from the Snd project).
+
+### Running
+
+```bash
+./build/s7_midi              # Start Scheme REPL with MIDI support
+./build/s7_midi script.scm   # Run a Scheme file
+./build/s7_midi -e '(+ 1 2)' # Evaluate expression
+```
+
+### Quick Example
+
+Using convenience functions:
+```scheme
+(open)                          ; Open virtual MIDI port
+(n c4)                          ; Play middle C
+(ch (major c4))                 ; Play C major chord
+(arp (min7 a3) mf sixteenth)    ; Arpeggiate A minor 7
+(close)
+```
+
+Or with explicit port management:
+```scheme
+(define m (midi-open))
+(midi-note m c4 mf quarter)
+(midi-chord m (major c4) mf half)
+(midi-close m)
+```
+
+### API Reference
+
+```scheme
+;; --- Port management ---
+(midi-list-ports)           ; -> ((0 "Port Name") ...)
+(midi-open)                 ; Virtual port (default name "s7MIDI")
+(midi-open "CustomName")    ; Virtual port with custom name
+(midi-open 0)               ; Hardware port by index
+(midi-close m)              ; Close port
+(midi-open? m)              ; Check if open
+(midi-out? x)               ; Type predicate
+
+;; --- Pitch helpers ---
+(note "C4")                 ; -> 60 (parse note name)
+(note 'c4)                  ; -> 60 (symbol form)
+c4 cs4 d4 ...               ; Pitch constants (c0-c8, sharps: cs, ds, fs, gs, as)
+(transpose c4 2)            ; -> 62 (transpose by semitones)
+(octave-up c4)              ; -> 72
+(octave-down c4)            ; -> 48
+
+;; --- Dynamics (velocity values) ---
+ppp    ; 16
+pp     ; 33
+p      ; 49
+mp     ; 64
+mf     ; 80 (default)
+f      ; 96
+ff     ; 112
+fff    ; 127
+
+;; --- Durations (milliseconds at 120 BPM) ---
+whole      ; 2000
+half       ; 1000
+quarter    ; 500
+eighth     ; 250
+sixteenth  ; 125
+(dotted quarter)  ; 750 (1.5x)
+
+;; --- Tempo ---
+(set-tempo! 140)            ; Set BPM (updates duration constants)
+(get-tempo)                 ; Get current BPM
+(bpm 60)                    ; -> 1000 (quarter note ms at 60 BPM)
+
+;; --- Chord builders (return pitch lists) ---
+(major c4)                  ; (60 64 67)
+(minor c4)                  ; (60 63 67)
+(dim c4)                    ; (60 63 66)
+(aug c4)                    ; (60 64 68)
+(dom7 c4)                   ; (60 64 67 70)
+(maj7 c4)                   ; (60 64 67 71)
+(min7 c4)                   ; (60 63 67 70)
+
+;; --- Note playing ---
+(midi-note m pitch [vel] [dur] [ch])
+(midi-note m c4)            ; Defaults: vel=80, dur=500, ch=1
+(midi-note m c4 mf quarter)
+
+(midi-chord m pitches [vel] [dur] [ch])
+(midi-chord m (major c4) mf half)
+
+(midi-arpeggio m pitches [vel] [dur] [ch])
+(midi-arpeggio m (dom7 g3) f sixteenth)
+
+;; --- Low-level ---
+(midi-note-on m pitch [vel] [ch])
+(midi-note-off m pitch [vel] [ch])
+(midi-cc m control value [ch])
+(midi-program m program [ch])
+(midi-all-notes-off m [ch])
+
+;; --- Timing ---
+(midi-sleep 500)            ; Sleep 500ms
+(rest)                      ; Rest for quarter note
+(rest half)                 ; Rest for half note
+
+;; --- Utilities ---
+(help)                      ; Show available functions
+
+;; --- REPL convenience functions (use global *midi* port) ---
+*midi*                      ; Global MIDI port variable
+(open)                      ; Open virtual port, set *midi*
+(open "name")               ; Open named virtual port
+(open 0)                    ; Open hardware port by index
+(close)                     ; Close *midi* port
+(n c4)                      ; Play note on *midi*
+(n c4 mf quarter)           ; With velocity and duration
+(ch (major c4))             ; Play chord on *midi*
+(arp (min7 a3) mf sixteenth) ; Arpeggiate on *midi*
+```
+
+### Example: Simple Melody
+
+```scheme
+(define m (midi-open))
+(for-each (lambda (p) (midi-note m p mf quarter))
+          (list c4 d4 e4 f4 g4))
+(midi-close m)
+```
+
+### Example: Chord Progression
+
+```scheme
+(define m (midi-open))
+(midi-chord m (major c4) mf half)    ; I
+(midi-chord m (major f4) mf half)    ; IV
+(midi-chord m (major g4) f half)     ; V
+(midi-chord m (major c4) mf whole)   ; I
+(midi-close m)
+```
+
+### Example: Generative Pattern
+
+```scheme
+(define m (midi-open))
+(set-tempo! 140)
+
+;; Random note from chord
+(define (random-note chord)
+  (list-ref chord (random (length chord))))
+
+;; Play 16 random notes from C major 7
+(do ((i 0 (+ i 1)))
+    ((= i 16))
+  (midi-note m (random-note (maj7 c4)) mf sixteenth))
+
+(midi-close m)
+```
+
+---
+
 ## Architecture
 
 - **projects/midi_forth/midi_forth.c** (~2700 lines)
@@ -724,7 +886,13 @@ with midi.open() as m:
   - `pocketpy.c/h` - PocketPy v2.1.6 interpreter
   - Context manager support, note name parsing
 
+- **projects/s7_midi/** - s7 Scheme MIDI language
+  - `midi_module.c` - s7 FFI bindings for libremidi
+  - Scheme prelude with pitch constants, chord builders, tempo
+  - Full Scheme programming (closures, macros, etc.)
+
 - **Dependencies**:
   - libremidi v5.3.1 (auto-built from `thirdparty/libremidi/`)
   - [MicroHs](https://github.com/augustss/MicroHs) (in `thirdparty/MicroHs/`)
   - [PocketPy](https://pocketpy.dev) v2.1.6 (embedded in `projects/pktpy_midi/`)
+  - [s7 Scheme](https://ccrma.stanford.edu/software/snd/snd/s7.html) (in `thirdparty/s7/`)
