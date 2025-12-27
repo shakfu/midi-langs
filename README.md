@@ -1,6 +1,6 @@
-# mini-midi languages
+# midi-langs
 
-A suite of MIDI-capable languages for generating and transforming MIDI sequences:
+A couple of mini MIDI-capable languages for generating and transforming MIDI sequences:
 
 - **midi_forth** - A Forth-like interpreter with concise musical notation
 - **mhs-midi** - A Haskell-based MIDI language using MicroHs

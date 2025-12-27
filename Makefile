@@ -3,12 +3,16 @@
 BUILD_DIR := build
 CMAKE := cmake
 CTEST := ctest
+MHS := thirdparty/MicroHs/bin/mhs
 
-.PHONY: all build configure clean test test-quick test-verbose rebuild help
+.PHONY: all build configure clean test test-quick test-verbose rebuild help reset
 
 all: build
 
-configure:
+$(MHS):
+	@make -C thirdparty/MicroHs
+
+configure: $(MHS)
 	@$(CMAKE) -B $(BUILD_DIR)
 
 build: configure
@@ -27,6 +31,10 @@ test-verbose: build
 	@$(CTEST) --test-dir $(BUILD_DIR) -V
 
 rebuild: clean build
+
+reset:
+	@rm -rf build
+	@rm -rf thirdparty/MicroHs/bin
 
 help:
 	@echo "Targets:"

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to midi-forth are documented in this file.
+All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
