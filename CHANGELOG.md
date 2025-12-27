@@ -4,6 +4,32 @@ All notable changes to midi-forth are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0]
+
+### Added
+
+- **mhs-midi**: New Haskell-based MIDI language using MicroHs
+  - `projects/mhs_midi/` - Complete project structure
+  - `midi_ffi.c/h` - C FFI bindings wrapping libremidi
+  - `lib/Midi.hs` - High-level Haskell MIDI library with:
+    - Pitch names: `c0`-`c8`, `d0`-`d8`, etc. (with sharps `cs4`, `fs4`)
+    - Durations: `whole`, `half`, `quarter`, `eighth`, `sixteenth`, `dotted`
+    - Dynamics: `ppp`, `pp`, `p`, `mp`, `mf`, `ff`, `fff`
+    - Note playing: `play`, `playNote`, `playChord`, `chord`
+    - Sequences: `melody`, `arpeggio`, `times`
+    - MIDI control: `midiOpen`, `midiOpenVirtual`, `midiClose`, `midiCC`, `midiProgram`
+  - Example programs:
+    - `hello_midi` - C major scale
+    - `chords` - I-IV-V-I chord progression
+    - `melody_example` - Twinkle Twinkle Little Star
+    - `arpeggio` - Arpeggiated patterns
+    - `list_ports` - List available MIDI ports
+
+- **MicroHs Integration**
+  - Added `thirdparty/MicroHs/` dependency
+  - CMake integration for compiling Haskell to native executables
+  - FFI bindings using MicroHs `foreign import ccall`
+
 ## [0.1.2]
 
 ### Added

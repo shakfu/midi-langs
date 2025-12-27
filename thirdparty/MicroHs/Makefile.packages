@@ -1,0 +1,61 @@
+# Install a bunch of packages
+# These are the ones I know compile.
+# Do 'make install' before running this.
+# The funny install order is to avoid using 'mcabal -r',
+# since it doesn't know of the --git overrides.
+.PHONY: all
+MINST=mcabal -q install
+
+all:
+	$(MINST) ghc-compat
+	$(MINST) colour
+	$(MINST) ansi-terminal-types
+	$(MINST) ansi-terminal
+	$(MINST) array
+	$(MINST) unordered-containers
+	$(MINST) --git=https://github.com/simonmar/async.git async
+	$(MINST) --git=https://github.com/sol/call-stack.git call-stack
+	$(MINST) containers
+	$(MINST) time
+	$(MINST) polyparse
+	$(MINST) cpphs
+	$(MINST) transformers
+	$(MINST) mtl
+	$(MINST) exceptions
+	$(MINST) --git=https://github.com/augustss/os-string.git os-string
+	$(MINST) --git=https://github.com/augustss/filepath.git filepath
+	$(MINST) granite
+	$(MINST) haskell-lexer
+	$(MINST) HUnit
+	$(MINST) hspec-expectations
+	$(MINST) monad-loops
+	$(MINST) nanospec
+	$(MINST) parsec
+	$(MINST) --git=http://github.com/haskell/pretty.git pretty
+	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter prettyprinter
+	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-ansi-terminal prettyprinter-ansi-terminal
+	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-annotated-wl-pprint prettyprinter-compat-annotated-wl-pprint
+	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-ansi-wl-pprint prettyprinter-compat-ansi-wl-pprint
+	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-wl-pprint prettyprinter-compat-wl-pprint
+	$(MINST) splitmix
+	$(MINST) random
+	$(MINST) --git=https://github.com/nick8325/quickcheck.git QuickCheck
+	$(MINST) quickcheck-io
+	$(MINST) simple-affine-space
+	$(MINST) split
+	$(MINST) --git=http://github.com/ekmett/tagged.git tagged
+	$(MINST) tagsoup
+# stackage does not have Yampa
+#	$(MINST) --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
+	$(MINST) --git=https://github.com/pcapriotti/optparse-applicative.git optparse-applicative
+	$(MINST) semigroups # empty, but needed for xhtml
+	$(MINST) xhtml
+	$(MINST) heaps
+	$(MINST) fingertree
+	$(MINST) --git=https://github.com/haskell/fgl fgl
+	$(MINST) --git=https://github.com/jaspervdj/psqueues psqueues
+	$(MINST) PSQueue
+	$(MINST) edit-distance
+	$(MINST) StateVar
+	$(MINST) unliftio-core
+	$(MINST) --git=https://github.com/HeinrichApfelmus/vault vault

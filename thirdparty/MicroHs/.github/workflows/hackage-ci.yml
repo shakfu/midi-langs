@@ -1,0 +1,35 @@
+# Build some hackage packages
+
+name: hackage-ci
+
+on:
+  push:
+#    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-hackage:
+    runs-on: ubuntu-latest
+    steps:
+    # mhs
+    - name: checkout mhs repo
+      uses: actions/checkout@v4
+      with:
+        path: mhs
+    - name: make and install mhs
+      run: |
+        cd mhs
+        make minstall
+        echo "$HOME/.mcabal/bin" >> "$GITHUB_PATH"
+
+    # Build hackage packages
+    - name: compile and install packages
+      run: |
+        cd mhs
+        make -f Makefile.packages
+
+    # DONE
+    - name: cleanup
+      run: |
+        rm -rf $HOME/.mcabal

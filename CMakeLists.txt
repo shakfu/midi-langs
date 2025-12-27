@@ -15,6 +15,7 @@ add_subdirectory(thirdparty/libremidi)
 # Add project subdirectories
 add_subdirectory(projects/forth)
 add_subdirectory(projects/midi_forth)
+add_subdirectory(projects/mhs_midi)
 
 # Enable testing
 enable_testing()

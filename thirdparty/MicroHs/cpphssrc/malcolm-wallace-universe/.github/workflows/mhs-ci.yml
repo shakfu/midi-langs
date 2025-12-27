@@ -1,0 +1,70 @@
+name: mhs-ci
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-mhs-malcolm-wallace-universe:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: checkout mhs repo
+      uses: actions/checkout@v4
+      with:
+        repository: augustss/MicroHs
+        ref: stable-3
+        path: mhs
+    - name: make and install mhs
+      run: |
+        cd mhs
+        make minstall
+
+    - name: checkout time repo
+      uses: actions/checkout@v4
+      with:
+        repository: haskell/time
+        path: time
+    - name: compile and install time package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd time
+        mcabal install
+
+    - name: checkout containers repo
+      uses: actions/checkout@v4
+      with:
+        repository: haskell/containers
+        path: containers
+    - name: compile and install containers package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd containers/containers
+        mcabal install
+
+    - name: checkout malcolm-wallace-universe repo
+      uses: actions/checkout@v4
+      with:
+        path: malcolm-wallace-universe
+    - name: compile and install polyparse
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd malcolm-wallace-universe/polyparse-*
+        mcabal install
+    - name: compile cpphs
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd malcolm-wallace-universe/cpphs-*
+        mcabal build
+    - name: compile hscolour
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd malcolm-wallace-universe/hscolour-*
+        mcabal build
+
+
+    - name: cleanup
+      run: |
+        rm -rf $HOME/.mcabal

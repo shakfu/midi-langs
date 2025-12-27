@@ -1,6 +1,9 @@
-# midi-forth
+# mini-midi languages
 
-A Forth-like interpreter with MIDI capabilities for generating and transforming MIDI sequences.
+A suite of MIDI-capable languages for generating and transforming MIDI sequences:
+
+- **midi_forth** - A Forth-like interpreter with concise musical notation
+- **mhs-midi** - A Haskell-based MIDI language using MicroHs
 
 ## Building
 
@@ -421,6 +424,105 @@ midi-close
 
 ---
 
+## mhs-midi: Haskell MIDI Language
+
+A functional approach to MIDI using MicroHs (a lightweight Haskell implementation).
+
+### Building mhs-midi Examples
+
+```bash
+make                    # Builds all including mhs-midi
+./build/hello_midi      # Run C major scale example
+./build/list_ports      # List available MIDI ports
+```
+
+### Example: Playing Notes
+
+```haskell
+-- HelloMidi.hs
+module HelloMidi(main) where
+import Midi
+
+main :: IO ()
+main = do
+    midiOpenVirtual "MhsMidi"
+
+    -- Play C major scale
+    playNote c4 quarter
+    playNote d4 quarter
+    playNote e4 quarter
+    playNote f4 quarter
+    playNote g4 quarter
+    playNote a4 quarter
+    playNote b4 quarter
+    playNote c5 half
+
+    midiClose
+```
+
+### Example: Chords
+
+```haskell
+module Chords(main) where
+import Midi
+
+main :: IO ()
+main = do
+    midiOpenVirtual "MhsMidi"
+
+    -- I-IV-V-I progression
+    chord [c4, e4, g4] half       -- C major
+    chord [f4, a4, c5] half       -- F major
+    chord [g4, b4, d5] half       -- G major
+    chord [c4, e4, g4] whole      -- C major
+
+    midiClose
+```
+
+### Midi.hs API
+
+| Function | Description |
+|----------|-------------|
+| `midiOpenVirtual "name"` | Create virtual MIDI port |
+| `midiOpen n` | Open hardware port by index |
+| `midiClose` | Close MIDI port |
+| `playNote pitch dur` | Play note with default velocity |
+| `play pitch vel dur` | Play note with velocity |
+| `playChord [pitches] vel dur` | Play chord |
+| `chord [pitches] dur` | Play chord (default velocity) |
+| `arpeggio [pitches] dur vel` | Arpeggiate notes |
+| `melody [(pitch,dur)] vel` | Play melody sequence |
+| `rest dur` | Silent pause |
+| `times n action` | Repeat action n times |
+
+### Pitches
+
+```haskell
+c0..c8, d0..d8, e0..e8, f0..f8, g0..g8, a0..a8, b0..b8  -- Natural notes
+cs0..cs8, ds0..ds8, fs0..fs8, gs0..gs8, as0..as8       -- Sharps
+db, eb, gb, ab, bb                                      -- Flat aliases
+```
+
+### Durations
+
+```haskell
+whole      -- 2000ms (at 120 BPM)
+half       -- 1000ms
+quarter    -- 500ms
+eighth     -- 250ms
+sixteenth  -- 125ms
+dotted d   -- 1.5x duration
+bpm n      -- Quarter note duration at tempo n
+```
+
+### Dynamics
+
+```haskell
+ppp, pp, p, mp, mf, ff, fff  -- Velocity values 16..112
+```
+
+---
+
 ## Architecture
 
 - **projects/midi_forth/midi_forth.c** (~2700 lines)
@@ -432,4 +534,11 @@ midi-close
 
 - **projects/forth/forth.c** - Basic Forth interpreter
 
-- **Dependencies**: libremidi v5.3.1 (auto-built from `thirdparty/libremidi/`)
+- **projects/mhs_midi/** - MicroHs MIDI language
+  - `midi_ffi.c/h` - C FFI bindings for libremidi
+  - `lib/Midi.hs` - High-level Haskell MIDI library
+  - `examples/` - Example programs
+
+- **Dependencies**:
+  - libremidi v5.3.1 (auto-built from `thirdparty/libremidi/`)
+  - MicroHs (in `thirdparty/MicroHs/`)

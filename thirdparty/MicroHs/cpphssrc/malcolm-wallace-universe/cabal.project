@@ -1,0 +1,16 @@
+packages:
+  cpphs-1.20.9
+  hscolour-1.24.4
+  polyparse-1.12
+
+-- package cpphs
+--   ghc-options: -Wnoncanonical-monad-instances -Wno-tabs -Werror=noncanonical-monad-instances -Werror=missing-home-modules
+--
+-- package HaXml
+--   ghc-options: -Wnoncanonical-monad-instances -Wno-tabs -Werror=noncanonical-monad-instances -Werror=missing-home-modules
+--
+-- package hscolour
+--   ghc-options: -Wnoncanonical-monad-instances -Wno-tabs -Werror=noncanonical-monad-instances -Werror=missing-home-modules
+--
+-- package polyparse
+--   ghc-options: -Wnoncanonical-monad-instances -Wno-tabs -Werror=noncanonical-monad-instances -Werror=missing-home-modules
