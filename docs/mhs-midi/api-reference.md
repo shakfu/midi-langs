@@ -1,12 +1,12 @@
 # API Reference
 
-## MidiPrelude (Recommended)
+## MidiRepl (For REPL)
 
 ```haskell
-import MidiPrelude
+import MidiRepl
 ```
 
-MidiPrelude re-exports everything from Midi and adds ergonomic pitch-last functions for partial application.
+REPL-friendly functions that all return `IO ()` (no Show constraint errors). Re-exports Midi and adds pitch-last functions for partial application.
 
 ### note
 
@@ -67,19 +67,26 @@ Default chord: channel 1, mf velocity, quarter duration.
 ch [c4, e4, g4]
 ```
 
-### open / close
+### open / close / panic / ports
 
 ```haskell
-open :: IO Bool
-close :: IO ()
+open  :: IO ()  -- opens virtual port "MicroHs", prints status
+close :: IO ()  -- closes MIDI port
+panic :: IO ()  -- all notes off
+ports :: IO ()  -- lists available MIDI ports
 ```
 
-Quick setup: `open` creates virtual port "MicroHs", `close` closes it.
+All return `IO ()` for REPL friendliness.
 
 ```haskell
-open
-mapM_ n [c4, e4, g4]
-close
+> open
+MIDI open
+> n c4
+> ports
+2 MIDI port(s):
+  0: IAC Driver Bus 1
+  1: USB MIDI Device
+> close
 ```
 
 ---

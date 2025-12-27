@@ -27,9 +27,9 @@ make
 ### 3. Play some notes
 
 ```haskell
-> import MidiPrelude
-> open >>= print
-True
+> import MidiRepl
+> open
+MIDI open
 > n c4
 > mapM_ n [c4, e4, g4]
 > ch [c4, e4, g4]
@@ -44,7 +44,7 @@ True
 ./scripts/mhs-midi-repl
 ```
 
-Note: IO actions in the REPL need `>> return ()` suffix (or `>>= print` for results). Use `MidiPrelude` for ergonomic functions.
+Note: Use `MidiRepl` for REPL-friendly functions (all return `IO ()`, no Show constraint errors).
 
 ### Run Haskell File (Interpreted)
 
@@ -61,46 +61,40 @@ Note: IO actions in the REPL need `>> return ()` suffix (or `>>= print` for resu
 
 ## Example Program
 
+For compiled programs, use the `Music` module with pure data and transformations:
+
 ```haskell
 module MyMelody(main) where
-import MidiPrelude
+import Music
+
+melody = line [c4, e4, g4, c5]
+chords = times 2 (chord [c4, e4, g4])
+piece = melody +:+ chords
 
 main :: IO ()
 main = do
-    open
-
-    -- Play a melody using mapM_
-    mapM_ n [c4, e4, g4]
-
-    -- Play a chord
-    ch [c4, e4, g4]
-
-    close
+    midiOpenVirtual "MyMelody"
+    perform piece
+    midiClose
 ```
 
-### Partial Application
-
-The pitch-last parameter order enables partial application:
+### Pure Transformations
 
 ```haskell
 module Expressive(main) where
-import MidiPrelude
+import Music
 
--- Define custom note functions
-loud = note 1 fff quarter
-soft = note 1 pp half
-fast = note 1 mf sixteenth
+melody = line [c4, d4, e4, f4, g4]
+bass = withChan 2 (line [c2, g2, c2, g2])
+
+-- Pure transformations
+piece = transpose 5 (stretch 2 (melody ||| bass))
 
 main :: IO ()
 main = do
-    open
-
-    -- Use them with just pitch
-    mapM_ loud [c4, e4, g4]
-    mapM_ soft [c5, g4, e4]
-    mapM_ fast [c4, d4, e4, f4, g4, a4, b4, c5]
-
-    close
+    midiOpenVirtual "Expressive"
+    perform piece
+    midiClose
 ```
 
 ## Documentation

@@ -1,14 +1,14 @@
 # mhs-midi Examples
 
-## MidiPrelude Examples
+## MidiRepl Examples
 
-### Hello MIDI with MidiPrelude
+### Hello MIDI with MidiRepl
 
 Play a C major scale using `mapM_`:
 
 ```haskell
 module HelloMidi(main) where
-import MidiPrelude
+import MidiRepl
 
 main :: IO ()
 main = do
@@ -23,7 +23,7 @@ Define reusable note functions:
 
 ```haskell
 module PartialApp(main) where
-import MidiPrelude
+import MidiRepl
 
 -- Pitch-last allows partial application
 loud = note 1 fff quarter
@@ -50,11 +50,11 @@ main = do
     close
 ```
 
-### Chords with MidiPrelude
+### Chords with MidiRepl
 
 ```haskell
 module ChordsPrelude(main) where
-import MidiPrelude
+import MidiRepl
 
 -- Custom chord function
 bigChord = notes 1 ff whole
@@ -409,63 +409,73 @@ Start the REPL:
 ./scripts/mhs-midi-repl
 ```
 
-### Quick Note Test (MidiPrelude)
+### Quick Note Test (MidiRepl)
 
 ```haskell
-> import MidiPrelude
-> open >>= print
-True
-> n c4 >> return ()
-> mapM_ n [c4, e4, g4] >> return ()
-> close >> return ()
+> import MidiRepl
+> open
+MIDI open
+> n c4
+> mapM_ n [c4, e4, g4]
+> close
 ```
 
 ### Partial Application in REPL
 
 ```haskell
-> import MidiPrelude
-> open >>= print
-True
+> import MidiRepl
+> open
+MIDI open
 
 -- Define custom note functions
 > let loud = note 1 fff quarter
 > let soft = note 1 pp half
 
 -- Use them
-> loud c4 >> return ()
-> mapM_ loud [c4, e4, g4] >> return ()
-> mapM_ soft [c5, g4, e4] >> return ()
+> loud c4
+> mapM_ loud [c4, e4, g4]
+> mapM_ soft [c5, g4, e4]
 
-> close >> return ()
+> close
 ```
 
 ### Interactive Chord Exploration
 
 ```haskell
-> import MidiPrelude
-> open >>= print
-True
+> import MidiRepl
+> open
+MIDI open
 
 -- Major chords using ch
-> ch [c4, e4, g4] >> return ()
-> ch [f4, a4, c5] >> return ()
-> ch [g4, b4, d5] >> return ()
+> ch [c4, e4, g4]
+> ch [f4, a4, c5]
+> ch [g4, b4, d5]
 
 -- Custom chord function
 > let bigChord = notes 1 ff whole
-> bigChord [c3, g3, c4, e4, g4] >> return ()
+> bigChord [c3, g3, c4, e4, g4]
 
-> close >> return ()
+> close
+```
+
+### List MIDI Ports
+
+```haskell
+> import MidiRepl
+> ports
+2 MIDI port(s):
+  0: IAC Driver Bus 1
+  1: USB MIDI Device
 ```
 
 ### Low-level Midi Module
+
+For non-REPL usage or when you need return values:
 
 ```haskell
 > import Midi
 > midiOpenVirtual "Test" >>= print
 True
-> play c4 ppp quarter >> return ()
 > play c4 mf quarter >> return ()
-> play c4 fff quarter >> return ()
 > midiClose >> return ()
 ```
