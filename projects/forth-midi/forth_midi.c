@@ -97,7 +97,7 @@ struct timespec capture_start_time;
 void capture_add_event(int type, int channel, int data1, int data2);
 
 // ============================================================================
-// Phase 1: Packed Note Format
+// Packed Note Format
 // ============================================================================
 // Packed note: 32 bits
 //   bits 0-6:   pitch (0-127)
@@ -126,7 +126,7 @@ static inline int note_ch(int32_t n)    { return (n & NOTE_CH_MASK) >> NOTE_CH_S
 static inline int note_dur(int32_t n)   { return (n & NOTE_DUR_MASK) >> NOTE_DUR_SHIFT; }
 
 // ============================================================================
-// Phase 2: Sequence Data Structures
+// Sequence Data Structures
 // ============================================================================
 
 typedef struct {
@@ -558,7 +558,7 @@ void op_midi_open_virtual(Stack* stack) {
 
     midi_conf.version = MIDI1;
     midi_conf.virtual_port = true;
-    midi_conf.port_name = "MidiForth";
+    midi_conf.port_name = "ForthMIDI";
 
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
@@ -1157,7 +1157,7 @@ void op_rest(Stack* stack) {
 }
 
 // ============================================================================
-// Phase 1: Packed Note Operations
+// Packed Note Operations
 // ============================================================================
 
 // note ( pitch vel ch dur -- packed-note )
@@ -1263,7 +1263,7 @@ void op_bpm_fetch(Stack* stack) {
 }
 
 // ============================================================================
-// Phase 2: Sequence Operations
+// Sequence Operations
 // ============================================================================
 
 // Helper to sort events by time (simple insertion sort)
@@ -1527,7 +1527,7 @@ void op_seq_stretch(Stack* stack) {
 }
 
 // ============================================================================
-// Phase 3: Pattern DSL Helpers
+// Pattern DSL Helpers
 // ============================================================================
 
 // quarter ( -- ticks ) push quarter note duration
@@ -2077,7 +2077,7 @@ void init_dictionary(void) {
     add_word("r", op_rest, 1);
     add_word("times", op_times, 1);
 
-    // Priority 2: Generative / Expression
+    // Generative / Expression
     add_word("|", op_pipe, 1);
     add_word("[", op_bracket_open, 1);
     add_word("]", op_bracket_close, 1);
@@ -2094,16 +2094,16 @@ void init_dictionary(void) {
     add_word("ff", op_ff, 1);
     add_word("fff", op_fff, 1);
 
-    // Priority 3: Convenience
+    // Convenience
     add_word("^", op_octave_up, 1);
     add_word("v", op_octave_down, 1);
     add_word("pc", op_program_change, 1);
 
-    // Priority 4: Advanced
+    // Advanced
     add_word("pb", op_pitch_bend, 1);
     add_word("random", op_random, 1);
 
-    // Phase 1: Packed notes
+    // Packed notes
     add_word("note", op_note, 1);
     add_word("pitch@", op_pitch_fetch, 1);
     add_word("vel@", op_vel_fetch, 1);
@@ -2115,7 +2115,7 @@ void init_dictionary(void) {
     add_word("bpm!", op_bpm_store, 1);
     add_word("bpm@", op_bpm_fetch, 1);
 
-    // Phase 2: Sequences
+    // Sequences
     add_word("seq-new", op_seq_new, 1);
     add_word("seq", op_seq_select, 1);
     add_word("seq@", op_seq_current, 1);
@@ -2130,7 +2130,7 @@ void init_dictionary(void) {
     add_word("seq-reverse", op_seq_reverse, 1);
     add_word("seq-stretch", op_seq_stretch, 1);
 
-    // Phase 3: Pattern DSL
+    // Pattern DSL
     add_word("quarter", op_quarter, 1);
     add_word("half", op_half, 1);
     add_word("whole", op_whole, 1);

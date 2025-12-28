@@ -35,6 +35,7 @@ rebuild: clean build
 reset:
 	@rm -rf build
 	@rm -rf thirdparty/MicroHs/bin
+	@rm -f .mhscache thirdparty/MicroHs/.mhscache
 
 help:
 	@echo "Targets:"
