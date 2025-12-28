@@ -80,7 +80,7 @@ Cross-platform MIDI library supporting:
 
 ### 4. Lua Prelude
 
-The module includes an embedded Lua prelude that defines:
+The module includes a Lua prelude that defines:
 
 - Pitch constants (midi.c0-c8, midi.cs0-cs8, etc.)
 - Duration constants (midi.whole, half, quarter, etc.)
@@ -89,16 +89,39 @@ The module includes an embedded Lua prelude that defines:
 - Helper functions (midi.dotted, midi.rest)
 - REPL convenience functions (open, close, n, ch, arp)
 
-```c
-static const char *lua_prelude =
-    "-- Pitch constants\n"
-    "for oct = 0, 8 do\n"
-    "  midi['c'..oct] = 12 + oct * 12\n"
-    // ... more Lua code
-    ;
+The prelude is maintained as native Lua code in `prelude.lua` and converted to a C header at build time:
 
-// Loaded via:
-luaL_dostring(L, lua_prelude);
+```text
+projects/lua-midi/prelude.lua  -->  lua_prelude.h  -->  midi_module.c
+                               (prelude2c.py)       (#include)
+```
+
+```lua
+-- prelude.lua (native Lua, with syntax highlighting)
+for oct = 0, 8 do
+  midi['c'..oct] = 12 + oct * 12
+  -- ...
+end
+```
+
+```c
+// lua_prelude.h (generated)
+static const char *LUA_PRELUDE_MODULE =
+"for oct = 0, 8 do\n"
+"  midi['c'..oct] = 12 + oct * 12\n"
+// ...
+;
+
+// Loaded in midi_module.c via:
+luaL_dostring(L, LUA_PRELUDE_MODULE);
+```
+
+To regenerate after editing `prelude.lua`:
+
+```bash
+make preludes
+# or
+./scripts/prelude2c.py projects/lua-midi/prelude.lua
 ```
 
 ## Lua C API Patterns
@@ -283,7 +306,9 @@ int luaopen_midi(lua_State *L) {
 ```text
 projects/lua-midi/
   main.c              # Entry point, REPL with readline
-  midi_module.c       # Lua C bindings (~900 lines)
+  midi_module.c       # Lua C bindings
+  prelude.lua         # Lua prelude source (native Lua)
+  lua_prelude.h       # Generated C header (do not edit)
   CMakeLists.txt      # Build configuration
 
 thirdparty/lua-5.5.0/src/
@@ -363,15 +388,19 @@ static const luaL_Reg midi_funcs[] = {
 
 ### Adding via Lua Prelude
 
-For simpler additions, extend the prelude:
+For simpler additions, edit `prelude.lua` directly:
 
-```c
-static const char *lua_prelude =
-    // ... existing code ...
-    "function midi.new_helper(x)\n"
-    "  return x * 2\n"
-    "end\n"
-    ;
+```lua
+-- In projects/lua-midi/prelude.lua
+function midi.new_helper(x)
+  return x * 2
+end
+```
+
+Then regenerate the header:
+
+```bash
+make preludes
 ```
 
 This is preferred for:

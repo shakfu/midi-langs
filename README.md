@@ -15,6 +15,7 @@ All of the above use [libremidi](https://github.com/celtera/libremidi), a modern
 ```bash
 make              # Build everything
 make test         # Run tests
+make preludes     # Regenerate prelude headers from source files
 make clean        # Remove build directory
 ```
 
@@ -1000,6 +1001,30 @@ end
 
 m:close()
 ```
+
+---
+
+## Prelude System
+
+Each interpreted language (Scheme, Lua, Python) has a prelude file containing constants and helper functions written in its native syntax:
+
+```
+projects/s7-midi/prelude.scm    -> scm_prelude.h
+projects/lua-midi/prelude.lua   -> lua_prelude.h
+projects/pktpy-midi/prelude.py  -> py_prelude.h
+```
+
+The `scripts/prelude2c.py` script converts these to C headers containing string constants that are embedded in the interpreters at compile time.
+
+```bash
+# Regenerate a single prelude header
+./scripts/prelude2c.py projects/s7-midi/prelude.scm
+
+# Regenerate all prelude headers
+make preludes
+```
+
+This allows prelude code to be edited in its native language with proper syntax highlighting, while still being embedded in the final executable.
 
 ---
 

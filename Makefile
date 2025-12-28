@@ -4,15 +4,41 @@ BUILD_DIR := build
 CMAKE := cmake
 CTEST := ctest
 MHS := thirdparty/MicroHs/bin/mhs
+PRELUDE2C := ./scripts/prelude2c.py
 
-.PHONY: all build configure clean test test-quick test-verbose rebuild help reset
+# Prelude source files and their generated headers
+PRELUDE_SCM := projects/s7-midi/prelude.scm
+PRELUDE_LUA := projects/lua-midi/prelude.lua
+PRELUDE_PY  := projects/pktpy-midi/prelude.py
+
+HEADER_SCM := projects/s7-midi/scm_prelude.h
+HEADER_LUA := projects/lua-midi/lua_prelude.h
+HEADER_PY  := projects/pktpy-midi/py_prelude.h
+
+PRELUDE_HEADERS := $(HEADER_SCM) $(HEADER_LUA) $(HEADER_PY)
+
+.PHONY: all build configure clean test test-quick test-verbose rebuild help \
+		reset preludes
 
 all: build
+
+# Generate prelude headers from source files
+$(HEADER_SCM): $(PRELUDE_SCM) $(PRELUDE2C)
+	@$(PRELUDE2C) $<
+
+$(HEADER_LUA): $(PRELUDE_LUA) $(PRELUDE2C)
+	@$(PRELUDE2C) $<
+
+$(HEADER_PY): $(PRELUDE_PY) $(PRELUDE2C)
+	@$(PRELUDE2C) $<
+
+preludes: $(PRELUDE_HEADERS)
+	@echo "Generated prelude headers"
 
 $(MHS):
 	@make -C thirdparty/MicroHs
 
-configure: $(MHS)
+configure: $(MHS) $(PRELUDE_HEADERS)
 	@$(CMAKE) -B $(BUILD_DIR)
 
 build: configure
@@ -42,6 +68,7 @@ help:
 	@echo "  all          Build everything (default)"
 	@echo "  build        Build all targets"
 	@echo "  configure    Run CMake configuration"
+	@echo "  preludes     Generate C headers from prelude source files"
 	@echo "  clean        Remove build directory"
 	@echo "  test         Run all tests"
 	@echo "  test-quick   Run quick tests only"

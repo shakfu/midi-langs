@@ -80,7 +80,7 @@ Cross-platform MIDI library supporting:
 
 ### 4. Scheme Prelude
 
-The module includes an embedded Scheme prelude that defines:
+The module includes a Scheme prelude that defines:
 
 - Pitch constants (c0-c8, cs0-cs8, etc.)
 - Duration constants (whole, half, quarter, etc.)
@@ -90,16 +90,39 @@ The module includes an embedded Scheme prelude that defines:
 - Helper functions (transpose, octave-up, octave-down)
 - Arpeggio and rest functions
 
-```c
-static const char *scheme_prelude =
-    ";; Dynamics (velocity values)\n"
-    "(define ppp 16)\n"
-    "(define pp 33)\n"
-    // ... more Scheme code
-    ;
+The prelude is maintained as native Scheme code in `prelude.scm` and converted to a C header at build time:
 
-// Loaded via:
-s7_load_c_string(sc, scheme_prelude, strlen(scheme_prelude));
+```text
+projects/s7-midi/prelude.scm  -->  scm_prelude.h  -->  midi_module.c
+                              (prelude2c.py)       (#include)
+```
+
+```scheme
+;; prelude.scm (native Scheme, with syntax highlighting)
+(define ppp 16)
+(define pp 33)
+;; ...
+```
+
+```c
+// scm_prelude.h (generated)
+static const char *SCHEME_PRELUDE_MODULE =
+";; Dynamics (velocity values)\n"
+"(define ppp 16)\n"
+"(define pp 33)\n"
+// ...
+;
+
+// Loaded in midi_module.c via:
+s7_load_c_string(sc, SCHEME_PRELUDE_MODULE, strlen(SCHEME_PRELUDE_MODULE));
+```
+
+To regenerate after editing `prelude.scm`:
+
+```bash
+make preludes
+# or
+./scripts/prelude2c.py projects/s7-midi/prelude.scm
 ```
 
 ## s7 FFI Patterns
@@ -264,7 +287,9 @@ void s7_midi_init(s7_scheme *sc) {
 ```text
 projects/s7-midi/
   main.c              # Entry point, REPL
-  midi_module.c       # s7 FFI bindings (~870 lines)
+  midi_module.c       # s7 FFI bindings
+  prelude.scm         # Scheme prelude source (native Scheme)
+  scm_prelude.h       # Generated C header (do not edit)
   CMakeLists.txt      # Build configuration
 
 thirdparty/s7/
@@ -331,14 +356,18 @@ s7_define_function(sc, "new-func", g_new_func, 1, 0, false,
 
 ### Adding via Scheme Prelude
 
-For simpler additions, extend the prelude:
+For simpler additions, edit `prelude.scm` directly:
 
-```c
-static const char *scheme_prelude =
-    // ... existing code ...
-    "(define (new-helper x)\n"
-    "  (* x 2))\n"
-    ;
+```scheme
+;; In projects/s7-midi/prelude.scm
+(define (new-helper x)
+  (* x 2))
+```
+
+Then regenerate the header:
+
+```bash
+make preludes
 ```
 
 This is preferred for:

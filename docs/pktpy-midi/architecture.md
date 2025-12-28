@@ -73,23 +73,46 @@ Cross-platform MIDI library supporting:
 
 ### 4. Python Prelude
 
-The module includes an embedded Python prelude that runs at initialization. This adds:
+The module includes a Python prelude that runs at initialization. This adds:
 
 - Constants (dynamics, durations, pitches)
 - Helper functions (chord builders, transpose)
 - Method extensions (arpeggio, CC helpers)
 
-This approach allows adding Python-level features without C code:
+The prelude is maintained as native Python code in `prelude.py` and converted to a C header at build time:
+
+```text
+projects/pktpy-midi/prelude.py  -->  py_prelude.h  -->  midi_module.c
+                                (prelude2c.py)       (#include)
+```
+
+```python
+# prelude.py (native Python, with syntax highlighting)
+import midi
+midi.ppp = 16
+midi.pp = 33
+# ...
+```
 
 ```c
-static const char* prelude =
-    "import midi\n"
-    "midi.ppp = 16\n"
-    "midi.pp = 33\n"
-    // ... more Python code
-    ;
+// py_prelude.h (generated)
+static const char *PY_PRELUDE_MODULE =
+"import midi\n"
+"midi.ppp = 16\n"
+"midi.pp = 33\n"
+// ...
+;
 
-py_exec(prelude, "<midi_prelude>", EXEC_MODE, midi_mod);
+// Loaded in midi_module.c via:
+py_exec(PY_PRELUDE_MODULE, "<midi_prelude>", EXEC_MODE, midi_mod);
+```
+
+To regenerate after editing `prelude.py`:
+
+```bash
+make preludes
+# or
+./scripts/prelude2c.py projects/pktpy-midi/prelude.py
 ```
 
 ## Module Initialization
@@ -198,6 +221,8 @@ uint8_t pc[2] = {
 projects/pktpy-midi/
   main.c              # Entry point, calls py_initialize and module init
   midi_module.c       # MIDI module implementation
+  prelude.py          # Python prelude source (native Python)
+  py_prelude.h        # Generated C header (do not edit)
   pocketpy.c          # PocketPy interpreter
   pocketpy.h          # PocketPy API header
   CMakeLists.txt      # Build configuration
@@ -276,15 +301,19 @@ py_bindmethod(tp_MidiOut, "new_method", MidiOut_new_method);
 
 ### Adding via Python Prelude
 
-For simpler additions, extend the prelude:
+For simpler additions, edit `prelude.py` directly:
 
-```c
-static const char* prelude =
-    // ... existing code ...
-    "def _new_helper(x):\n"
-    "    return x * 2\n"
-    "midi.new_helper = _new_helper\n"
-    ;
+```python
+# In projects/pktpy-midi/prelude.py
+def _new_helper(x):
+    return x * 2
+midi.new_helper = _new_helper
+```
+
+Then regenerate the header:
+
+```bash
+make preludes
 ```
 
 This is preferred for:

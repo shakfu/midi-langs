@@ -4,6 +4,28 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Prelude System**: Extracted prelude code from C files into native language source files
+  - `projects/s7-midi/prelude.scm` - Scheme prelude (pitch constants, chord builders, etc.)
+  - `projects/lua-midi/prelude.lua` - Lua prelude
+  - `projects/pktpy-midi/prelude.py` - Python prelude
+  - Preludes are converted to C headers (`*_prelude.h`) at build time
+
+- **scripts/prelude2c.py**: Generic script to convert prelude files to C headers
+  - Supports `.scm`, `.lua`, `.py`, `.hs` file extensions
+  - Handles language-specific comment stripping
+  - Generates C string constants for embedding in interpreters
+  - Usage: `./scripts/prelude2c.py projects/s7-midi/prelude.scm`
+
+- **Makefile target**: `make preludes` to regenerate all prelude headers
+  - Automatic dependency tracking (only regenerates when source changes)
+  - Integrated into build process (runs before `configure`)
+
+### Removed
+
+- `scripts/py2c.py` - Superseded by `prelude2c.py`
+
 ## [0.1.4]
 
 ### Added
