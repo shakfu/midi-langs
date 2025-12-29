@@ -436,3 +436,188 @@ def _sustain(self, on=True, channel=1):
     '''Set sustain pedal (CC 64)'''
     self.cc(64, 127 if on else 0, channel)
 midi.MidiOut.sustain = _sustain
+
+# ============================================================================
+# Generative Music Functions
+# ============================================================================
+
+def _next_random(seed):
+    '''Pure PRNG using Linear Congruential Generator (same constants as glibc).
+    Returns (random_value, next_seed).'''
+    next_seed = (seed * 1103515245 + 12345) % 2147483648
+    value = next_seed // 65536  # extract higher bits
+    return (value, next_seed)
+midi.next_random = _next_random
+
+def _random_range(seed, lo, hi):
+    '''Generate random int in range [lo, hi]. Returns (value, next_seed).'''
+    if lo >= hi:
+        return (lo, seed)
+    r, next_seed = _next_random(seed)
+    return (lo + (r % (hi - lo + 1)), next_seed)
+midi.random_range = _random_range
+
+def _random_list(seed, n, lo, hi):
+    '''Generate n random ints in range [lo, hi]. Returns (list, next_seed).'''
+    result = []
+    s = seed
+    for _ in range(n):
+        r, s = _random_range(s, lo, hi)
+        result.append(r)
+    return (result, s)
+midi.random_list = _random_list
+
+def _euclidean(hits, steps):
+    '''Euclidean rhythm using Bjorklund's algorithm.
+    Returns a list of booleans where True = hit, False = rest.
+    E.g., euclidean(3, 8) -> [True, False, False, True, False, False, True, False]'''
+    if hits <= 0:
+        return [False] * steps
+    if hits >= steps:
+        return [True] * steps
+
+    # Initialize sequences
+    seqs = [[True] for _ in range(hits)]
+    remainder = [[False] for _ in range(steps - hits)]
+
+    # Bjorklund's algorithm
+    while len(remainder) > 1:
+        new_seqs = []
+        min_len = min(len(seqs), len(remainder))
+        for i in range(min_len):
+            new_seqs.append(seqs[i] + remainder[i])
+        new_remainder = seqs[min_len:] + remainder[min_len:]
+        seqs = new_seqs
+        remainder = new_remainder
+
+    # Flatten result
+    result = []
+    for seq in seqs:
+        result.extend(seq)
+    for seq in remainder:
+        result.extend(seq)
+    return result
+midi.euclidean = _euclidean
+
+def _arp_up(lst):
+    '''Ascending arpeggio pattern - returns copy of list.'''
+    return list(lst)
+midi.arp_up = _arp_up
+
+def _arp_down(lst):
+    '''Descending arpeggio pattern - returns reversed list.'''
+    return list(reversed(lst))
+midi.arp_down = _arp_down
+
+def _arp_up_down(lst):
+    '''Up-down arpeggio pattern (no repeated top note).'''
+    if len(lst) <= 1:
+        return list(lst)
+    result = list(lst)
+    result.extend(reversed(lst[1:-1]))
+    return result
+midi.arp_up_down = _arp_up_down
+
+def _retrograde(lst):
+    '''Retrograde - reverse a list.'''
+    return list(reversed(lst))
+midi.retrograde = _retrograde
+
+def _invert(lst, axis):
+    '''Melodic inversion around an axis pitch.'''
+    return [2 * axis - pitch for pitch in lst]
+midi.invert = _invert
+
+def _shuffle(seed, lst):
+    '''Fisher-Yates shuffle using seed. Returns shuffled copy.'''
+    result = list(lst)
+    s = seed
+    for i in range(len(result) - 1, 0, -1):
+        j, s = _random_range(s, 0, i)
+        result[i], result[j] = result[j], result[i]
+    return result
+midi.shuffle = _shuffle
+
+def _pick(seed, lst):
+    '''Pick one element from a list using seed.'''
+    if len(lst) == 0:
+        return None
+    idx, _ = _random_range(seed, 0, len(lst) - 1)
+    return lst[idx]
+midi.pick = _pick
+
+def _pick_n(seed, n, lst):
+    '''Pick n elements from a list (with replacement).'''
+    if len(lst) == 0:
+        return []
+    result = []
+    s = seed
+    for _ in range(n):
+        idx, s = _random_range(s, 0, len(lst) - 1)
+        result.append(lst[idx])
+    return result
+midi.pick_n = _pick_n
+
+def _random_walk(seed, start, max_step, n):
+    '''Random walk - start from a pitch, take n steps of max size.
+    Returns list of pitches.'''
+    result = []
+    s = seed
+    pitch = start
+    for _ in range(n):
+        result.append(pitch)
+        step, s = _random_range(s, -max_step, max_step)
+        pitch = max(0, min(127, pitch + step))
+    return result
+midi.random_walk = _random_walk
+
+def _drunk_walk(seed, start, scale_pitches, max_degrees, n):
+    '''Drunk walk constrained to scale pitches.
+    Returns list of pitches from the scale.'''
+    if len(scale_pitches) == 0:
+        return []
+
+    # Find closest index in scale to start pitch
+    def find_closest(p, pitches):
+        best_idx = 0
+        best_dist = abs(p - pitches[0])
+        for i in range(1, len(pitches)):
+            dist = abs(p - pitches[i])
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = i
+        return best_idx
+
+    result = []
+    s = seed
+    idx = find_closest(start, scale_pitches)
+
+    for _ in range(n):
+        result.append(scale_pitches[idx])
+        step, s = _random_range(s, -max_degrees, max_degrees)
+        idx = max(0, min(len(scale_pitches) - 1, idx + step))
+    return result
+midi.drunk_walk = _drunk_walk
+
+def _weighted_pick(seed, weights):
+    '''Weighted random selection.
+    weights is a list of (value, weight) tuples.'''
+    total = 0
+    for w in weights:
+        total += w[1]
+    if total <= 0:
+        return None
+    r, _ = _random_range(seed, 1, total)
+    cumulative = 0
+    for w in weights:
+        cumulative += w[1]
+        if r <= cumulative:
+            return w[0]
+    return weights[-1][0]
+midi.weighted_pick = _weighted_pick
+
+def _chance(seed, probability):
+    '''Probability gate - returns (True/False, next_seed) with given probability (0-100).'''
+    r, next_seed = _random_range(seed, 0, 99)
+    return (r < probability, next_seed)
+midi.chance = _chance

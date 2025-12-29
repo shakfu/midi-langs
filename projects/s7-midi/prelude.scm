@@ -369,8 +369,197 @@
         (channel (if (>= (length args) 3) (caddr args) 1)))
     (midi-arpeggio *midi* pitches vel dur channel)))
 
-(define (play-notes ns) 
+(define (play-notes ns)
 	"Play a list of notes"
 	(if (not *midi*) (error 'no-midi-port "No MIDI port open. Use (open) first."))
 	(map n ns))
+
+;; ============================================================================
+;; Generative Music Functions
+;; ============================================================================
+
+;; Pure PRNG using Linear Congruential Generator (same constants as glibc)
+;; Returns (value . next-seed)
+(define (next-random seed)
+  (let* ((next-seed (modulo (+ (* seed 1103515245) 12345) 2147483648))
+         (value (floor (/ next-seed 65536))))
+    (cons value next-seed)))
+
+;; Generate random int in range [lo, hi]. Returns (value . next-seed)
+(define (random-range seed lo hi)
+  (if (>= lo hi)
+      (cons lo seed)
+      (let* ((result (next-random seed))
+             (r (car result))
+             (next-seed (cdr result)))
+        (cons (+ lo (modulo r (+ 1 (- hi lo)))) next-seed))))
+
+;; Generate n random ints in range [lo, hi]. Returns (list . next-seed)
+(define (random-list seed n lo hi)
+  (let loop ((s seed) (count n) (acc '()))
+    (if (<= count 0)
+        (cons (reverse acc) s)
+        (let* ((result (random-range s lo hi))
+               (r (car result))
+               (next-s (cdr result)))
+          (loop next-s (- count 1) (cons r acc))))))
+
+;; Euclidean rhythm using Bjorklund's algorithm
+;; Returns a list of booleans where #t = hit, #f = rest
+(define (euclidean hits steps)
+  (cond
+    ((<= hits 0) (make-list steps #f))
+    ((>= hits steps) (make-list steps #t))
+    (else
+     (let loop ((seqs (map list (make-list hits #t)))
+                (remainder (map list (make-list (- steps hits) #f))))
+       (if (<= (length remainder) 1)
+           ;; Flatten and return
+           (apply append (append seqs remainder))
+           ;; Bjorklund step
+           (let* ((min-len (min (length seqs) (length remainder)))
+                  (new-seqs (map (lambda (s r) (append s r))
+                                 (take seqs min-len)
+                                 (take remainder min-len)))
+                  (new-remainder (append (drop seqs min-len)
+                                        (drop remainder min-len))))
+             (loop new-seqs new-remainder)))))))
+
+;; Helper: take first n elements
+(define (take lst n)
+  (if (or (<= n 0) (null? lst))
+      '()
+      (cons (car lst) (take (cdr lst) (- n 1)))))
+
+;; Helper: drop first n elements
+(define (drop lst n)
+  (if (or (<= n 0) (null? lst))
+      lst
+      (drop (cdr lst) (- n 1))))
+
+;; Helper: make a list of n copies of x
+(define (make-list n x)
+  (if (<= n 0)
+      '()
+      (cons x (make-list (- n 1) x))))
+
+;; Arpeggio patterns
+(define (arp-up lst)
+  "Ascending arpeggio pattern - returns copy of list"
+  (map (lambda (x) x) lst))
+
+(define (arp-down lst)
+  "Descending arpeggio pattern - returns reversed list"
+  (reverse lst))
+
+(define (arp-up-down lst)
+  "Up-down arpeggio pattern (no repeated top note)"
+  (if (<= (length lst) 1)
+      lst
+      (append lst (reverse (cdr (reverse (cdr lst)))))))
+
+;; Retrograde - reverse a list
+(define (retrograde lst)
+  "Reverse a list of pitches"
+  (reverse lst))
+
+;; Melodic inversion around an axis pitch
+(define (invert lst axis)
+  "Melodic inversion around an axis pitch"
+  (map (lambda (pitch) (- (* 2 axis) pitch)) lst))
+
+;; Fisher-Yates shuffle using seed. Returns shuffled list.
+(define (shuffle seed lst)
+  (let ((vec (list->vector lst)))
+    (let loop ((s seed) (i (- (vector-length vec) 1)))
+      (if (<= i 0)
+          (vector->list vec)
+          (let* ((result (random-range s 0 i))
+                 (j (car result))
+                 (next-s (cdr result))
+                 (tmp (vector-ref vec i)))
+            (vector-set! vec i (vector-ref vec j))
+            (vector-set! vec j tmp)
+            (loop next-s (- i 1)))))))
+
+;; Pick one element from a list using seed
+(define (pick seed lst)
+  (if (null? lst)
+      #f
+      (let* ((result (random-range seed 0 (- (length lst) 1)))
+             (idx (car result)))
+        (list-ref lst idx))))
+
+;; Pick n elements from a list (with replacement)
+(define (pick-n seed n lst)
+  (if (null? lst)
+      '()
+      (let loop ((s seed) (count n) (acc '()))
+        (if (<= count 0)
+            (reverse acc)
+            (let* ((result (random-range s 0 (- (length lst) 1)))
+                   (idx (car result))
+                   (next-s (cdr result)))
+              (loop next-s (- count 1) (cons (list-ref lst idx) acc)))))))
+
+;; Random walk - start from a pitch, take n steps of max size
+;; Returns list of pitches
+(define (random-walk seed start max-step n)
+  (let loop ((s seed) (pitch start) (count n) (acc '()))
+    (if (<= count 0)
+        (reverse acc)
+        (let* ((result (random-range s (- max-step) max-step))
+               (step (car result))
+               (next-s (cdr result))
+               (new-pitch (max 0 (min 127 (+ pitch step)))))
+          (loop next-s new-pitch (- count 1) (cons pitch acc))))))
+
+;; Drunk walk constrained to scale pitches
+;; Returns list of pitches from the scale
+(define (drunk-walk seed start scale-pitches max-degrees n)
+  (if (null? scale-pitches)
+      '()
+      (let* ((find-closest
+              (lambda (p pitches)
+                (let loop ((ps pitches) (idx 0) (best-idx 0) (best-dist 999999))
+                  (if (null? ps)
+                      best-idx
+                      (let ((dist (abs (- p (car ps)))))
+                        (if (< dist best-dist)
+                            (loop (cdr ps) (+ idx 1) idx dist)
+                            (loop (cdr ps) (+ idx 1) best-idx best-dist)))))))
+             (scale-len (length scale-pitches))
+             (start-idx (find-closest start scale-pitches)))
+        (let loop ((s seed) (idx start-idx) (count n) (acc '()))
+          (if (<= count 0)
+              (reverse acc)
+              (let* ((result (random-range s (- max-degrees) max-degrees))
+                     (step (car result))
+                     (next-s (cdr result))
+                     (new-idx (max 0 (min (- scale-len 1) (+ idx step)))))
+                (loop next-s new-idx (- count 1)
+                      (cons (list-ref scale-pitches idx) acc))))))))
+
+;; Weighted random selection
+;; weights is a list of (value . weight) pairs
+(define (weighted-pick seed weights)
+  (let ((total (apply + (map cdr weights))))
+    (if (<= total 0)
+        #f
+        (let* ((result (random-range seed 1 total))
+               (r (car result)))
+          (let loop ((ws weights) (cumulative 0))
+            (if (null? ws)
+                (caar (reverse weights))
+                (let ((new-cumulative (+ cumulative (cdar ws))))
+                  (if (<= r new-cumulative)
+                      (caar ws)
+                      (loop (cdr ws) new-cumulative)))))))))
+
+;; Probability gate - returns (result . next-seed) with given probability (0-100)
+(define (chance seed probability)
+  (let* ((result (random-range seed 0 99))
+         (r (car result))
+         (next-seed (cdr result)))
+    (cons (< r probability) next-seed)))
 

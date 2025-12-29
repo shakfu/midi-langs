@@ -281,3 +281,237 @@ function arp(pitches, vel, dur, channel)
   if not midi._out then error('No MIDI port open. Use open() first.') end
   midi._out:arpeggio(pitches, vel or midi.mf, dur or midi.eighth, channel or 1)
 end
+
+-- ============================================================================
+-- Generative Music Functions
+-- ============================================================================
+
+-- Pure PRNG using Linear Congruential Generator (same constants as glibc)
+-- Returns (random_value, next_seed)
+function midi.next_random(seed)
+  local next_seed = (seed * 1103515245 + 12345) % 2147483648
+  local value = math.floor(next_seed / 65536)  -- extract higher bits
+  return value, next_seed
+end
+
+-- Generate random int in range [lo, hi]
+-- Returns (value, next_seed)
+function midi.random_range(seed, lo, hi)
+  if lo >= hi then return lo, seed end
+  local r, next_seed = midi.next_random(seed)
+  return lo + (r % (hi - lo + 1)), next_seed
+end
+
+-- Generate n random ints in range [lo, hi]
+-- Returns (list, next_seed)
+function midi.random_list(seed, n, lo, hi)
+  local result = {}
+  local s = seed
+  for i = 1, n do
+    local r
+    r, s = midi.random_range(s, lo, hi)
+    result[i] = r
+  end
+  return result, s
+end
+
+-- Euclidean rhythm using Bjorklund's algorithm
+-- Returns a list of booleans where true = hit, false = rest
+function midi.euclidean(hits, steps)
+  if hits <= 0 then
+    local result = {}
+    for i = 1, steps do result[i] = false end
+    return result
+  end
+  if hits >= steps then
+    local result = {}
+    for i = 1, steps do result[i] = true end
+    return result
+  end
+
+  -- Initialize sequences
+  local seqs = {}
+  for i = 1, hits do seqs[i] = {true} end
+  local remainder = {}
+  for i = 1, steps - hits do remainder[i] = {false} end
+
+  -- Bjorklund's algorithm
+  while #remainder > 1 do
+    local new_seqs = {}
+    local min_len = math.min(#seqs, #remainder)
+    for i = 1, min_len do
+      local combined = {}
+      for _, v in ipairs(seqs[i]) do combined[#combined + 1] = v end
+      for _, v in ipairs(remainder[i]) do combined[#combined + 1] = v end
+      new_seqs[i] = combined
+    end
+    local new_remainder = {}
+    for i = min_len + 1, #seqs do new_remainder[#new_remainder + 1] = seqs[i] end
+    for i = min_len + 1, #remainder do new_remainder[#new_remainder + 1] = remainder[i] end
+    seqs = new_seqs
+    remainder = new_remainder
+  end
+
+  -- Flatten result
+  local result = {}
+  for _, seq in ipairs(seqs) do
+    for _, v in ipairs(seq) do result[#result + 1] = v end
+  end
+  for _, seq in ipairs(remainder) do
+    for _, v in ipairs(seq) do result[#result + 1] = v end
+  end
+  return result
+end
+
+-- Arpeggio patterns
+function midi.arp_up(list)
+  local result = {}
+  for i, v in ipairs(list) do result[i] = v end
+  return result
+end
+
+function midi.arp_down(list)
+  local result = {}
+  for i = #list, 1, -1 do result[#result + 1] = list[i] end
+  return result
+end
+
+function midi.arp_up_down(list)
+  if #list <= 1 then return midi.arp_up(list) end
+  local result = {}
+  for _, v in ipairs(list) do result[#result + 1] = v end
+  for i = #list - 1, 2, -1 do result[#result + 1] = list[i] end
+  return result
+end
+
+-- Retrograde - reverse a list
+function midi.retrograde(list)
+  return midi.arp_down(list)
+end
+
+-- Melodic inversion around an axis pitch
+function midi.invert(list, axis)
+  local result = {}
+  for i, pitch in ipairs(list) do
+    result[i] = 2 * axis - pitch
+  end
+  return result
+end
+
+-- Fisher-Yates shuffle using seed
+function midi.shuffle(seed, list)
+  local result = {}
+  for i, v in ipairs(list) do result[i] = v end
+  local s = seed
+  for i = #result, 2, -1 do
+    local j
+    j, s = midi.random_range(s, 1, i)
+    result[i], result[j] = result[j], result[i]
+  end
+  return result
+end
+
+-- Pick one element from a list using seed
+function midi.pick(seed, list)
+  if #list == 0 then return nil end
+  local idx, _ = midi.random_range(seed, 1, #list)
+  return list[idx]
+end
+
+-- Pick n elements from a list (with replacement)
+function midi.pick_n(seed, n, list)
+  if #list == 0 then return {} end
+  local result = {}
+  local s = seed
+  for i = 1, n do
+    local idx
+    idx, s = midi.random_range(s, 1, #list)
+    result[i] = list[idx]
+  end
+  return result
+end
+
+-- Random walk - start from a pitch, take n steps of max size
+function midi.random_walk(seed, start, max_step, n)
+  local result = {}
+  local s = seed
+  local pitch = start
+  for i = 1, n do
+    result[i] = pitch
+    local step
+    step, s = midi.random_range(s, -max_step, max_step)
+    pitch = math.max(0, math.min(127, pitch + step))
+  end
+  return result
+end
+
+-- Drunk walk constrained to scale pitches
+function midi.drunk_walk(seed, start, scale_pitches, max_degrees, n)
+  if #scale_pitches == 0 then return {} end
+
+  -- Find closest index in scale to start pitch
+  local function find_closest(p, pitches)
+    local best_idx = 1
+    local best_dist = math.abs(p - pitches[1])
+    for i = 2, #pitches do
+      local dist = math.abs(p - pitches[i])
+      if dist < best_dist then
+        best_dist = dist
+        best_idx = i
+      end
+    end
+    return best_idx
+  end
+
+  local result = {}
+  local s = seed
+  local idx = find_closest(start, scale_pitches)
+
+  for i = 1, n do
+    result[i] = scale_pitches[idx]
+    local step
+    step, s = midi.random_range(s, -max_degrees, max_degrees)
+    idx = math.max(1, math.min(#scale_pitches, idx + step))
+  end
+  return result
+end
+
+-- Weighted random selection
+-- weights is a table of {value, weight} pairs
+function midi.weighted_pick(seed, weights)
+  local total = 0
+  for _, w in ipairs(weights) do total = total + w[2] end
+  if total <= 0 then return nil end
+
+  local r, _ = midi.random_range(seed, 1, total)
+  local cumulative = 0
+  for _, w in ipairs(weights) do
+    cumulative = cumulative + w[2]
+    if r <= cumulative then return w[1] end
+  end
+  return weights[#weights][1]
+end
+
+-- Probability gate - returns true with given probability (0-100)
+function midi.chance(seed, probability)
+  local r, next_seed = midi.random_range(seed, 0, 99)
+  return r < probability, next_seed
+end
+
+-- Global aliases for generative functions
+next_random = midi.next_random
+random_range = midi.random_range
+random_list = midi.random_list
+euclidean = midi.euclidean
+arp_up = midi.arp_up
+arp_down = midi.arp_down
+arp_up_down = midi.arp_up_down
+retrograde = midi.retrograde
+invert = midi.invert
+shuffle = midi.shuffle
+pick = midi.pick
+pick_n = midi.pick_n
+random_walk = midi.random_walk
+drunk_walk = midi.drunk_walk
+weighted_pick = midi.weighted_pick
+chance = midi.chance
