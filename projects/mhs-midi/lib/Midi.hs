@@ -65,6 +65,50 @@ module Midi (
     Channel,
     withChannel,
     defaultChannel,
+
+    -- * Scales
+    Scale,
+    buildScale,
+    scaleDegree,
+    inScale,
+    quantize,
+    -- ** Diatonic modes
+    scaleMajor, scaleMinor, scaleDorian, scalePhrygian,
+    scaleLydian, scaleMixolydian, scaleLocrian,
+    scaleIonian, scaleAeolian,
+    -- ** Minor variants
+    scaleHarmonicMinor, scaleMelodicMinor, scaleHarmonicMajor,
+    -- ** Pentatonic and blues
+    scalePentatonic, scalePentatonicMajor, scalePentatonicMinor,
+    scaleBlues, scaleBluesMajor,
+    -- ** Symmetric
+    scaleWholeTone, scaleChromatic, scaleDiminished, scaleAugmented,
+    -- ** Bebop
+    scaleBebopDominant, scaleBebopMajor, scaleBebopMinor,
+    -- ** World scales
+    scaleHungarianMinor, scaleDoubleHarmonic, scaleGypsy,
+    scaleHirajoshi, scaleInSen, scaleIwato, scaleKumoi,
+    scalePersian, scaleAltered, scaleEnigmatic,
+    scaleNeapolitanMajor, scaleNeapolitanMinor, scalePhrygianDominant,
+    scaleEgyptian, scaleRomanianMinor, scaleSpanish8Tone,
+    -- ** Arabic Maqamat (12-TET approximations)
+    scaleMaqamHijaz, scaleMaqamNahawand, scaleMaqamNikriz,
+    scaleMaqamAtharKurd, scaleMaqamShawqAfza, scaleMaqamJiharkah,
+    -- ** Indian Ragas (12-TET approximations)
+    scaleRagaBhairav, scaleRagaTodi, scaleRagaMarwa, scaleRagaPurvi,
+    scaleRagaCharukeshi, scaleRagaAsavari, scaleRagaBilawal,
+    scaleRagaKhamaj, scaleRagaKalyan, scaleRagaBhimpalasi, scaleRagaDarbari,
+
+    -- * Microtonal
+    centsToBend,
+    centsToNote,
+    pitchBendCents,
+    -- ** Microtonal scales (cents-based)
+    scaleMaqamBayatiCents, scaleMaqamRastCents, scaleMaqamSabaCents,
+    scaleMaqamSikahCents, scaleMaqamHuzamCents, scaleMaqamIraqCents,
+    scaleMaqamBastanikarCents,
+    scaleMakamUssakCents, scaleMakamHuseyniCents,
+    scaleShrutiCents,
 ) where
 
 import Foreign.C.Types
@@ -86,6 +130,7 @@ foreign import ccall "midi_ffi.h midi_note_off" c_midi_note_off :: CInt -> CInt 
 foreign import ccall "midi_ffi.h midi_cc" c_midi_cc :: CInt -> CInt -> CInt -> IO CInt
 foreign import ccall "midi_ffi.h midi_program" c_midi_program :: CInt -> CInt -> IO CInt
 foreign import ccall "midi_ffi.h midi_pitch_bend" c_midi_pitch_bend :: CInt -> CInt -> IO CInt
+foreign import ccall "midi_ffi.h midi_cents_to_bend" c_midi_cents_to_bend :: CInt -> IO CInt
 foreign import ccall "midi_ffi.h midi_sleep" c_midi_sleep :: CInt -> IO ()
 foreign import ccall "midi_ffi.h midi_panic" c_midi_panic :: IO ()
 
@@ -369,3 +414,197 @@ times n action = action >> times (n - 1) action
 -- | Execute action with a specific channel
 withChannel :: Channel -> (Channel -> IO ()) -> IO ()
 withChannel ch action = action ch
+
+-----------------------------------------------------------
+-- Scales
+-----------------------------------------------------------
+
+-- | A scale is a list of semitone intervals from the root
+type Scale = [Int]
+
+-- | Build a scale from root pitch and intervals
+buildScale :: Pitch -> Scale -> [Pitch]
+buildScale root intervals = [root + i | i <- intervals, root + i >= 0, root + i <= 127]
+
+-- | Get the nth degree of a scale (1-based)
+-- Supports extended degrees (e.g., 9 = 2nd + octave)
+scaleDegree :: Pitch -> Scale -> Int -> Pitch
+scaleDegree root intervals deg
+    | deg < 1   = root
+    | otherwise = root + octaves * 12 + intervals !! idx
+  where
+    n = length intervals
+    idx = (deg - 1) `mod` n
+    octaves = (deg - 1) `div` n
+
+-- | Check if a pitch belongs to a scale (in any octave)
+inScale :: Pitch -> Pitch -> Scale -> Bool
+inScale pitch root intervals = elemInt pc normalizedIntervals
+  where
+    pc = (pitch - root) `mod` 12
+    normalizedIntervals = [i `mod` 12 | i <- intervals]
+    elemInt :: Int -> [Int] -> Bool
+    elemInt _ [] = False
+    elemInt x (y:ys) = x == y || elemInt x ys
+
+-- | Quantize a pitch to the nearest note in a scale
+quantize :: Pitch -> Pitch -> Scale -> Pitch
+quantize pitch root intervals = pitch + bestOffset
+  where
+    pc = (pitch - root) `mod` 12
+    normalizedIntervals = [i `mod` 12 | i <- intervals]
+    offsets = [i - pc | i <- normalizedIntervals]
+    -- Find offset with smallest absolute value
+    bestOffset = foldr1 (\o best -> if abs o < abs best then o else best) offsets
+
+-----------------------------------------------------------
+-- Scale constants (12-TET)
+-----------------------------------------------------------
+
+-- Diatonic modes
+scaleMajor, scaleMinor, scaleDorian, scalePhrygian :: Scale
+scaleLydian, scaleMixolydian, scaleLocrian :: Scale
+scaleIonian, scaleAeolian :: Scale
+
+scaleMajor      = [0, 2, 4, 5, 7, 9, 11]
+scaleMinor      = [0, 2, 3, 5, 7, 8, 10]
+scaleDorian     = [0, 2, 3, 5, 7, 9, 10]
+scalePhrygian   = [0, 1, 3, 5, 7, 8, 10]
+scaleLydian     = [0, 2, 4, 6, 7, 9, 11]
+scaleMixolydian = [0, 2, 4, 5, 7, 9, 10]
+scaleLocrian    = [0, 1, 3, 5, 6, 8, 10]
+scaleIonian     = scaleMajor
+scaleAeolian    = scaleMinor
+
+-- Minor variants
+scaleHarmonicMinor, scaleMelodicMinor, scaleHarmonicMajor :: Scale
+scaleHarmonicMinor = [0, 2, 3, 5, 7, 8, 11]
+scaleMelodicMinor  = [0, 2, 3, 5, 7, 9, 11]
+scaleHarmonicMajor = [0, 2, 4, 5, 7, 8, 11]
+
+-- Pentatonic and blues
+scalePentatonic, scalePentatonicMajor, scalePentatonicMinor :: Scale
+scaleBlues, scaleBluesMajor :: Scale
+scalePentatonic      = [0, 2, 4, 7, 9]
+scalePentatonicMajor = [0, 2, 4, 7, 9]
+scalePentatonicMinor = [0, 3, 5, 7, 10]
+scaleBlues           = [0, 3, 5, 6, 7, 10]
+scaleBluesMajor      = [0, 2, 3, 4, 7, 9]
+
+-- Symmetric scales
+scaleWholeTone, scaleChromatic, scaleDiminished, scaleAugmented :: Scale
+scaleWholeTone  = [0, 2, 4, 6, 8, 10]
+scaleChromatic  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+scaleDiminished = [0, 2, 3, 5, 6, 8, 9, 11]  -- whole-half
+scaleAugmented  = [0, 3, 4, 7, 8, 11]
+
+-- Bebop scales
+scaleBebopDominant, scaleBebopMajor, scaleBebopMinor :: Scale
+scaleBebopDominant = [0, 2, 4, 5, 7, 9, 10, 11]
+scaleBebopMajor    = [0, 2, 4, 5, 7, 8, 9, 11]
+scaleBebopMinor    = [0, 2, 3, 4, 5, 7, 9, 10]
+
+-- World scales
+scaleHungarianMinor, scaleDoubleHarmonic, scaleGypsy :: Scale
+scaleHungarianMinor  = [0, 2, 3, 6, 7, 8, 11]
+scaleDoubleHarmonic  = [0, 1, 4, 5, 7, 8, 11]
+scaleGypsy           = [0, 2, 3, 6, 7, 8, 10]
+
+scaleHirajoshi, scaleInSen, scaleIwato, scaleKumoi :: Scale
+scaleHirajoshi = [0, 2, 3, 7, 8]
+scaleInSen     = [0, 1, 5, 7, 10]
+scaleIwato     = [0, 1, 5, 6, 10]
+scaleKumoi     = [0, 2, 3, 7, 9]
+
+scalePersian, scaleAltered, scaleEnigmatic :: Scale
+scalePersian   = [0, 1, 4, 5, 6, 8, 11]
+scaleAltered   = [0, 1, 3, 4, 6, 8, 10]
+scaleEnigmatic = [0, 1, 4, 6, 8, 10, 11]
+
+scaleNeapolitanMajor, scaleNeapolitanMinor, scalePhrygianDominant :: Scale
+scaleNeapolitanMajor  = [0, 1, 3, 5, 7, 9, 11]
+scaleNeapolitanMinor  = [0, 1, 3, 5, 7, 8, 11]
+scalePhrygianDominant = [0, 1, 4, 5, 7, 8, 10]
+
+scaleEgyptian, scaleRomanianMinor, scaleSpanish8Tone :: Scale
+scaleEgyptian      = [0, 2, 5, 7, 10]
+scaleRomanianMinor = [0, 2, 3, 6, 7, 9, 10]
+scaleSpanish8Tone  = [0, 1, 3, 4, 5, 6, 8, 10]
+
+-- Arabic Maqamat (12-TET approximations)
+scaleMaqamHijaz, scaleMaqamNahawand, scaleMaqamNikriz :: Scale
+scaleMaqamAtharKurd, scaleMaqamShawqAfza, scaleMaqamJiharkah :: Scale
+scaleMaqamHijaz      = [0, 1, 4, 5, 7, 8, 10]
+scaleMaqamNahawand   = [0, 2, 3, 5, 7, 8, 11]
+scaleMaqamNikriz     = [0, 2, 3, 6, 7, 9, 10]
+scaleMaqamAtharKurd  = [0, 2, 3, 6, 7, 8, 11]
+scaleMaqamShawqAfza  = [0, 2, 3, 6, 7, 9, 11]
+scaleMaqamJiharkah   = [0, 2, 4, 5, 7, 9, 10]
+
+-- Indian Ragas (12-TET approximations)
+scaleRagaBhairav, scaleRagaTodi, scaleRagaMarwa, scaleRagaPurvi :: Scale
+scaleRagaCharukeshi, scaleRagaAsavari, scaleRagaBilawal :: Scale
+scaleRagaKhamaj, scaleRagaKalyan, scaleRagaBhimpalasi, scaleRagaDarbari :: Scale
+scaleRagaBhairav    = [0, 1, 4, 5, 7, 8, 11]
+scaleRagaTodi       = [0, 1, 3, 6, 7, 8, 11]
+scaleRagaMarwa      = [0, 1, 4, 6, 7, 9, 11]
+scaleRagaPurvi      = [0, 1, 4, 6, 7, 8, 11]
+scaleRagaCharukeshi = [0, 2, 4, 5, 7, 8, 11]
+scaleRagaAsavari    = [0, 2, 3, 5, 7, 8, 10]
+scaleRagaBilawal    = [0, 2, 4, 5, 7, 9, 11]
+scaleRagaKhamaj     = [0, 2, 4, 5, 7, 9, 10]
+scaleRagaKalyan     = [0, 2, 4, 6, 7, 9, 11]
+scaleRagaBhimpalasi = [0, 2, 3, 5, 7, 9, 10]
+scaleRagaDarbari    = [0, 2, 3, 5, 7, 8, 9]
+
+-----------------------------------------------------------
+-- Microtonal support
+-----------------------------------------------------------
+
+-- | Convert cents offset to MIDI pitch bend value
+centsToBend :: Int -> IO Int
+centsToBend cents = do
+    r <- c_midi_cents_to_bend (fromIntegral cents)
+    return (fromIntegral r)
+
+-- | Convert a cents interval to note and pitch bend
+-- Returns (midiNote, bendCents)
+centsToNote :: Pitch -> Int -> (Pitch, Int)
+centsToNote root cents = (note, bendCents)
+  where
+    semitones = cents `div` 100
+    bendCents = cents `mod` 100
+    note = root + semitones
+
+-- | Send pitch bend in cents on a channel
+pitchBendCents :: Channel -> Int -> IO ()
+pitchBendCents ch cents = do
+    bend <- centsToBend cents
+    midiPitchBend ch bend
+
+-----------------------------------------------------------
+-- Microtonal scales (cents-based)
+-----------------------------------------------------------
+
+-- Arabic Maqamat with authentic quarter-tones
+scaleMaqamBayatiCents, scaleMaqamRastCents, scaleMaqamSabaCents :: [Int]
+scaleMaqamSikahCents, scaleMaqamHuzamCents, scaleMaqamIraqCents :: [Int]
+scaleMaqamBastanikarCents :: [Int]
+
+scaleMaqamBayatiCents     = [0, 150, 300, 500, 700, 800, 1000]
+scaleMaqamRastCents       = [0, 200, 350, 500, 700, 900, 1050]
+scaleMaqamSabaCents       = [0, 150, 300, 400, 700, 800, 1000]
+scaleMaqamSikahCents      = [0, 150, 350, 500, 700, 850, 1050]
+scaleMaqamHuzamCents      = [0, 150, 350, 500, 700, 900, 1050]
+scaleMaqamIraqCents       = [0, 150, 350, 500, 650, 850, 1050]
+scaleMaqamBastanikarCents = [0, 150, 300, 500, 700, 850, 1000]
+
+-- Turkish Makamlar
+scaleMakamUssakCents, scaleMakamHuseyniCents :: [Int]
+scaleMakamUssakCents   = [0, 150, 300, 500, 700, 850, 1000]
+scaleMakamHuseyniCents = [0, 150, 300, 500, 700, 900, 1000]
+
+-- Indian 22-shruti scale
+scaleShrutiCents :: [Int]
+scaleShrutiCents = [0, 22, 70, 90, 112, 182, 204, 294, 316, 386, 408,
+                    498, 520, 590, 610, 702, 792, 814, 884, 906, 996, 1018]

@@ -59,6 +59,10 @@ from_t mhs_midi_sleep(int s) {
     return mhs_from_Unit(s, 1);
 }
 
+from_t mhs_midi_cents_to_bend(int s) {
+    return mhs_from_Int(s, 1, midi_cents_to_bend(mhs_to_Int(s, 0)));
+}
+
 /* ========================================================================
  * 2-arity functions
  * ======================================================================== */
@@ -113,10 +117,11 @@ static const struct ffi_entry midi_ffi_table[] = {
     { "midi_is_open",    0, mhs_midi_is_open },
     { "midi_panic",      0, mhs_midi_panic },
     /* 1-arity */
-    { "midi_port_name",    1, mhs_midi_port_name },
-    { "midi_open",         1, mhs_midi_open },
-    { "midi_open_virtual", 1, mhs_midi_open_virtual },
-    { "midi_sleep",        1, mhs_midi_sleep },
+    { "midi_port_name",     1, mhs_midi_port_name },
+    { "midi_open",          1, mhs_midi_open },
+    { "midi_open_virtual",  1, mhs_midi_open_virtual },
+    { "midi_sleep",         1, mhs_midi_sleep },
+    { "midi_cents_to_bend", 1, mhs_midi_cents_to_bend },
     /* 2-arity */
     { "midi_note_off",   2, mhs_midi_note_off },
     { "midi_program",    2, mhs_midi_program },

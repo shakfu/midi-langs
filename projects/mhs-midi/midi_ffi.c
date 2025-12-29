@@ -1,5 +1,6 @@
 /* midi_ffi.c - C FFI implementation for MicroHs MIDI library */
 #include "midi_ffi.h"
+#include "music_theory.h"
 #include <libremidi/libremidi-c.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -250,4 +251,8 @@ void midi_panic(void) {
     for (int ch = 1; ch <= 16; ch++) {
         midi_cc(ch, 123, 0);  /* All Notes Off */
     }
+}
+
+int midi_cents_to_bend(int cents) {
+    return music_cents_to_bend(cents);
 }

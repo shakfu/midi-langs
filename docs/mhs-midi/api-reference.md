@@ -496,3 +496,238 @@ Execute an action with a specific channel.
 ```haskell
 withChannel 2 (\ch -> midiNoteOn ch 60 100)
 ```
+
+---
+
+## Scales
+
+### Scale Type
+
+```haskell
+type Scale = [Int]  -- List of semitone intervals from root
+```
+
+### buildScale
+
+```haskell
+buildScale :: Pitch -> Scale -> [Pitch]
+```
+
+Build a scale from root pitch and intervals.
+
+```haskell
+buildScale c4 scaleMajor    -- [60, 62, 64, 65, 67, 69, 71]
+buildScale d4 scaleDorian   -- D dorian scale
+```
+
+### scaleDegree
+
+```haskell
+scaleDegree :: Pitch -> Scale -> Int -> Pitch
+```
+
+Get the nth degree of a scale (1-based). Supports extended degrees.
+
+```haskell
+scaleDegree c4 scaleMajor 1   -- 60 (root)
+scaleDegree c4 scaleMajor 3   -- 64 (major third)
+scaleDegree c4 scaleMajor 5   -- 67 (perfect fifth)
+scaleDegree c4 scaleMajor 9   -- 74 (ninth = octave + 2nd)
+```
+
+### inScale
+
+```haskell
+inScale :: Pitch -> Pitch -> Scale -> Bool
+```
+
+Check if a pitch belongs to a scale (in any octave).
+
+```haskell
+inScale e4 c4 scaleMajor   -- True (E is in C major)
+inScale cs4 c4 scaleMajor  -- False (C# is not in C major)
+```
+
+### quantize
+
+```haskell
+quantize :: Pitch -> Pitch -> Scale -> Pitch
+```
+
+Quantize a pitch to the nearest note in a scale.
+
+```haskell
+quantize 63 c4 scaleMajor  -- 62 (D# quantizes to D)
+quantize 66 c4 scaleMajor  -- 67 (F# quantizes to G)
+```
+
+---
+
+## Scale Constants
+
+All scales are lists of semitone intervals from the root.
+
+### Diatonic Modes
+
+| Constant | Intervals |
+|----------|-----------|
+| `scaleMajor` | [0, 2, 4, 5, 7, 9, 11] |
+| `scaleMinor` | [0, 2, 3, 5, 7, 8, 10] |
+| `scaleDorian` | [0, 2, 3, 5, 7, 9, 10] |
+| `scalePhrygian` | [0, 1, 3, 5, 7, 8, 10] |
+| `scaleLydian` | [0, 2, 4, 6, 7, 9, 11] |
+| `scaleMixolydian` | [0, 2, 4, 5, 7, 9, 10] |
+| `scaleLocrian` | [0, 1, 3, 5, 6, 8, 10] |
+| `scaleIonian` | Same as major |
+| `scaleAeolian` | Same as minor |
+
+### Minor Variants
+
+| Constant | Description |
+|----------|-------------|
+| `scaleHarmonicMinor` | Raised 7th |
+| `scaleMelodicMinor` | Raised 6th and 7th |
+| `scaleHarmonicMajor` | Lowered 6th |
+
+### Pentatonic & Blues
+
+| Constant | Description |
+|----------|-------------|
+| `scalePentatonic` | Major pentatonic |
+| `scalePentatonicMajor` | Major pentatonic |
+| `scalePentatonicMinor` | Minor pentatonic |
+| `scaleBlues` | Blues scale |
+| `scaleBluesMajor` | Major blues |
+
+### Symmetric
+
+| Constant | Description |
+|----------|-------------|
+| `scaleWholeTone` | Whole-tone scale |
+| `scaleChromatic` | All 12 semitones |
+| `scaleDiminished` | Whole-half diminished |
+| `scaleAugmented` | Augmented scale |
+
+### Bebop
+
+| Constant | Description |
+|----------|-------------|
+| `scaleBebopDominant` | Dominant with passing tone |
+| `scaleBebopMajor` | Major with passing tone |
+| `scaleBebopMinor` | Minor with passing tone |
+
+### World Scales
+
+| Constant | Description |
+|----------|-------------|
+| `scaleHungarianMinor` | Hungarian minor |
+| `scaleDoubleHarmonic` | Byzantine/Arabic |
+| `scaleGypsy` | Hungarian Gypsy |
+| `scaleHirajoshi` | Japanese |
+| `scaleInSen` | Japanese In-Sen |
+| `scalePersian` | Persian scale |
+
+### Arabic Maqamat (12-TET)
+
+| Constant | Description |
+|----------|-------------|
+| `scaleMaqamHijaz` | Maqam Hijaz |
+| `scaleMaqamNahawand` | Maqam Nahawand |
+| `scaleMaqamNikriz` | Maqam Nikriz |
+
+### Indian Ragas (12-TET)
+
+| Constant | Description |
+|----------|-------------|
+| `scaleRagaBhairav` | Raga Bhairav |
+| `scaleRagaTodi` | Raga Todi |
+| `scaleRagaMarwa` | Raga Marwa |
+
+---
+
+## Microtonal
+
+### centsToBend
+
+```haskell
+centsToBend :: Int -> IO Int
+```
+
+Convert cents offset to MIDI pitch bend value (-8192 to 8191).
+
+```haskell
+bend <- centsToBend 50   -- Quarter-tone up
+midiPitchBend 1 bend
+```
+
+### centsToNote
+
+```haskell
+centsToNote :: Pitch -> Int -> (Pitch, Int)
+```
+
+Convert a cents interval to (MIDI note, bend cents).
+
+```haskell
+centsToNote c4 150   -- (61, 50) - C# minus 50 cents
+centsToNote c4 350   -- (63, 50) - Eb plus 50 cents
+```
+
+### pitchBendCents
+
+```haskell
+pitchBendCents :: Channel -> Int -> IO ()
+```
+
+Send pitch bend in cents.
+
+```haskell
+pitchBendCents 1 50     -- Bend up quarter-tone
+pitchBendCents 1 (-50)  -- Bend down quarter-tone
+pitchBendCents 1 0      -- Reset to center
+```
+
+---
+
+## Microtonal Scale Constants
+
+Cents-based scales for quarter-tones and other microtonal intervals.
+
+### Arabic Maqamat (Authentic)
+
+| Constant | Description |
+|----------|-------------|
+| `scaleMaqamBayatiCents` | Bayati with 3/4 tones |
+| `scaleMaqamRastCents` | Rast with 3/4 tones |
+| `scaleMaqamSabaCents` | Saba |
+| `scaleMaqamSikahCents` | Sikah |
+| `scaleMaqamHuzamCents` | Huzam |
+
+### Turkish Makamlar
+
+| Constant | Description |
+|----------|-------------|
+| `scaleMakamUssakCents` | Makam Ussak |
+| `scaleMakamHuseyniCents` | Makam Huseyni |
+
+### Indian
+
+| Constant | Description |
+|----------|-------------|
+| `scaleShrutiCents` | 22-shruti scale |
+
+### Microtonal Playback Example
+
+```haskell
+playMaqam :: IO ()
+playMaqam = do
+    midiOpenVirtual "Maqam"
+    mapM_ playMicroNote scaleMaqamBayatiCents
+    midiClose
+  where
+    root = c4
+    playMicroNote cents = do
+        let (note, bend) = centsToNote root cents
+        pitchBendCents 1 bend
+        play note mf quarter
+```

@@ -234,6 +234,165 @@ main = do
 
 ---
 
+## Scale Examples
+
+### Playing Scales
+
+```haskell
+module PlayScales(main) where
+import Midi
+
+main :: IO ()
+main = do
+    midiOpenVirtual "Scales"
+
+    -- Play C major scale
+    mapM_ (\p -> play p mf eighth) (buildScale c4 scaleMajor)
+
+    rest quarter
+
+    -- Play D dorian scale
+    mapM_ (\p -> play p mf eighth) (buildScale d4 scaleDorian)
+
+    midiClose
+```
+
+### Modal Exploration
+
+Play through all diatonic modes:
+
+```haskell
+module Modes(main) where
+import Midi
+
+modes :: [Scale]
+modes = [scaleMajor, scaleDorian, scalePhrygian, scaleLydian,
+         scaleMixolydian, scaleMinor, scaleLocrian]
+
+playMode :: Scale -> IO ()
+playMode sc = do
+    mapM_ (\p -> play p mf sixteenth) (buildScale c4 sc)
+    rest quarter
+
+main :: IO ()
+main = do
+    midiOpenVirtual "Modes"
+    mapM_ playMode modes
+    midiClose
+```
+
+### Using Scale Degrees
+
+Build chords from scale degrees:
+
+```haskell
+module ScaleDegrees(main) where
+import Midi
+
+-- Build a triad from scale degrees 1, 3, 5
+triad :: Pitch -> Scale -> [Pitch]
+triad root sc = [scaleDegree root sc 1,
+                 scaleDegree root sc 3,
+                 scaleDegree root sc 5]
+
+main :: IO ()
+main = do
+    midiOpenVirtual "Degrees"
+
+    -- I chord
+    playChord (triad c4 scaleMajor) mf half
+    -- IV chord (start from 4th degree)
+    playChord [scaleDegree c4 scaleMajor 4,
+               scaleDegree c4 scaleMajor 6,
+               scaleDegree c4 scaleMajor 8] mf half
+    -- V chord
+    playChord [scaleDegree c4 scaleMajor 5,
+               scaleDegree c4 scaleMajor 7,
+               scaleDegree c4 scaleMajor 9] mf half
+    -- I chord
+    playChord (triad c4 scaleMajor) f whole
+
+    midiClose
+```
+
+### Blues Scale
+
+```haskell
+module Blues(main) where
+import Midi
+
+main :: IO ()
+main = do
+    midiOpenVirtual "Blues"
+
+    -- Play blues scale up
+    mapM_ (\p -> play p mf eighth) (buildScale c4 scaleBlues)
+
+    -- Add octave
+    play (c4 + 12) mf half
+
+    -- Play blues scale down
+    mapM_ (\p -> play p mf eighth) (reverse (buildScale c4 scaleBlues))
+
+    midiClose
+```
+
+### Indian Raga
+
+Play Raga Bhairav:
+
+```haskell
+module RagaBhairav(main) where
+import Midi
+
+main :: IO ()
+main = do
+    midiOpenVirtual "Bhairav"
+
+    let bhairav = buildScale c4 scaleRagaBhairav
+
+    -- Aroha (ascending)
+    mapM_ (\p -> play p mp quarter) bhairav
+    play (c4 + 12) mf half
+
+    rest quarter
+
+    -- Avaroha (descending)
+    mapM_ (\p -> play p mf quarter) (reverse bhairav)
+
+    midiClose
+```
+
+### Microtonal Maqam
+
+Play Maqam Bayati with authentic quarter-tones:
+
+```haskell
+module MaqamBayati(main) where
+import Midi
+
+playMicroNote :: Pitch -> Int -> IO ()
+playMicroNote root cents = do
+    let (note, bend) = centsToNote root cents
+    pitchBendCents 1 bend
+    play note mf quarter
+
+main :: IO ()
+main = do
+    midiOpenVirtual "Bayati"
+
+    -- Play maqam with quarter-tones
+    mapM_ (playMicroNote d4) scaleMaqamBayatiCents
+
+    -- Add octave
+    pitchBendCents 1 0
+    play (d4 + 12) mf half
+
+    midiClose
+```
+
+---
+
 ## Advanced Examples
 
 ### Multi-Channel Composition

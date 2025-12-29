@@ -64,6 +64,13 @@ module Music (
     ppp, pp, p, mp, mf, ff, fff,
     defaultChannel,
     midiOpenVirtual, midiOpen, midiClose, midiPanic,
+    -- * Scales re-exports
+    Scale, buildScale, scaleDegree, inScale, quantize,
+    scaleMajor, scaleMinor, scaleDorian, scalePhrygian,
+    scaleLydian, scaleMixolydian, scaleLocrian,
+    scalePentatonic, scaleBlues, scaleHarmonicMinor,
+    -- * Microtonal re-exports
+    centsToBend, centsToNote, pitchBendCents,
 ) where
 
 import Midi hiding (times, melody, chord, arpeggio, play, playNote, playChord, rest)

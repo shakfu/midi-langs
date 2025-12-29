@@ -90,7 +90,13 @@ All notable changes to midi-langs are documented in this file.
   - Lookup dictionaries: `midi.scales` and `midi.scales_cents` for name-based access
   - Helper functions: `midi.scale(root, name)`, `midi.degree(root, name, n)`, `midi.quantize(pitch, root, name)`
   - Helper: `midi.cents_to_note(root, cents)` for microtonal interval calculation
-- **mhs-midi**: Linked with music_theory library for future use
+- **mhs-midi**: Added scale support with 55 12-TET scales and 10 microtonal scales
+  - New FFI function: `midi_cents_to_bend` for microtonal pitch bend calculation
+  - Scale intervals as `scale*` constants (scaleMajor, scaleDorian, scaleBlues, etc.)
+  - Microtonal scales as `scale*Cents` constants (scaleMaqamBayatiCents, etc.)
+  - Scale functions: `buildScale`, `scaleDegree`, `inScale`, `quantize`
+  - Microtonal helpers: `centsToBend`, `centsToNote`, `pitchBendCents`
+  - Pure Haskell implementation for scale operations (no FFI needed for computation)
 
 ## [0.1.4]
 

@@ -7,6 +7,8 @@ A Haskell MIDI library for MicroHs, providing a functional approach to MIDI prog
 - Interactive REPL with MIDI support
 - Compile Haskell files to standalone executables
 - Musical abstractions: pitches, durations, velocities, chords
+- 55 built-in scales including modes, pentatonics, world scales
+- Microtonal support with 10 cents-based scales (quarter-tones)
 - Low-level MIDI control: note on/off, CC, program change, pitch bend
 - Virtual and hardware MIDI port support
 
