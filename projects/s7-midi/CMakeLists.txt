@@ -17,6 +17,13 @@ target_compile_definitions(s7_midi PRIVATE
     DISABLE_AUTOLOAD=1
 )
 
+# Check for readline
+find_library(READLINE_LIB readline)
+if(READLINE_LIB)
+    target_compile_definitions(s7_midi PRIVATE USE_READLINE)
+    target_link_libraries(s7_midi PRIVATE ${READLINE_LIB})
+endif()
+
 # s7 requires math and dl libraries
 target_link_libraries(s7_midi PRIVATE libremidi music_theory m)
 

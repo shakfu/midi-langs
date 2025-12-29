@@ -22,7 +22,7 @@ A Forth-like MIDI interpreter with concise musical notation for generating and t
 ```
 
 ```forth
-midi-open            \ Create virtual MIDI port
+midi-open               \ Create virtual MIDI port
 c4, e4, g4,             \ Play C, E, G sequentially
 (c4 e4 g4),             \ Play C major chord
 : cmaj (c4 e4 g4), ;    \ Define a word

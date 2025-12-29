@@ -6,6 +6,16 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **s7-midi Readline Support**: Interactive REPL with readline and autocomplete
+  - Tab completion for MIDI functions (`midi-open`, `midi-note`, `midi-chord`, etc.)
+  - Tab completion for Scheme keywords (`define`, `lambda`, `let`, `if`, etc.)
+  - Tab completion for prelude functions (`major`, `minor`, `scale`, `transpose`, etc.)
+  - Tab completion for pitch names (`c4`, `cs4`, `db4`, etc.)
+  - Tab completion for dynamics (`ppp` through `fff`) and durations (`whole`, `half`, etc.)
+  - Tab completion for scale definitions (`scale-major`, `scale-blues`, etc.)
+  - Command history with up/down arrow navigation
+  - Graceful fallback to basic REPL if readline unavailable
+
 - **mhs-midi Pure Generative Algorithms**: Music.hs now includes pure generative functions
   - Pure PRNG: `nextRandom`, `randomRange`, `randomList` (Linear Congruential Generator)
   - Deterministic: `euclideanRhythm`, `arpUp`, `arpDown`, `arpUpDown`, `retrograde`, `invert`
