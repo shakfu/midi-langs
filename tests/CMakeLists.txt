@@ -169,3 +169,15 @@ set_tests_properties(
     lua_midi_virtual_port
     PROPERTIES LABELS "quick"
 )
+
+# mhs-midi tests
+add_test(
+    NAME mhs_midi_test_suite
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_mhs_midi.sh $<TARGET_FILE:mhs-midi>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(mhs_midi_test_suite PROPERTIES
+    TIMEOUT 120
+    LABELS "integration"
+)

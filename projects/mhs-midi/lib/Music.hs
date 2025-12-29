@@ -103,6 +103,26 @@ module Music (
     mapEvents,
     collectEvents,
     duration,
+
+    -- * Pure Generative Music
+    -- ** Pure PRNG
+    Seed,
+    nextRandom,
+    randomRange,
+    randomList,
+    -- ** Deterministic Algorithms
+    euclideanRhythm,
+    arpUp,
+    arpDown,
+    arpUpDown,
+    retrograde,
+    invert,
+    -- ** Seed-based Random
+    shuffle,
+    pick,
+    pickN,
+    randomWalk,
+    drunkWalk,
 ) where
 
 -----------------------------------------------------------
@@ -527,3 +547,156 @@ duration (MEvent (ENote _ _ d)) = d
 duration (MEvent (ERest d)) = d
 duration (MSeq ms) = sum [duration m | m <- ms]
 duration (MPar ms) = maximum (0 : [duration m | m <- ms])
+
+-----------------------------------------------------------
+-- Pure Generative Music
+-----------------------------------------------------------
+
+-- | Seed for pure random number generation
+type Seed = Int
+
+-- | Linear Congruential Generator (LCG)
+-- Uses the same constants as glibc for predictable behavior
+-- Returns (randomValue, nextSeed)
+nextRandom :: Seed -> (Int, Seed)
+nextRandom s = (r, s')
+  where
+    -- LCG constants (glibc)
+    s' = (s * 1103515245 + 12345) `mod` 2147483648
+    r = s' `div` 65536  -- extract higher bits for better quality
+
+-- | Generate random Int in range [lo, hi]
+randomRange :: Seed -> Int -> Int -> (Int, Seed)
+randomRange seed lo hi
+    | lo >= hi  = (lo, seed)
+    | otherwise = (lo + (r `mod` (hi - lo + 1)), seed')
+  where
+    (r, seed') = nextRandom seed
+
+-- | Generate n random Ints in range [lo, hi]
+randomList :: Seed -> Int -> Int -> Int -> ([Int], Seed)
+randomList seed n lo hi = go seed n []
+  where
+    go s 0 acc = (reverse acc, s)
+    go s k acc = let (r, s') = randomRange s lo hi
+                 in go s' (k - 1) (r : acc)
+
+-----------------------------------------------------------
+-- Deterministic Algorithms
+-----------------------------------------------------------
+
+-- | Euclidean rhythm using Bjorklund's algorithm
+-- Returns a list of Bool where True = hit, False = rest
+-- euclideanRhythm 3 8 = [True,False,False,True,False,False,True,False]
+euclideanRhythm :: Int -> Int -> [Bool]
+euclideanRhythm hits steps
+    | hits <= 0 = replicate steps False
+    | hits >= steps = replicate steps True
+    | otherwise = bjorklund (replicate hits [True]) (replicate (steps - hits) [False])
+  where
+    bjorklund xs [] = concat xs
+    bjorklund xs ys
+        | length ys <= 1 = concat (xs ++ ys)
+        | otherwise = bjorklund paired remainder
+      where
+        minLen = min (length xs) (length ys)
+        paired = zipWith (++) (take minLen xs) (take minLen ys)
+        remainder = drop minLen xs ++ drop minLen ys
+
+-- | Ascending arpeggio pattern
+arpUp :: [a] -> [a]
+arpUp = id
+
+-- | Descending arpeggio pattern
+arpDown :: [a] -> [a]
+arpDown = reverse
+
+-- | Up-down arpeggio pattern (no repeated top note)
+arpUpDown :: [a] -> [a]
+arpUpDown [] = []
+arpUpDown [x] = [x]
+arpUpDown xs = xs ++ tail (reverse xs)
+
+-- | Retrograde - reverse the music in time
+retrograde :: Music -> Music
+retrograde (MEvent ev) = MEvent ev
+retrograde (MSeq ms) = MSeq (reverse [retrograde m | m <- ms])
+retrograde (MPar ms) = MPar [retrograde m | m <- ms]
+
+-- | Melodic inversion around an axis pitch
+-- Notes above axis go below, notes below go above
+invert :: Pitch -> Music -> Music
+invert axis = mapEvents invertEvent
+  where
+    invertEvent (ENote p v d) = ENote (2 * axis - p) v d
+    invertEvent ev = ev
+
+-----------------------------------------------------------
+-- Seed-based Random Functions
+-----------------------------------------------------------
+
+-- | Shuffle a list using Fisher-Yates algorithm
+shuffle :: Seed -> [a] -> [a]
+shuffle _ [] = []
+shuffle seed xs = go seed (length xs) xs
+  where
+    go _ 0 _ = []
+    go _ _ [] = []
+    go s n ys =
+        let (idx, s') = randomRange s 0 (n - 1)
+            (picked, rest) = removeAt idx ys
+        in picked : go s' (n - 1) rest
+
+    removeAt :: Int -> [a] -> (a, [a])
+    removeAt i ys = (ys !! i, take i ys ++ drop (i + 1) ys)
+
+-- | Pick one element from a list using seed
+pick :: Seed -> [a] -> a
+pick seed xs = xs !! idx
+  where
+    (idx, _) = randomRange seed 0 (length xs - 1)
+
+-- | Pick n elements from a list (with replacement)
+pickN :: Seed -> Int -> [a] -> [a]
+pickN _ 0 _ = []
+pickN seed n xs = picked : pickN seed' (n - 1) xs
+  where
+    (idx, seed') = randomRange seed 0 (length xs - 1)
+    picked = xs !! idx
+
+-- | Random walk - start from a pitch, take n steps of max size
+-- Returns list of pitches
+randomWalk :: Seed -> Pitch -> Int -> Int -> [Pitch]
+randomWalk seed start maxStep n = go seed start n
+  where
+    go _ _ 0 = []
+    go s p count =
+        let (step, s') = randomRange s (-maxStep) maxStep
+            p' = clampPitch (p + step)
+        in p : go s' p' (count - 1)
+
+    clampPitch p = max 0 (min 127 p)
+
+-- | Drunk walk constrained to scale degrees
+-- Returns list of pitches from the scale
+drunkWalk :: Seed -> Pitch -> [Pitch] -> Int -> Int -> [Pitch]
+drunkWalk seed start scale maxDegrees n
+    | null scale = []
+    | otherwise = go seed startIdx n
+  where
+    scaleLen = length scale
+    startIdx = findClosestIdx start scale
+
+    go _ _ 0 = []
+    go s idx count =
+        let (step, s') = randomRange s (-maxDegrees) maxDegrees
+            idx' = clampIdx (idx + step)
+        in (scale !! idx) : go s' idx' (count - 1)
+
+    clampIdx i = max 0 (min (scaleLen - 1) i)
+
+    findClosestIdx :: Pitch -> [Pitch] -> Int
+    findClosestIdx p ps = snd (foldr1 closer (zip (map (absDiff p) ps) [0..]))
+      where
+        absDiff x y = abs (x - y)
+        closer (d1, i1) (d2, i2) = if d1 <= d2 then (d1, i1) else (d2, i2)

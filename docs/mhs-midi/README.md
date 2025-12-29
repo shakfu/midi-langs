@@ -1,16 +1,24 @@
 # mhs-midi
 
-A Haskell MIDI library for MicroHs, providing a functional approach to MIDI programming with an interactive REPL.
+A Haskell MIDI library for MicroHs, providing both pure functional composition and immediate MIDI playback with generative music functions.
 
 ## Features
 
-- Interactive REPL with MIDI support
-- Compile Haskell files to standalone executables
-- Musical abstractions: pitches, durations, velocities, chords
-- 55 built-in scales including modes, pentatonics, world scales
-- Microtonal support with 10 cents-based scales (quarter-tones)
-- Low-level MIDI control: note on/off, CC, program change, pitch bend
-- Virtual and hardware MIDI port support
+- **Pure Music DSL**: Compose and transform music functionally before performance
+- **Immediate Playback**: Direct MIDI output for REPL-style interaction
+- **Generative Music**: Random selection, walks, euclidean rhythms, probability
+- **55 Built-in Scales**: Modes, pentatonics, world scales, ragas, maqamat
+- **Microtonal Support**: 10 cents-based scales with quarter-tones
+- **Interactive REPL**: Fast startup with caching
+
+## Module Structure
+
+| Module | Purpose |
+|--------|---------|
+| `Music.hs` | Pure music theory + DSL (no IO) |
+| `Midi.hs` | FFI bindings |
+| `MusicPerform.hs` | `perform` bridge for pure Music |
+| `MidiPerform.hs` | Immediate IO + generative functions |
 
 ## Quick Start
 
@@ -26,76 +34,161 @@ make
 ./scripts/mhs-midi-repl
 ```
 
-### 3. Play some notes
+### 3. Immediate Playback (MidiPerform)
 
 ```haskell
-> import MidiRepl
+> import MidiPerform
 > open
 MIDI open
-> n c4
-> mapM_ n [c4, e4, g4]
-> ch [c4, e4, g4]
+> note c4
+> chord [c4, e4, g4]
+> melody [c4, d4, e4, f4, g4]
+> drunk 16 c4 (major c4) 2    -- generative walk
 > close
 ```
 
-## Usage Modes
-
-### Interactive REPL
-
-```bash
-./scripts/mhs-midi-repl
-```
-
-Note: Use `MidiRepl` for REPL-friendly functions (all return `IO ()`, no Show constraint errors).
-
-### Run Haskell File (Interpreted)
-
-```bash
-./scripts/mhs-midi-repl -r MyProgram.hs
-```
-
-### Compile to Executable
-
-```bash
-./scripts/mhs-midi-compile MyProgram.hs -o my_program
-./my_program
-```
-
-## Example Program
-
-For compiled programs, use the `Music` module with pure data and transformations:
+### 4. Pure Composition (MusicPerform)
 
 ```haskell
-module MyMelody(main) where
-import Music
+> import MusicPerform
+> midiOpenVirtual "test"
+> let m = line [c4, e4, g4] mf quarter
+> perform m
+> perform (transpose 7 m)
+> midiClose
+```
 
-melody = line [c4, e4, g4, c5]
-chords = times 2 (chord [c4, e4, g4])
-piece = melody +:+ chords
+## Two Approaches
 
-main :: IO ()
+### MidiPerform - Immediate IO
+
+For REPL interaction and generative music. Musical terms are IO actions:
+
+```haskell
+import MidiPerform
+
 main = do
-    midiOpenVirtual "MyMelody"
+    open
+    note c4                           -- play immediately
+    chord [c4, e4, g4]                -- play chord
+    times 4 (pick (pentatonic c4))    -- random notes
+    drunk 16 c4 (major c4) 2          -- drunk walk
+    euclidean 5 8 (note c4)           -- euclidean rhythm
+    close
+```
+
+### MusicPerform - Pure Composition
+
+For composing music as pure data, then performing:
+
+```haskell
+import MusicPerform
+
+melody = line [c4, e4, g4] mf quarter
+piece = melody +:+ transpose 7 melody
+
+main = do
+    midiOpenVirtual "MyApp"
     perform piece
+    perform (louder 20 (stretch 2 piece))
     midiClose
 ```
 
-### Pure Transformations
+## Generative Functions (MidiPerform)
+
+### Random Selection
 
 ```haskell
-module Expressive(main) where
-import Music
+pick [c4, e4, g4]           -- random note from list
+chance 75 (note c4)         -- 75% probability
+oneOf [note c4, chord [c4, e4, g4]]  -- random action
+maybeDo (note c4)           -- 50% chance
+```
 
-melody = line [c4, d4, e4, f4, g4]
-bass = withChan 2 (line [c2, g2, c2, g2])
+### Random Sequences
 
--- Pure transformations
-piece = transpose 5 (stretch 2 (melody ||| bass))
+```haskell
+scramble [c4, e4, g4, c5]   -- random order
+randomNote c4 c5            -- random pitch in range
+randomMelody 8 c4 c5        -- 8 random notes
+```
 
-main :: IO ()
+### Algorithmic Patterns
+
+```haskell
+walk 16 c4 3                -- random walk, max 3 semitone steps
+drunk 16 c4 (major c4) 2    -- walk constrained to scale
+euclidean 5 8 (note c4)     -- 5 hits over 8 steps
+```
+
+### Scales for Generative Use
+
+```haskell
+major c4        -- C major scale (multiple octaves)
+minor a4        -- A minor
+pentatonic c4   -- pentatonic
+blues c4        -- blues
+dorian d4       -- dorian mode
+```
+
+## Pure Music DSL (Music.hs)
+
+### Constructors
+
+```haskell
+note :: Pitch -> Velocity -> Duration -> Music
+rest :: Duration -> Music
+chord :: [Pitch] -> Velocity -> Duration -> Music
+line :: [Pitch] -> Velocity -> Duration -> Music
+```
+
+### Pure Generative Functions
+
+```haskell
+-- Deterministic algorithms
+euclideanRhythm 3 8         -- [T,F,F,T,F,F,T,F]
+arpUp, arpDown, arpUpDown   -- arpeggio patterns
+retrograde                   -- reverse in time
+invert c4                    -- melodic inversion
+
+-- Seed-based random (reproducible)
+shuffle 42 [c4,e4,g4]       -- same seed = same result
+randomWalk 42 c4 3 16       -- seed, start, maxStep, count
+drunkWalk 42 c4 scale 2 16  -- constrained to scale
+```
+
+### Combinators
+
+```haskell
+(+:+) :: Music -> Music -> Music   -- sequential
+(|||) :: Music -> Music -> Music   -- parallel
+timesM :: Int -> Music -> Music    -- repeat
+```
+
+### Transformations
+
+```haskell
+transpose :: Int -> Music -> Music
+louder :: Int -> Music -> Music
+softer :: Int -> Music -> Music
+stretch :: Int -> Music -> Music   -- 2 = twice as slow
+compress :: Int -> Music -> Music  -- 2 = twice as fast
+```
+
+### Example
+
+```haskell
+import MusicPerform
+
+melody = line [c4, e4, g4] mf quarter
+bass = line [c3, g3] ff half
+piece = melody ||| bass                    -- parallel
+full = piece +:+ transpose 5 piece         -- sequential
+
 main = do
-    midiOpenVirtual "Expressive"
-    perform piece
+    midiOpenVirtual "Composition"
+    perform full
+    perform (stretch 2 (softer 20 full))   -- slow and quiet
     midiClose
 ```
 

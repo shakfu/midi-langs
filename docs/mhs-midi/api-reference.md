@@ -1,733 +1,452 @@
 # API Reference
 
-## MidiRepl (For REPL)
+## Module Overview
+
+| Module | Import | Purpose |
+|--------|--------|---------|
+| `MidiPerform` | `import MidiPerform` | Immediate IO, generative music |
+| `MusicPerform` | `import MusicPerform` | Pure Music DSL + perform |
+| `Music` | `import Music` | Pure music theory (no IO) |
+| `Midi` | `import Midi` | Low-level FFI bindings |
+
+---
+
+## MidiPerform Module
 
 ```haskell
-import MidiRepl
+import MidiPerform
 ```
 
-REPL-friendly functions that all return `IO ()` (no Show constraint errors). Re-exports Midi and adds pitch-last functions for partial application.
+Immediate MIDI playback with generative functions. All functions are IO actions.
 
-### note
+### MIDI Control
 
 ```haskell
-note :: Channel -> Velocity -> Duration -> Pitch -> IO ()
+open     :: IO ()  -- open virtual port "mhsMIDI"
+openPort :: Int -> IO ()  -- open hardware port by index
+close    :: IO ()  -- close MIDI port
+panic    :: IO ()  -- all notes off
+ports    :: IO ()  -- list available ports
 ```
 
-Play a single note. Pitch is last for partial application.
+### Note Playing
 
 ```haskell
-note 1 mf quarter c4
+note :: Pitch -> IO ()
+-- Play note with defaults (channel 1, mf, quarter)
 
--- Partial application
-loud = note 1 fff quarter
-soft = note 1 pp half
-loud c4
-mapM_ soft [c4, e4, g4]
+noteWith :: Channel -> Velocity -> Duration -> Pitch -> IO ()
+-- Play note with explicit parameters
+
+chord :: [Pitch] -> IO ()
+-- Play chord with defaults
+
+chordWith :: Channel -> Velocity -> Duration -> [Pitch] -> IO ()
+-- Play chord with explicit parameters
+
+arpeggio :: [Pitch] -> IO ()
+-- Arpeggiate with defaults (mf, sixteenth)
+
+arpeggioWith :: Channel -> Velocity -> Duration -> [Pitch] -> IO ()
+-- Arpeggiate with explicit parameters
 ```
 
-### notes
+### Timing
 
 ```haskell
-notes :: Channel -> Velocity -> Duration -> [Pitch] -> IO ()
+rest :: Duration -> IO ()
+wait :: Duration -> IO ()  -- alias for rest
 ```
 
-Play a chord. Pitches last for partial application.
+### Sequences
 
 ```haskell
-notes 1 mf quarter [c4, e4, g4]
+melody :: [Pitch] -> IO ()
+-- Play melody with defaults (mf, quarter)
 
--- Partial application
-bigChord = notes 1 ff whole
-bigChord [c3, g3, c4, e4, g4]
+melodyWith :: Channel -> Velocity -> Duration -> [Pitch] -> IO ()
+-- Play melody with explicit parameters
+
+times :: Int -> IO () -> IO ()
+-- Repeat an action n times
 ```
 
-### n
+### Generative Functions
 
 ```haskell
-n :: Pitch -> IO ()
+seed :: Int -> IO ()
+-- Seed random number generator
+
+pick :: [Pitch] -> IO ()
+-- Play random note from list
+
+chance :: Int -> IO () -> IO ()
+-- Execute action with probability (0-100)
+
+oneOf :: [IO ()] -> IO ()
+-- Execute one random action from list
+
+maybeDo :: IO () -> IO ()
+-- 50% chance to execute
+
+scramble :: [Pitch] -> IO ()
+-- Play notes in random order
+
+randomNote :: Pitch -> Pitch -> IO ()
+-- Play random note in range
+
+randomMelody :: Int -> Pitch -> Pitch -> IO ()
+-- Play n random notes in range
+
+walk :: Int -> Pitch -> Int -> IO ()
+-- Random walk: n notes, starting pitch, max step size
+
+drunk :: Int -> Pitch -> [Pitch] -> Int -> IO ()
+-- Drunk walk constrained to scale: n notes, start, scale, max degrees
+
+euclidean :: Int -> Int -> IO () -> IO ()
+-- Euclidean rhythm: hits, steps, action
 ```
 
-Default note: channel 1, mf velocity, quarter duration.
+### Scales (for Generative Use)
 
 ```haskell
-n c4
-mapM_ n [c4, e4, g4]
+major :: Pitch -> [Pitch]
+minor :: Pitch -> [Pitch]
+pentatonic :: Pitch -> [Pitch]
+blues :: Pitch -> [Pitch]
+chromatic :: Pitch -> [Pitch]
+dorian :: Pitch -> [Pitch]
+phrygian :: Pitch -> [Pitch]
+lydian :: Pitch -> [Pitch]
+mixolydian :: Pitch -> [Pitch]
+harmonicMinor :: Pitch -> [Pitch]
+melodicMinor :: Pitch -> [Pitch]
 ```
 
-### ch
+### Low-level MIDI
 
 ```haskell
-ch :: [Pitch] -> IO ()
+noteOn :: Channel -> Pitch -> Velocity -> IO ()
+noteOff :: Channel -> Pitch -> IO ()
+cc :: Channel -> Int -> Int -> IO ()
+program :: Channel -> Int -> IO ()
+bend :: Channel -> Int -> IO ()
 ```
 
-Default chord: channel 1, mf velocity, quarter duration.
+### Constants
+
+Pitches, durations, and velocities are the same as in Music.hs.
+
+---
+
+## MusicPerform Module
 
 ```haskell
-ch [c4, e4, g4]
+import MusicPerform
 ```
 
-### open / close / panic / ports
+Re-exports Music and Midi, adds `perform` to bridge pure Music to MIDI.
+
+### Performance
 
 ```haskell
-open  :: IO ()  -- opens virtual port "MicroHs", prints status
-close :: IO ()  -- closes MIDI port
-panic :: IO ()  -- all notes off
-ports :: IO ()  -- lists available MIDI ports
+perform :: Music -> IO ()
+-- Perform music on channel 1
+
+performOn :: Channel -> Music -> IO ()
+-- Perform music on specific channel
 ```
 
-All return `IO ()` for REPL friendliness.
+### Microtonal
 
 ```haskell
-> open
-MIDI open
-> n c4
-> ports
-2 MIDI port(s):
-  0: IAC Driver Bus 1
-  1: USB MIDI Device
-> close
+centsToBend :: Int -> IO Int
+-- Convert cents to pitch bend value
+
+pitchBendCents :: Channel -> Int -> IO ()
+-- Send pitch bend in cents
 ```
 
 ---
 
-## Midi Module
+## Music Module (Pure)
+
+```haskell
+import Music
+```
+
+Pure music theory with no IO. All functions are pure.
+
+### Types
+
+```haskell
+type Pitch = Int      -- MIDI note number (0-127)
+type Duration = Int   -- milliseconds
+type Velocity = Int   -- 0-127
+type Channel = Int    -- 1-16
+
+data Event
+    = ENote Pitch Velocity Duration
+    | ERest Duration
+
+data Music
+    = MEvent Event
+    | MSeq [Music]    -- sequential
+    | MPar [Music]    -- parallel
+```
+
+### Constructors
+
+```haskell
+note :: Pitch -> Velocity -> Duration -> Music
+-- Single note
+
+rest :: Duration -> Music
+-- Rest (silence)
+
+chord :: [Pitch] -> Velocity -> Duration -> Music
+-- Chord (parallel notes)
+
+line :: [Pitch] -> Velocity -> Duration -> Music
+-- Line (sequential notes)
+```
+
+### Combinators
+
+```haskell
+(+:+) :: Music -> Music -> Music
+-- Sequential composition (infixr 5)
+
+(|||) :: Music -> Music -> Music
+-- Parallel composition (infixr 4)
+
+timesM :: Int -> Music -> Music
+-- Repeat n times
+```
+
+### Transformations
+
+```haskell
+transpose :: Int -> Music -> Music
+-- Transpose by semitones
+
+louder :: Int -> Music -> Music
+-- Increase velocity
+
+softer :: Int -> Music -> Music
+-- Decrease velocity
+
+stretch :: Int -> Music -> Music
+-- Multiply durations (2 = twice as slow)
+
+compress :: Int -> Music -> Music
+-- Divide durations (2 = twice as fast)
+
+mapEvents :: (Event -> Event) -> Music -> Music
+-- Map function over all events
+```
+
+### Utilities
+
+```haskell
+collectEvents :: Music -> [Event]
+-- Flatten music to event list
+
+duration :: Music -> Duration
+-- Total duration of music
+```
+
+### Pitch Constants
+
+All pitches: `c0`-`c8`, `d0`-`d8`, etc. with sharps `cs0`-`cs8`, `ds0`-`ds8`, etc.
+
+Middle C (MIDI 60) is `c4`.
+
+Flat aliases: `db = cs`, `eb = ds`, `gb = fs`, `ab = gs`, `bb = as`
+
+Pitch class (semitone offset): `c = 0`, `cs = 1`, ..., `b = 11`
+
+### Duration Constants
+
+| Constant | Value | Note |
+|----------|-------|------|
+| `whole` | 2000 | Whole note |
+| `half` | 1000 | Half note |
+| `quarter` | 500 | Quarter note |
+| `eighth` | 250 | Eighth note |
+| `sixteenth` | 125 | Sixteenth note |
+
+```haskell
+dotted :: Duration -> Duration  -- 1.5x duration
+bpm :: Int -> Duration          -- quarter note duration for tempo
+```
+
+### Velocity Constants
+
+| Constant | Value | Dynamic |
+|----------|-------|---------|
+| `ppp` | 16 | Pianississimo |
+| `pp` | 33 | Pianissimo |
+| `p` | 49 | Piano |
+| `mp` | 64 | Mezzo-piano |
+| `mf` | 80 | Mezzo-forte |
+| `ff` | 96 | Fortissimo |
+| `fff` | 112 | Fortississimo |
+
+### Scale Constants
+
+55 scales available as `scale*` constants:
+
+**Diatonic modes:** `scaleMajor`, `scaleMinor`, `scaleDorian`, `scalePhrygian`, `scaleLydian`, `scaleMixolydian`, `scaleLocrian`
+
+**Minor variants:** `scaleHarmonicMinor`, `scaleMelodicMinor`, `scaleHarmonicMajor`
+
+**Pentatonic & Blues:** `scalePentatonic`, `scalePentatonicMinor`, `scaleBlues`, `scaleBluesMajor`
+
+**Symmetric:** `scaleWholeTone`, `scaleChromatic`, `scaleDiminished`, `scaleAugmented`
+
+**Bebop:** `scaleBebopDominant`, `scaleBebopMajor`, `scaleBebopMinor`
+
+**World:** `scaleHungarianMinor`, `scaleDoubleHarmonic`, `scaleHirajoshi`, `scalePersian`, etc.
+
+**Arabic Maqamat (12-TET):** `scaleMaqamHijaz`, `scaleMaqamNahawand`, etc.
+
+**Indian Ragas (12-TET):** `scaleRagaBhairav`, `scaleRagaTodi`, etc.
+
+### Scale Functions
+
+```haskell
+buildScale :: Pitch -> Scale -> [Pitch]
+-- Build scale pitches from root
+
+scaleDegree :: Pitch -> Scale -> Int -> Pitch
+-- Get nth degree (1-based, supports extensions like 9, 11, 13)
+
+inScale :: Pitch -> Pitch -> Scale -> Bool
+-- Check if pitch belongs to scale
+
+quantize :: Pitch -> Pitch -> Scale -> Pitch
+-- Snap pitch to nearest scale tone
+```
+
+### Pure Generative Functions
+
+Music.hs includes pure generative algorithms that work with explicit seeds for reproducibility.
+
+#### Pure PRNG
+
+```haskell
+type Seed = Int
+
+nextRandom :: Seed -> (Int, Seed)
+-- Linear Congruential Generator, returns (value, nextSeed)
+
+randomRange :: Seed -> Int -> Int -> (Int, Seed)
+-- Random Int in range [lo, hi]
+
+randomList :: Seed -> Int -> Int -> Int -> ([Int], Seed)
+-- Generate n random Ints in range [lo, hi]
+```
+
+#### Deterministic Algorithms
+
+```haskell
+euclideanRhythm :: Int -> Int -> [Bool]
+-- Bjorklund algorithm: euclideanRhythm 3 8 = [T,F,F,T,F,F,T,F]
+
+arpUp :: [a] -> [a]
+-- Ascending pattern (identity)
+
+arpDown :: [a] -> [a]
+-- Descending pattern (reverse)
+
+arpUpDown :: [a] -> [a]
+-- Up-down pattern (no repeated top)
+
+retrograde :: Music -> Music
+-- Reverse music in time
+
+invert :: Pitch -> Music -> Music
+-- Melodic inversion around axis pitch
+```
+
+#### Seed-based Random
+
+```haskell
+shuffle :: Seed -> [a] -> [a]
+-- Fisher-Yates shuffle
+
+pick :: Seed -> [a] -> a
+-- Pick one element
+
+pickN :: Seed -> Int -> [a] -> [a]
+-- Pick n elements (with replacement)
+
+randomWalk :: Seed -> Pitch -> Int -> Int -> [Pitch]
+-- Random walk: seed, start, maxStep, count
+
+drunkWalk :: Seed -> Pitch -> [Pitch] -> Int -> Int -> [Pitch]
+-- Scale-constrained walk: seed, start, scale, maxDegrees, count
+```
+
+### Microtonal Scale Constants
+
+Cents-based scales for quarter-tones:
+
+`scaleMaqamBayatiCents`, `scaleMaqamRastCents`, `scaleMaqamSabaCents`, `scaleMakamUssakCents`, `scaleShrutiCents`, etc.
+
+```haskell
+centsToNote :: Pitch -> Int -> (Pitch, Int)
+-- Convert cents interval to (MIDI note, bend cents)
+```
+
+---
+
+## Midi Module (FFI)
 
 ```haskell
 import Midi
 ```
 
----
+Low-level FFI bindings. Most users should use MidiPerform or MusicPerform instead.
 
-## Initialization & Port Management
-
-### midiInit
+### Port Management
 
 ```haskell
 midiInit :: IO Bool
-```
-
-Initialize the MIDI system. Returns `True` on success.
-
-### midiCleanup
-
-```haskell
 midiCleanup :: IO ()
-```
-
-Cleanup the MIDI system and release resources.
-
-### midiListPorts
-
-```haskell
 midiListPorts :: IO Int
-```
-
-List available MIDI output ports. Returns the count of available ports.
-
-### midiPortName
-
-```haskell
 midiPortName :: Int -> IO String
-```
-
-Get the name of a MIDI port by index.
-
-```haskell
-n <- midiListPorts
-names <- mapM midiPortName [0..n-1]
-```
-
-### midiOpen
-
-```haskell
 midiOpen :: Int -> IO Bool
-```
-
-Open a hardware MIDI port by index. Returns `True` on success.
-
-### midiOpenVirtual
-
-```haskell
 midiOpenVirtual :: String -> IO Bool
-```
-
-Create and open a virtual MIDI port with the given name. Other applications (DAWs, synths) can connect to this port.
-
-```haskell
-midiOpenVirtual "MyApp"
-```
-
-### midiClose
-
-```haskell
 midiClose :: IO ()
-```
-
-Close the current MIDI port.
-
-### midiIsOpen
-
-```haskell
 midiIsOpen :: IO Bool
 ```
 
-Check if a MIDI port is currently open.
-
----
-
-## Low-Level MIDI Operations
-
-### midiNoteOn
+### MIDI Messages
 
 ```haskell
 midiNoteOn :: Int -> Int -> Int -> IO ()
-midiNoteOn channel pitch velocity
-```
-
-Send a Note On message.
-
-- `channel`: 1-16
-- `pitch`: 0-127 (60 = middle C)
-- `velocity`: 0-127
-
-### midiNoteOff
-
-```haskell
 midiNoteOff :: Int -> Int -> IO ()
-midiNoteOff channel pitch
-```
-
-Send a Note Off message.
-
-### midiCC
-
-```haskell
 midiCC :: Int -> Int -> Int -> IO ()
-midiCC channel controller value
-```
-
-Send a Control Change message.
-
-- `controller`: 0-127 (e.g., 1 = mod wheel, 7 = volume, 64 = sustain)
-- `value`: 0-127
-
-### midiProgram
-
-```haskell
 midiProgram :: Int -> Int -> IO ()
-midiProgram channel program
-```
-
-Send a Program Change message.
-
-- `program`: 0-127
-
-### midiPitchBend
-
-```haskell
 midiPitchBend :: Int -> Int -> IO ()
-midiPitchBend channel value
-```
-
-Send a Pitch Bend message.
-
-- `value`: -8192 to 8191 (0 = center)
-
-### midiSend
-
-```haskell
 midiSend :: Int -> Int -> Int -> IO ()
-midiSend status data1 data2
 ```
 
-Send a raw 3-byte MIDI message.
-
-### midiSleep
+### Utilities
 
 ```haskell
 midiSleep :: Int -> IO ()
-```
-
-Sleep for the given number of milliseconds.
-
-### midiPanic
-
-```haskell
 midiPanic :: IO ()
+midiCentsToBend :: Int -> IO Int
 ```
 
-Send All Notes Off on all channels. Use to silence stuck notes.
-
----
-
-## Types
+### Random
 
 ```haskell
-type Pitch    = Int   -- MIDI note number (0-127)
-type Duration = Int   -- milliseconds
-type Velocity = Int   -- 0-127
-type Channel  = Int   -- 1-16
-```
-
----
-
-## Pitch Names
-
-### Pitch Constants
-
-All pitches follow the pattern `<note><octave>` where:
-
-- Note: `c`, `d`, `e`, `f`, `g`, `a`, `b`
-- Sharps: `cs`, `ds`, `fs`, `gs`, `as`
-- Octave: 0-8
-
-Middle C (MIDI 60) is `c4`.
-
-| Pitch | MIDI | Pitch | MIDI | Pitch | MIDI |
-|-------|------|-------|------|-------|------|
-| c4    | 60   | d4    | 62   | e4    | 64   |
-| f4    | 65   | g4    | 67   | a4    | 69   |
-| b4    | 71   | c5    | 72   | cs4   | 61   |
-
-### Flat Aliases
-
-```haskell
-db = cs   -- D flat = C sharp
-eb = ds   -- E flat = D sharp
-gb = fs   -- G flat = F sharp
-ab = gs   -- A flat = G sharp
-bb = as   -- B flat = A sharp
-```
-
-### Pitch Class (Semitone Offset)
-
-For building chords and scales:
-
-```haskell
-c, cs, d, ds, e, f, fs, g, gs, a, as, b :: Int
--- c = 0, cs = 1, d = 2, ... b = 11
-```
-
----
-
-## Durations
-
-Based on 120 BPM by default.
-
-| Constant    | Milliseconds | Musical Value |
-|-------------|--------------|---------------|
-| `whole`     | 2000         | Whole note    |
-| `half`      | 1000         | Half note     |
-| `quarter`   | 500          | Quarter note  |
-| `eighth`    | 250          | Eighth note   |
-| `sixteenth` | 125          | 16th note     |
-
-### dotted
-
-```haskell
-dotted :: Duration -> Duration
-```
-
-Returns 1.5x the given duration.
-
-```haskell
-dotted quarter  -- 750ms
-dotted half     -- 1500ms
-```
-
-### bpm
-
-```haskell
-bpm :: Int -> Duration
-```
-
-Calculate quarter note duration for a given tempo.
-
-```haskell
-bpm 120  -- 500ms
-bpm 60   -- 1000ms
-bpm 140  -- ~428ms
-```
-
----
-
-## Velocities (Dynamics)
-
-| Constant | Value | Dynamic        |
-|----------|-------|----------------|
-| `ppp`    | 16    | Pianississimo  |
-| `pp`     | 33    | Pianissimo     |
-| `p`      | 49    | Piano          |
-| `mp`     | 64    | Mezzo-piano    |
-| `mf`     | 80    | Mezzo-forte    |
-| `ff`     | 96    | Fortissimo     |
-| `fff`    | 112   | Fortississimo  |
-
----
-
-## High-Level Note Playing
-
-### play
-
-```haskell
-play :: Pitch -> Velocity -> Duration -> IO ()
-```
-
-Play a single note with specified velocity and duration on the default channel.
-
-```haskell
-play c4 mf quarter
-play g4 ff half
-```
-
-### playNote
-
-```haskell
-playNote :: Pitch -> Duration -> IO ()
-```
-
-Play a note with default velocity (`mf`).
-
-```haskell
-playNote c4 quarter
-playNote e4 eighth
-```
-
-### playChord
-
-```haskell
-playChord :: [Pitch] -> Velocity -> Duration -> IO ()
-```
-
-Play multiple notes simultaneously.
-
-```haskell
-playChord [c4, e4, g4] mf half      -- C major chord
-playChord [a4, c5, e5] ff quarter   -- A minor chord
-```
-
-### rest
-
-```haskell
-rest :: Duration -> IO ()
-```
-
-Silent pause for the given duration.
-
-```haskell
-rest quarter
-rest (dotted half)
-```
-
----
-
-## Sequences
-
-### melody
-
-```haskell
-melody :: [(Pitch, Duration)] -> Velocity -> IO ()
-```
-
-Play a sequence of notes.
-
-```haskell
-melody [(c4, quarter), (d4, quarter), (e4, half)] mf
-```
-
-### chord
-
-```haskell
-chord :: [Pitch] -> Duration -> IO ()
-```
-
-Play a chord with default velocity (`mf`).
-
-```haskell
-chord [c4, e4, g4] half
-```
-
-### arpeggio
-
-```haskell
-arpeggio :: [Pitch] -> Duration -> Velocity -> IO ()
-```
-
-Play notes one after another (arpeggiated).
-
-```haskell
-arpeggio [c4, e4, g4, c5] eighth mf
-```
-
-### times
-
-```haskell
-times :: Int -> IO () -> IO ()
-```
-
-Repeat an action n times.
-
-```haskell
-times 4 (playNote c4 quarter)
-times 2 (chord [c4, e4, g4] half)
-```
-
----
-
-## Channel Management
-
-### defaultChannel
-
-```haskell
-defaultChannel :: Channel  -- = 1
-```
-
-The default MIDI channel used by high-level functions.
-
-### withChannel
-
-```haskell
-withChannel :: Channel -> (Channel -> IO ()) -> IO ()
-```
-
-Execute an action with a specific channel.
-
-```haskell
-withChannel 2 (\ch -> midiNoteOn ch 60 100)
-```
-
----
-
-## Scales
-
-### Scale Type
-
-```haskell
-type Scale = [Int]  -- List of semitone intervals from root
-```
-
-### buildScale
-
-```haskell
-buildScale :: Pitch -> Scale -> [Pitch]
-```
-
-Build a scale from root pitch and intervals.
-
-```haskell
-buildScale c4 scaleMajor    -- [60, 62, 64, 65, 67, 69, 71]
-buildScale d4 scaleDorian   -- D dorian scale
-```
-
-### scaleDegree
-
-```haskell
-scaleDegree :: Pitch -> Scale -> Int -> Pitch
-```
-
-Get the nth degree of a scale (1-based). Supports extended degrees.
-
-```haskell
-scaleDegree c4 scaleMajor 1   -- 60 (root)
-scaleDegree c4 scaleMajor 3   -- 64 (major third)
-scaleDegree c4 scaleMajor 5   -- 67 (perfect fifth)
-scaleDegree c4 scaleMajor 9   -- 74 (ninth = octave + 2nd)
-```
-
-### inScale
-
-```haskell
-inScale :: Pitch -> Pitch -> Scale -> Bool
-```
-
-Check if a pitch belongs to a scale (in any octave).
-
-```haskell
-inScale e4 c4 scaleMajor   -- True (E is in C major)
-inScale cs4 c4 scaleMajor  -- False (C# is not in C major)
-```
-
-### quantize
-
-```haskell
-quantize :: Pitch -> Pitch -> Scale -> Pitch
-```
-
-Quantize a pitch to the nearest note in a scale.
-
-```haskell
-quantize 63 c4 scaleMajor  -- 62 (D# quantizes to D)
-quantize 66 c4 scaleMajor  -- 67 (F# quantizes to G)
-```
-
----
-
-## Scale Constants
-
-All scales are lists of semitone intervals from the root.
-
-### Diatonic Modes
-
-| Constant | Intervals |
-|----------|-----------|
-| `scaleMajor` | [0, 2, 4, 5, 7, 9, 11] |
-| `scaleMinor` | [0, 2, 3, 5, 7, 8, 10] |
-| `scaleDorian` | [0, 2, 3, 5, 7, 9, 10] |
-| `scalePhrygian` | [0, 1, 3, 5, 7, 8, 10] |
-| `scaleLydian` | [0, 2, 4, 6, 7, 9, 11] |
-| `scaleMixolydian` | [0, 2, 4, 5, 7, 9, 10] |
-| `scaleLocrian` | [0, 1, 3, 5, 6, 8, 10] |
-| `scaleIonian` | Same as major |
-| `scaleAeolian` | Same as minor |
-
-### Minor Variants
-
-| Constant | Description |
-|----------|-------------|
-| `scaleHarmonicMinor` | Raised 7th |
-| `scaleMelodicMinor` | Raised 6th and 7th |
-| `scaleHarmonicMajor` | Lowered 6th |
-
-### Pentatonic & Blues
-
-| Constant | Description |
-|----------|-------------|
-| `scalePentatonic` | Major pentatonic |
-| `scalePentatonicMajor` | Major pentatonic |
-| `scalePentatonicMinor` | Minor pentatonic |
-| `scaleBlues` | Blues scale |
-| `scaleBluesMajor` | Major blues |
-
-### Symmetric
-
-| Constant | Description |
-|----------|-------------|
-| `scaleWholeTone` | Whole-tone scale |
-| `scaleChromatic` | All 12 semitones |
-| `scaleDiminished` | Whole-half diminished |
-| `scaleAugmented` | Augmented scale |
-
-### Bebop
-
-| Constant | Description |
-|----------|-------------|
-| `scaleBebopDominant` | Dominant with passing tone |
-| `scaleBebopMajor` | Major with passing tone |
-| `scaleBebopMinor` | Minor with passing tone |
-
-### World Scales
-
-| Constant | Description |
-|----------|-------------|
-| `scaleHungarianMinor` | Hungarian minor |
-| `scaleDoubleHarmonic` | Byzantine/Arabic |
-| `scaleGypsy` | Hungarian Gypsy |
-| `scaleHirajoshi` | Japanese |
-| `scaleInSen` | Japanese In-Sen |
-| `scalePersian` | Persian scale |
-
-### Arabic Maqamat (12-TET)
-
-| Constant | Description |
-|----------|-------------|
-| `scaleMaqamHijaz` | Maqam Hijaz |
-| `scaleMaqamNahawand` | Maqam Nahawand |
-| `scaleMaqamNikriz` | Maqam Nikriz |
-
-### Indian Ragas (12-TET)
-
-| Constant | Description |
-|----------|-------------|
-| `scaleRagaBhairav` | Raga Bhairav |
-| `scaleRagaTodi` | Raga Todi |
-| `scaleRagaMarwa` | Raga Marwa |
-
----
-
-## Microtonal
-
-### centsToBend
-
-```haskell
-centsToBend :: Int -> IO Int
-```
-
-Convert cents offset to MIDI pitch bend value (-8192 to 8191).
-
-```haskell
-bend <- centsToBend 50   -- Quarter-tone up
-midiPitchBend 1 bend
-```
-
-### centsToNote
-
-```haskell
-centsToNote :: Pitch -> Int -> (Pitch, Int)
-```
-
-Convert a cents interval to (MIDI note, bend cents).
-
-```haskell
-centsToNote c4 150   -- (61, 50) - C# minus 50 cents
-centsToNote c4 350   -- (63, 50) - Eb plus 50 cents
-```
-
-### pitchBendCents
-
-```haskell
-pitchBendCents :: Channel -> Int -> IO ()
-```
-
-Send pitch bend in cents.
-
-```haskell
-pitchBendCents 1 50     -- Bend up quarter-tone
-pitchBendCents 1 (-50)  -- Bend down quarter-tone
-pitchBendCents 1 0      -- Reset to center
-```
-
----
-
-## Microtonal Scale Constants
-
-Cents-based scales for quarter-tones and other microtonal intervals.
-
-### Arabic Maqamat (Authentic)
-
-| Constant | Description |
-|----------|-------------|
-| `scaleMaqamBayatiCents` | Bayati with 3/4 tones |
-| `scaleMaqamRastCents` | Rast with 3/4 tones |
-| `scaleMaqamSabaCents` | Saba |
-| `scaleMaqamSikahCents` | Sikah |
-| `scaleMaqamHuzamCents` | Huzam |
-
-### Turkish Makamlar
-
-| Constant | Description |
-|----------|-------------|
-| `scaleMakamUssakCents` | Makam Ussak |
-| `scaleMakamHuseyniCents` | Makam Huseyni |
-
-### Indian
-
-| Constant | Description |
-|----------|-------------|
-| `scaleShrutiCents` | 22-shruti scale |
-
-### Microtonal Playback Example
-
-```haskell
-playMaqam :: IO ()
-playMaqam = do
-    midiOpenVirtual "Maqam"
-    mapM_ playMicroNote scaleMaqamBayatiCents
-    midiClose
-  where
-    root = c4
-    playMicroNote cents = do
-        let (note, bend) = centsToNote root cents
-        pitchBendCents 1 bend
-        play note mf quarter
+midiSeedRandom :: Int -> IO ()
+midiRandom :: IO Int
+midiRandomRange :: Int -> Int -> IO Int
 ```

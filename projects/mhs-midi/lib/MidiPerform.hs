@@ -53,6 +53,11 @@ module MidiPerform (
     euclidean,
     seed,
 
+    -- * Arpeggio patterns (pure)
+    arpUp,
+    arpDown,
+    arpUpDown,
+
     -- * Scales (for generative use)
     major, minor, pentatonic, blues, chromatic,
     dorian, phrygian, lydian, mixolydian,
@@ -411,6 +416,24 @@ clamp lo hi x
     | x < lo = lo
     | x > hi = hi
     | otherwise = x
+
+-----------------------------------------------------------
+-- Arpeggio patterns (pure)
+-----------------------------------------------------------
+
+-- | Ascending arpeggio pattern
+arpUp :: [a] -> [a]
+arpUp = id
+
+-- | Descending arpeggio pattern
+arpDown :: [a] -> [a]
+arpDown = reverse
+
+-- | Up-down arpeggio pattern (no repeated top note)
+arpUpDown :: [a] -> [a]
+arpUpDown [] = []
+arpUpDown [x] = [x]
+arpUpDown xs = xs ++ tail (reverse xs)
 
 -----------------------------------------------------------
 -- Scales (for generative use)

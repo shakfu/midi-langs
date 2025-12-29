@@ -6,6 +6,41 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **mhs-midi Pure Generative Algorithms**: Music.hs now includes pure generative functions
+  - Pure PRNG: `nextRandom`, `randomRange`, `randomList` (Linear Congruential Generator)
+  - Deterministic: `euclideanRhythm`, `arpUp`, `arpDown`, `arpUpDown`, `retrograde`, `invert`
+  - Seed-based random: `shuffle`, `pick`, `pickN`, `randomWalk`, `drunkWalk`
+  - All functions are pure (no IO) and use explicit seeds for reproducibility
+
+- **mhs-midi Generative Music**: New generative functions in MidiPerform module
+  - Random selection: `pick`, `chance`, `oneOf`, `maybeDo`
+  - Random sequences: `scramble`, `randomNote`, `randomMelody`
+  - Algorithmic patterns: `walk`, `drunk`, `euclidean`
+  - Scales for generative use: `major`, `minor`, `pentatonic`, `blues`, `dorian`, etc.
+  - Random number FFI: `midiSeedRandom`, `midiRandom`, `midiRandomRange`
+
+### Changed
+
+- **mhs-midi Module Refactoring**: Clean separation of concerns
+  - `Music.hs` - Pure music theory + DSL (no IO, no MIDI concepts)
+    - Event type now `ENote Pitch Velocity Duration` (removed Channel)
+    - Constructors: `note`, `rest`, `chord`, `line` (no hardcoded defaults)
+    - Combinators: `(+:+)`, `(|||)`, `timesM`
+    - Transformations: `transpose`, `louder`, `softer`, `stretch`, `compress`
+  - `Midi.hs` - Pure FFI bindings only
+  - `MusicPerform.hs` - Bridge from pure Music to MIDI
+    - `perform :: Music -> IO ()` - perform on channel 1
+    - `performOn :: Channel -> Music -> IO ()` - perform on specific channel
+    - Microtonal: `centsToBend`, `pitchBendCents`
+  - `MidiPerform.hs` - Immediate MIDI playback with generative functions
+    - Direct IO: `note`, `chord`, `rest`, `melody`, `arpeggio`
+    - Generative: `pick`, `drunk`, `walk`, `euclidean`, `scramble`
+    - REPL helpers: `open`, `close`, `panic`, `ports`
+  - Renamed `MidiRepl.hs` to `MidiPerform.hs`
+  - Deleted `MidiPrelude.hs` (merged into MusicPerform.hs)
+
+### Added
+
 - **Common Music Theory Library**: Shared C library for music-related utilities
   - `projects/common/music_theory.h` - Header with API and constants
   - `projects/common/music_theory.c` - Implementation
