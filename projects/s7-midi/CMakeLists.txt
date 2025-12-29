@@ -18,7 +18,7 @@ target_compile_definitions(s7_midi PRIVATE
 )
 
 # s7 requires math and dl libraries
-target_link_libraries(s7_midi PRIVATE libremidi m)
+target_link_libraries(s7_midi PRIVATE libremidi music_theory m)
 
 # Platform-specific dependencies
 if(APPLE)

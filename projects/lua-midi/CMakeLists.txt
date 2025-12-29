@@ -59,7 +59,7 @@ if(READLINE_LIB)
 endif()
 
 # Lua requires math library
-target_link_libraries(lua_midi PRIVATE libremidi m)
+target_link_libraries(lua_midi PRIVATE libremidi music_theory m)
 
 # Platform-specific dependencies
 if(APPLE)

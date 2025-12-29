@@ -8,6 +8,7 @@
 #include <libremidi/libremidi-c.h>
 
 #include "py_prelude.h"
+#include "music_theory.h"
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -76,44 +77,9 @@ static void midi_cleanup_observer(void) {
     }
 }
 
-// Parse pitch name to MIDI number (e.g., "C4" -> 60, "C#4" -> 61)
+// Parse pitch name to MIDI number - uses common music_theory library
 static int parse_pitch(const char* name) {
-    if (name == NULL || name[0] == '\0') return -1;
-
-    // Parse note letter
-    int note;
-    char c = toupper(name[0]);
-    switch (c) {
-        case 'C': note = 0; break;
-        case 'D': note = 2; break;
-        case 'E': note = 4; break;
-        case 'F': note = 5; break;
-        case 'G': note = 7; break;
-        case 'A': note = 9; break;
-        case 'B': note = 11; break;
-        default: return -1;
-    }
-
-    const char* p = name + 1;
-
-    // Check for accidentals
-    if (*p == '#' || *p == 's') {
-        note++;
-        p++;
-    } else if (*p == 'b') {
-        note--;
-        p++;
-    }
-
-    // Parse octave
-    if (*p == '\0') return -1;
-    int octave = atoi(p);
-    if (octave < -1 || octave > 9) return -1;
-
-    int midi_note = (octave + 1) * 12 + note;
-    if (midi_note < 0 || midi_note > 127) return -1;
-
-    return midi_note;
+    return music_parse_pitch(name);
 }
 
 // ============================================================================

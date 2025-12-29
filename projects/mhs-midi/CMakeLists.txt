@@ -20,7 +20,7 @@ target_include_directories(midi_ffi PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/thirdparty/libremidi/include
 )
-target_link_libraries(midi_ffi PRIVATE libremidi)
+target_link_libraries(midi_ffi PRIVATE libremidi music_theory)
 
 # Platform-specific dependencies for midi_ffi
 if(APPLE)
@@ -148,6 +148,7 @@ target_include_directories(mhs-midi PRIVATE
 
 target_link_libraries(mhs-midi PRIVATE
     libremidi
+    music_theory
     m
 )
 

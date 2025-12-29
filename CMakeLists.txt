@@ -36,8 +36,10 @@ set(LIBREMIDI_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LIBREMIDI_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(thirdparty/libremidi)
 
+# Build common music theory library
+add_subdirectory(projects/common)
+
 # Add project subdirectories
-add_subdirectory(projects/forth)
 add_subdirectory(projects/forth-midi)
 add_subdirectory(projects/mhs-midi)
 add_subdirectory(projects/pktpy-midi)

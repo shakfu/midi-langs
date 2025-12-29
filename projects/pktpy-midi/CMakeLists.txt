@@ -6,8 +6,8 @@ add_executable(pktpy_midi
 
 target_compile_options(pktpy_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
-# Link with libremidi
-target_link_libraries(pktpy_midi PRIVATE libremidi)
+# Link with libremidi and music_theory
+target_link_libraries(pktpy_midi PRIVATE libremidi music_theory)
 
 # Platform-specific dependencies
 if(APPLE)

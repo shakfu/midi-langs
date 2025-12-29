@@ -6,6 +6,17 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **Common Music Theory Library**: Shared C library for music-related utilities
+  - `projects/common/music_theory.h` - Header with API and constants
+  - `projects/common/music_theory.c` - Implementation
+  - Pitch parsing: `music_parse_pitch()` converts note names ("C4", "C#4", "Db5") to MIDI numbers
+  - Pitch formatting: `music_pitch_to_name()` converts MIDI numbers back to note names
+  - Chord intervals: `CHORD_MAJOR`, `CHORD_MINOR`, `CHORD_DIM`, `CHORD_AUG`, `CHORD_DOM7`, `CHORD_MAJ7`, `CHORD_MIN7`, `CHORD_DIM7`, `CHORD_HALF_DIM7`, `CHORD_SUS2`, `CHORD_SUS4`
+  - Chord building: `music_build_chord()` builds chords from root + intervals
+  - Dynamics parsing: `music_parse_dynamics()` converts "ppp"-"fff" to velocity values
+  - Duration calculation: `music_duration_ms()` calculates note duration from beats and BPM
+  - Constants: `DYN_PPP`-`DYN_FFF`, `DUR_WHOLE`-`DUR_SIXTEENTH`, `NOTE_C0`-`NOTE_G9`, `CC_*`
+
 - **Prelude System**: Extracted prelude code from C files into native language source files
   - `projects/s7-midi/prelude.scm` - Scheme prelude (pitch constants, chord builders, etc.)
   - `projects/lua-midi/prelude.lua` - Lua prelude
@@ -22,9 +33,12 @@ All notable changes to midi-langs are documented in this file.
   - Automatic dependency tracking (only regenerates when source changes)
   - Integrated into build process (runs before `configure`)
 
-### Removed
+### Changed
 
-- `scripts/py2c.py` - Superseded by `prelude2c.py`
+- **lua-midi**: Refactored to use common `music_parse_pitch()` instead of local implementation
+- **s7-midi**: Refactored to use common `music_parse_pitch()` instead of local implementation
+- **pktpy-midi**: Refactored to use common `music_parse_pitch()` instead of local implementation
+- **mhs-midi**: Linked with music_theory library for future use
 
 ## [0.1.4]
 
