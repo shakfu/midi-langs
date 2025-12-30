@@ -105,7 +105,7 @@ typedef struct {
 /* Word structure for dictionary */
 typedef struct {
     char name[MAX_WORD_LENGTH];
-    void (*function)(Stack* stack);
+    void (*function)(Stack* s);
     char* body;             /* For user-defined words: the token string */
     int is_primitive;       /* 1 = C function, 0 = user-defined */
 } Word;
@@ -246,94 +246,102 @@ extern ForthContext g_ctx;
 /* Initialize context with default values */
 void forth_context_init(ForthContext* ctx);
 
+/* Reset runtime state (preserves dictionary and MIDI connections) */
+void forth_context_reset(ForthContext* ctx);
+
 /* ============================================================================
- * Global Variables (extern declarations) - Legacy compatibility
- * These will be migrated to use g_ctx fields
+ * Global Variable Macros - Redirect to g_ctx fields
+ * These macros allow existing code to work unchanged while using g_ctx
+ * Define FORTH_NO_MACROS before including to access ctx members directly.
  * ============================================================================ */
 
+#ifndef FORTH_NO_MACROS
+
 /* Core interpreter state */
-extern Stack stack;
-extern Word dictionary[MAX_WORDS];
-extern int dict_count;
+#define stack                       (g_ctx.stack)
+#define dictionary                  (g_ctx.dictionary)
+#define dict_count                  (g_ctx.dict_count)
 
 /* Compile mode state */
-extern int compile_mode;
-extern char current_definition_name[MAX_WORD_LENGTH];
-extern char current_definition_body[MAX_DEFINITION_LENGTH];
-extern int definition_body_len;
+#define compile_mode                (g_ctx.compile_mode)
+#define current_definition_name     (g_ctx.current_definition_name)
+#define current_definition_body     (g_ctx.current_definition_body)
+#define definition_body_len         (g_ctx.definition_body_len)
 
 /* Anonymous block state */
-extern char* block_storage[MAX_BLOCKS];
-extern int block_count;
-extern int block_capture_mode;
-extern char current_block_body[MAX_DEFINITION_LENGTH];
-extern int block_body_len;
-extern int block_nesting;
+#define block_storage               (g_ctx.block_storage)
+#define block_count                 (g_ctx.block_count)
+#define block_capture_mode          (g_ctx.block_capture_mode)
+#define current_block_body          (g_ctx.current_block_body)
+#define block_body_len              (g_ctx.block_body_len)
+#define block_nesting               (g_ctx.block_nesting)
 
 /* Conditional execution state */
-extern int cond_skip_mode;
-extern int cond_skip_nesting;
-extern int cond_in_true_branch;
+#define cond_skip_mode              (g_ctx.cond_skip_mode)
+#define cond_skip_nesting           (g_ctx.cond_skip_nesting)
+#define cond_in_true_branch         (g_ctx.cond_in_true_branch)
 
 /* Track last executed word for 'times' loop */
-extern char last_executed_word[MAX_WORD_LENGTH];
+#define last_executed_word          (g_ctx.last_executed_word)
 
 /* File loading depth */
-extern int load_depth;
+#define load_depth                  (g_ctx.load_depth)
 
 /* MIDI globals */
-extern libremidi_midi_observer_handle* midi_observer;
-extern libremidi_midi_out_handle* midi_out;
-extern libremidi_midi_out_port* out_ports[MAX_PORTS];
-extern int out_port_count;
+#define midi_observer               (g_ctx.midi_observer)
+#define midi_out                    (g_ctx.midi_out)
+#define out_ports                   (g_ctx.out_ports)
+#define out_port_count              (g_ctx.out_port_count)
 
 /* Context defaults for concise notation */
-extern int default_channel;
-extern int default_velocity;
-extern int default_duration;
-extern int current_pitch;
+#define default_channel             (g_ctx.default_channel)
+#define default_velocity            (g_ctx.default_velocity)
+#define default_duration            (g_ctx.default_duration)
+#define current_pitch               (g_ctx.current_pitch)
 
 /* Articulation flags */
-extern int articulation_staccato;
-extern int articulation_accent;
-extern int articulation_tenuto;
+#define articulation_staccato       (g_ctx.articulation_staccato)
+#define articulation_accent         (g_ctx.articulation_accent)
+#define articulation_tenuto         (g_ctx.articulation_tenuto)
 
 /* Sequences */
-extern Sequence sequences[MAX_SEQUENCES];
-extern int sequence_count;
-extern int current_seq;
-extern int global_bpm;
+#define sequences                   (g_ctx.sequences)
+#define sequence_count              (g_ctx.sequence_count)
+#define current_seq                 (g_ctx.current_seq)
+#define global_bpm                  (g_ctx.global_bpm)
 
 /* Recording system */
-extern char* recording_buffer[MAX_RECORDING_LINES];
-extern int recording_count;
-extern int recording_active;
+#define recording_buffer            (g_ctx.recording_buffer)
+#define recording_count             (g_ctx.recording_count)
+#define recording_active            (g_ctx.recording_active)
 
 /* MIDI capture system */
-extern CapturedEvent capture_buffer[MAX_CAPTURE_EVENTS];
-extern int capture_count;
-extern int capture_active;
-extern struct timespec capture_start_time;
+#define capture_buffer              (g_ctx.capture_buffer)
+#define capture_count               (g_ctx.capture_count)
+#define capture_active              (g_ctx.capture_active)
+#define capture_start_time          (g_ctx.capture_start_time)
 
 /* Generative music PRNG state */
-extern int32_t prng_seed;
+#define prng_seed                   (g_ctx.prng_seed)
 
 /* Named parameter system state */
-extern int default_gate;          /* Gate percentage (1-100) */
-extern int pending_channel;       /* One-shot channel override (-1 if not set) */
-extern int pending_velocity;      /* One-shot velocity override (-1 if not set) */
-extern int pending_duration;      /* One-shot duration override (-1 if not set) */
-extern int pending_gate;          /* One-shot gate override (-1 if not set) */
+#define default_gate                (g_ctx.default_gate)
+#define pending_channel             (g_ctx.pending_channel)
+#define pending_velocity            (g_ctx.pending_velocity)
+#define pending_duration            (g_ctx.pending_duration)
+#define pending_gate                (g_ctx.pending_gate)
 
 /* Bracket sequence system */
-extern BracketSequence* bracket_seq_storage[MAX_BRACKET_SEQS];
-extern int bracket_seq_count;
-extern int seq_capture_mode;
-extern int seq_capture_count;
-extern int seq_capture_chord_mode;
-extern int seq_capture_chord_count;
-extern int16_t seq_capture_chord_buffer[8];
-extern BracketSequence* current_bracket_seq;
+#define bracket_seq_storage         (g_ctx.bracket_seq_storage)
+#define bracket_seq_count           (g_ctx.bracket_seq_count)
+#define seq_capture_mode            (g_ctx.seq_capture_mode)
+#define seq_capture_count           (g_ctx.seq_capture_count)
+#define seq_capture_chord_mode      (g_ctx.seq_capture_chord_mode)
+#define seq_capture_chord_count     (g_ctx.seq_capture_chord_count)
+#define seq_capture_chord_buffer    (g_ctx.seq_capture_chord_buffer)
+#define current_bracket_seq         (g_ctx.current_bracket_seq)
+
+#endif /* FORTH_NO_MACROS */
 
 /* ============================================================================
  * Inline Functions - Packed Notes
@@ -358,14 +366,14 @@ static inline int note_dur(int32_t n)   { return (n & NOTE_DUR_MASK) >> NOTE_DUR
 void push(Stack* s, int32_t value);
 int32_t pop(Stack* s);
 int32_t peek(Stack* s);
-void op_dup(Stack* stack);
-void op_drop(Stack* stack);
-void op_swap(Stack* stack);
-void op_over(Stack* stack);
-void op_rot(Stack* stack);
-void op_depth(Stack* stack);
-void op_clear(Stack* stack);
-void op_print_stack(Stack* stack);
+void op_dup(Stack* s);
+void op_drop(Stack* s);
+void op_swap(Stack* s);
+void op_over(Stack* s);
+void op_rot(Stack* s);
+void op_depth(Stack* s);
+void op_clear(Stack* s);
+void op_print_stack(Stack* s);
 
 /* ============================================================================
  * Function Declarations - MIDI Core (midi_core.c)
@@ -381,144 +389,144 @@ void midi_send_pitch_bend(int value, int channel);
 void midi_sleep_ms(int ms);
 
 int open_virtual_port(const char* name);
-void op_midi_list(Stack* stack);
-void op_midi_open(Stack* stack);
-void op_midi_open_port(Stack* stack);
-void op_midi_close(Stack* stack);
-void op_all_notes_off(Stack* stack);
-void op_sleep(Stack* stack);
+void op_midi_list(Stack* s);
+void op_midi_open(Stack* s);
+void op_midi_open_port(Stack* s);
+void op_midi_close(Stack* s);
+void op_all_notes_off(Stack* s);
+void op_sleep(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Notation (notation.c)
  * ============================================================================ */
 
 int parse_pitch(const char* token);
-void play_single_note(Stack* stack, int pitch);
-void play_chord_notes(Stack* stack);
-void op_comma(Stack* stack);
-void op_chord_open(Stack* stack);
-void op_chord_close(Stack* stack);
-void op_alt_open(Stack* stack);
-void op_percent(Stack* stack);
-void op_pitch_bend(Stack* stack);
-void op_ch_store(Stack* stack);
-void op_ch_fetch_default(Stack* stack);
-void op_vel_store(Stack* stack);
-void op_vel_fetch_default(Stack* stack);
-void op_dur_store(Stack* stack);
-void op_dur_fetch_default(Stack* stack);
-void op_gate_store(Stack* stack);
-void op_gate_fetch(Stack* stack);
-void op_octave_up(Stack* stack);
-void op_octave_down(Stack* stack);
-void op_program_change(Stack* stack);
+void play_single_note(Stack* s, int pitch);
+void play_chord_notes(Stack* s);
+void op_comma(Stack* s);
+void op_chord_open(Stack* s);
+void op_chord_close(Stack* s);
+void op_alt_open(Stack* s);
+void op_percent(Stack* s);
+void op_pitch_bend(Stack* s);
+void op_ch_store(Stack* s);
+void op_ch_fetch_default(Stack* s);
+void op_vel_store(Stack* s);
+void op_vel_fetch_default(Stack* s);
+void op_dur_store(Stack* s);
+void op_dur_fetch_default(Stack* s);
+void op_gate_store(Stack* s);
+void op_gate_fetch(Stack* s);
+void op_octave_up(Stack* s);
+void op_octave_down(Stack* s);
+void op_program_change(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Generative (generative.c)
  * ============================================================================ */
 
-void op_seed_store(Stack* stack);
-void op_seed_fetch(Stack* stack);
-void op_next_random(Stack* stack);
-void op_srand_range(Stack* stack);
-void op_chance(Stack* stack);
-void op_random(Stack* stack);
-void op_euclidean(Stack* stack);
-void op_reverse(Stack* stack);
-void op_arp_up(Stack* stack);
-void op_arp_down(Stack* stack);
-void op_arp_up_down(Stack* stack);
-void op_retrograde(Stack* stack);
-void op_invert(Stack* stack);
-void op_shuffle(Stack* stack);
-void op_pick_random(Stack* stack);
-void op_pick_n(Stack* stack);
-void op_random_walk(Stack* stack);
-void op_drunk_walk(Stack* stack);
-void op_weighted_pick(Stack* stack);
-void op_concat(Stack* stack);
+void op_seed_store(Stack* s);
+void op_seed_fetch(Stack* s);
+void op_next_random(Stack* s);
+void op_srand_range(Stack* s);
+void op_chance(Stack* s);
+void op_random(Stack* s);
+void op_euclidean(Stack* s);
+void op_reverse(Stack* s);
+void op_arp_up(Stack* s);
+void op_arp_down(Stack* s);
+void op_arp_up_down(Stack* s);
+void op_retrograde(Stack* s);
+void op_invert(Stack* s);
+void op_shuffle(Stack* s);
+void op_pick_random(Stack* s);
+void op_pick_n(Stack* s);
+void op_random_walk(Stack* s);
+void op_drunk_walk(Stack* s);
+void op_weighted_pick(Stack* s);
+void op_concat(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Sequences (sequences.c)
  * ============================================================================ */
 
-void op_seq_new(Stack* stack);
-void op_seq_select(Stack* stack);
-void op_seq_current(Stack* stack);
-void op_seq_note(Stack* stack);
-void op_seq_note_ch(Stack* stack);
-void op_seq_add(Stack* stack);
-void op_seq_length(Stack* stack);
-void op_seq_clear(Stack* stack);
-void op_seq_play(Stack* stack);
-void op_seq_transpose(Stack* stack);
-void op_seq_show(Stack* stack);
-void op_seq_reverse(Stack* stack);
-void op_seq_stretch(Stack* stack);
-void op_bpm_store(Stack* stack);
-void op_bpm_fetch(Stack* stack);
+void op_seq_new(Stack* s);
+void op_seq_select(Stack* s);
+void op_seq_current(Stack* s);
+void op_seq_note(Stack* s);
+void op_seq_note_ch(Stack* s);
+void op_seq_add(Stack* s);
+void op_seq_length(Stack* s);
+void op_seq_clear(Stack* s);
+void op_seq_play(Stack* s);
+void op_seq_transpose(Stack* s);
+void op_seq_show(Stack* s);
+void op_seq_reverse(Stack* s);
+void op_seq_stretch(Stack* s);
+void op_bpm_store(Stack* s);
+void op_bpm_fetch(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Packed Notes (packed_notes.c)
  * ============================================================================ */
 
-void op_note(Stack* stack);
-void op_pitch_fetch(Stack* stack);
-void op_vel_fetch(Stack* stack);
-void op_ch_fetch(Stack* stack);
-void op_dur_fetch(Stack* stack);
-void op_note_print(Stack* stack);
-void op_transpose(Stack* stack);
-void op_note_play(Stack* stack);
+void op_note(Stack* s);
+void op_pitch_fetch(Stack* s);
+void op_vel_fetch(Stack* s);
+void op_ch_fetch(Stack* s);
+void op_dur_fetch(Stack* s);
+void op_note_print(Stack* s);
+void op_transpose(Stack* s);
+void op_note_play(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Patterns (patterns.c)
  * ============================================================================ */
 
-void op_quarter(Stack* stack);
-void op_half(Stack* stack);
-void op_whole(Stack* stack);
-void op_eighth(Stack* stack);
-void op_sixteenth(Stack* stack);
-void op_chord_major(Stack* stack);
-void op_chord_minor(Stack* stack);
-void op_chord_dim(Stack* stack);
-void op_chord_aug(Stack* stack);
-void op_chord_7(Stack* stack);
-void op_chord_maj7(Stack* stack);
-void op_chord_min7(Stack* stack);
-void op_play_chord(Stack* stack);
-void op_chord_to_seq(Stack* stack);
-void op_arp_to_seq(Stack* stack);
+void op_quarter(Stack* s);
+void op_half(Stack* s);
+void op_whole(Stack* s);
+void op_eighth(Stack* s);
+void op_sixteenth(Stack* s);
+void op_chord_major(Stack* s);
+void op_chord_minor(Stack* s);
+void op_chord_dim(Stack* s);
+void op_chord_aug(Stack* s);
+void op_chord_7(Stack* s);
+void op_chord_maj7(Stack* s);
+void op_chord_min7(Stack* s);
+void op_play_chord(Stack* s);
+void op_chord_to_seq(Stack* s);
+void op_arp_to_seq(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Scales (scales.c)
  * ============================================================================ */
 
-void op_scale_major(Stack* stack);
-void op_scale_dorian(Stack* stack);
-void op_scale_phrygian(Stack* stack);
-void op_scale_lydian(Stack* stack);
-void op_scale_mixolydian(Stack* stack);
-void op_scale_minor(Stack* stack);
-void op_scale_locrian(Stack* stack);
-void op_scale_harmonic_minor(Stack* stack);
-void op_scale_melodic_minor(Stack* stack);
-void op_scale_pentatonic(Stack* stack);
-void op_scale_pentatonic_minor(Stack* stack);
-void op_scale_blues(Stack* stack);
-void op_scale_whole_tone(Stack* stack);
-void op_scale_chromatic(Stack* stack);
-void op_scale_diminished_hw(Stack* stack);
-void op_scale_diminished_wh(Stack* stack);
-void op_scale_augmented_scale(Stack* stack);
-void op_scale_bebop_dominant(Stack* stack);
-void op_scale_bebop_major(Stack* stack);
-void op_scale_bebop_minor(Stack* stack);
-void op_scale_hungarian_minor(Stack* stack);
-void op_scale_double_harmonic(Stack* stack);
-void op_scale_neapolitan_major(Stack* stack);
-void op_scale_neapolitan_minor(Stack* stack);
+void op_scale_major(Stack* s);
+void op_scale_dorian(Stack* s);
+void op_scale_phrygian(Stack* s);
+void op_scale_lydian(Stack* s);
+void op_scale_mixolydian(Stack* s);
+void op_scale_minor(Stack* s);
+void op_scale_locrian(Stack* s);
+void op_scale_harmonic_minor(Stack* s);
+void op_scale_melodic_minor(Stack* s);
+void op_scale_pentatonic(Stack* s);
+void op_scale_pentatonic_minor(Stack* s);
+void op_scale_blues(Stack* s);
+void op_scale_whole_tone(Stack* s);
+void op_scale_chromatic(Stack* s);
+void op_scale_diminished_hw(Stack* s);
+void op_scale_diminished_wh(Stack* s);
+void op_scale_augmented_scale(Stack* s);
+void op_scale_bebop_dominant(Stack* s);
+void op_scale_bebop_major(Stack* s);
+void op_scale_bebop_minor(Stack* s);
+void op_scale_hungarian_minor(Stack* s);
+void op_scale_double_harmonic(Stack* s);
+void op_scale_neapolitan_major(Stack* s);
+void op_scale_neapolitan_minor(Stack* s);
 void register_scale_words(void);
 
 /* ============================================================================
@@ -531,18 +539,18 @@ int recording_save(const char* filename);
 void recording_clear(void);
 int capture_save_midi(const char* filename);
 void capture_clear(void);
-void op_rec_start(Stack* stack);
-void op_rec_stop(Stack* stack);
-void op_rec_save(Stack* stack);
-void op_capture_start(Stack* stack);
-void op_capture_stop(Stack* stack);
-void op_save_midi(Stack* stack);
+void op_rec_start(Stack* s);
+void op_rec_stop(Stack* s);
+void op_rec_save(Stack* s);
+void op_capture_start(Stack* s);
+void op_capture_stop(Stack* s);
+void op_save_midi(Stack* s);
 
 /* Standard MIDI file I/O */
 int capture_write_mid(const char* filename);
 int capture_read_mid(const char* filename);
-void op_write_mid(Stack* stack);
-void op_read_mid(Stack* stack);
+void op_write_mid(Stack* s);
+void op_read_mid(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Dictionary (dictionary.c)
@@ -552,7 +560,8 @@ void add_word(const char* name, void (*func)(Stack*), int is_primitive);
 void register_user_word(const char* name, const char* body);
 Word* find_word(const char* name);
 void init_dictionary(void);
-void op_words(Stack* stack);
+void op_words(Stack* s);
+void op_reset(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Interpreter (interpreter.c)
@@ -561,17 +570,17 @@ void op_words(Stack* stack);
 void process_token(const char* token);
 void interpret(const char* input);
 int load_file(const char* filename);
-void op_colon(Stack* stack);
-void op_semicolon(Stack* stack);
-void op_if(Stack* stack);
-void op_else(Stack* stack);
-void op_then(Stack* stack);
-void op_block_open(Stack* stack);
-void op_block_close(Stack* stack);
-void op_times(Stack* stack);
-void op_star(Stack* stack);
-void op_load(Stack* stack);
-void op_help(Stack* stack);
+void op_colon(Stack* s);
+void op_semicolon(Stack* s);
+void op_if(Stack* s);
+void op_else(Stack* s);
+void op_then(Stack* s);
+void op_block_open(Stack* s);
+void op_block_close(Stack* s);
+void op_times(Stack* s);
+void op_star(Stack* s);
+void op_load(Stack* s);
+void op_help(Stack* s);
 
 /* Parameter system functions */
 int parse_param_assign(const char* token);
@@ -587,35 +596,35 @@ BracketSequence* seq_alloc(void);
 void seq_retain(BracketSequence* seq);
 void seq_release(BracketSequence* seq);
 void seq_cleanup_all(void);
-void op_seq_gc(Stack* stack);
+void op_seq_gc(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Arithmetic (primitives.c)
  * ============================================================================ */
 
-void op_add(Stack* stack);
-void op_sub(Stack* stack);
-void op_mul(Stack* stack);
-void op_div(Stack* stack);
-void op_mod(Stack* stack);
-void op_abs(Stack* stack);
-void op_negate(Stack* stack);
-void op_min(Stack* stack);
-void op_max(Stack* stack);
-void op_and(Stack* stack);
-void op_or(Stack* stack);
-void op_xor(Stack* stack);
-void op_not(Stack* stack);
-void op_eq(Stack* stack);
-void op_lt(Stack* stack);
-void op_gt(Stack* stack);
-void op_le(Stack* stack);
-void op_ge(Stack* stack);
-void op_ne(Stack* stack);
-void op_print(Stack* stack);
-void op_cr(Stack* stack);
-void op_space(Stack* stack);
-void op_emit(Stack* stack);
+void op_add(Stack* s);
+void op_sub(Stack* s);
+void op_mul(Stack* s);
+void op_div(Stack* s);
+void op_mod(Stack* s);
+void op_abs(Stack* s);
+void op_negate(Stack* s);
+void op_min(Stack* s);
+void op_max(Stack* s);
+void op_and(Stack* s);
+void op_or(Stack* s);
+void op_xor(Stack* s);
+void op_not(Stack* s);
+void op_eq(Stack* s);
+void op_lt(Stack* s);
+void op_gt(Stack* s);
+void op_le(Stack* s);
+void op_ge(Stack* s);
+void op_ne(Stack* s);
+void op_print(Stack* s);
+void op_cr(Stack* s);
+void op_space(Stack* s);
+void op_emit(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Readline (readline_comp.c)

@@ -2,22 +2,7 @@
 
 #include "forth_midi.h"
 
-/* MIDI globals - defined here */
-libremidi_midi_observer_handle* midi_observer = NULL;
-libremidi_midi_out_handle* midi_out = NULL;
-libremidi_midi_out_port* out_ports[MAX_PORTS];
-int out_port_count = 0;
-
-/* Context defaults for concise notation */
-int default_channel = 1;      /* 1-16 */
-int default_velocity = 80;    /* 0-127 */
-int default_duration = 500;   /* milliseconds */
-int current_pitch = 60;       /* Track last played pitch for relative intervals */
-
-/* Articulation flags (set by pitch parser, consumed by play) */
-int articulation_staccato = 0;   /* Reduce duration to 50% */
-int articulation_accent = 0;     /* Increase velocity by 20 */
-int articulation_tenuto = 0;     /* Full duration */
+/* All globals now accessed via g_ctx macros defined in forth_midi.h */
 
 /* Callback for port enumeration */
 static void on_output_port_found(void* ctx, const libremidi_midi_out_port* port) {
@@ -147,7 +132,7 @@ void midi_sleep_ms(int ms) {
 }
 
 /* midi-list ( -- ) List available MIDI output ports */
-void op_midi_list(Stack* stack) {
+void op_midi_list(Stack* s) {
     (void)stack;
     midi_init_observer();
 
@@ -173,8 +158,8 @@ void op_midi_list(Stack* stack) {
 }
 
 /* midi-open-port ( n -- ) Open MIDI output port by index */
-void op_midi_open(Stack* stack) {
-    int32_t port_idx = pop(stack);
+void op_midi_open(Stack* s) {
+    int32_t port_idx = pop(&stack);
 
     midi_init_observer();
 
@@ -265,13 +250,13 @@ int open_virtual_port(const char* name) {
 }
 
 /* midi-open ( -- ) Create virtual MIDI output 'ForthMIDI' */
-void op_midi_open_port(Stack* stack) {
+void op_midi_open_port(Stack* s) {
     (void)stack;
     open_virtual_port("ForthMIDI");
 }
 
 /* midi-close ( -- ) Close MIDI output */
-void op_midi_close(Stack* stack) {
+void op_midi_close(Stack* s) {
     (void)stack;
     if (midi_out != NULL) {
         libremidi_midi_out_free(midi_out);
@@ -281,7 +266,7 @@ void op_midi_close(Stack* stack) {
 }
 
 /* panic ( -- ) All notes off on all channels */
-void op_all_notes_off(Stack* stack) {
+void op_all_notes_off(Stack* s) {
     (void)stack;
     if (midi_out == NULL) {
         printf("No MIDI output open\n");
@@ -299,8 +284,8 @@ void op_all_notes_off(Stack* stack) {
 }
 
 /* ms ( n -- ) Sleep for n milliseconds */
-void op_sleep(Stack* stack) {
-    int32_t ms = pop(stack);
+void op_sleep(Stack* s) {
+    int32_t ms = pop(&stack);
     if (ms > 0) {
         usleep(ms * 1000);
     }

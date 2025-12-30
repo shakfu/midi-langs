@@ -3,62 +3,62 @@
 #include "forth_midi.h"
 
 /* note ( pitch vel ch dur -- packed-note ) */
-void op_note(Stack* stack) {
-    int32_t dur = pop(stack);
-    int32_t ch = pop(stack);
-    int32_t vel = pop(stack);
-    int32_t pitch = pop(stack);
-    push(stack, pack_note(pitch, vel, ch - 1, dur));  /* ch 1-16 -> 0-15 */
+void op_note(Stack* s) {
+    int32_t dur = pop(&stack);
+    int32_t ch = pop(&stack);
+    int32_t vel = pop(&stack);
+    int32_t pitch = pop(&stack);
+    push(&stack, pack_note(pitch, vel, ch - 1, dur));  /* ch 1-16 -> 0-15 */
 }
 
 /* pitch@ ( packed-note -- pitch ) */
-void op_pitch_fetch(Stack* stack) {
-    int32_t n = pop(stack);
-    push(stack, note_pitch(n));
+void op_pitch_fetch(Stack* s) {
+    int32_t n = pop(&stack);
+    push(&stack, note_pitch(n));
 }
 
 /* vel@ ( packed-note -- velocity ) */
-void op_vel_fetch(Stack* stack) {
-    int32_t n = pop(stack);
-    push(stack, note_vel(n));
+void op_vel_fetch(Stack* s) {
+    int32_t n = pop(&stack);
+    push(&stack, note_vel(n));
 }
 
 /* ch@ ( packed-note -- channel ) returns 1-16 */
-void op_ch_fetch(Stack* stack) {
-    int32_t n = pop(stack);
-    push(stack, note_ch(n) + 1);
+void op_ch_fetch(Stack* s) {
+    int32_t n = pop(&stack);
+    push(&stack, note_ch(n) + 1);
 }
 
 /* dur@ ( packed-note -- duration ) */
-void op_dur_fetch(Stack* stack) {
-    int32_t n = pop(stack);
-    push(stack, note_dur(n));
+void op_dur_fetch(Stack* s) {
+    int32_t n = pop(&stack);
+    push(&stack, note_dur(n));
 }
 
 /* note. ( packed-note -- ) print note info */
-void op_note_print(Stack* stack) {
-    int32_t n = pop(stack);
+void op_note_print(Stack* s) {
+    int32_t n = pop(&stack);
     printf("note: pitch=%d vel=%d ch=%d dur=%d",
            note_pitch(n), note_vel(n), note_ch(n) + 1, note_dur(n));
 }
 
 /* transpose ( value semitones -- value )
  * Polymorphic: works on packed notes or bracket sequences */
-void op_transpose(Stack* stack) {
-    if (stack->top < 1) {
+void op_transpose(Stack* s) {
+    if (stack.top < 1) {
         printf("transpose needs a value and semitones\n");
         return;
     }
 
-    int32_t semi = pop(stack);
-    int32_t val = pop(stack);
+    int32_t semi = pop(&stack);
+    int32_t val = pop(&stack);
 
     /* Check if it's a bracket sequence */
     if ((val & 0xFF000000) == SEQ_MARKER) {
         int idx = val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
             printf("Invalid sequence\n");
-            push(stack, 0);
+            push(&stack, 0);
             return;
         }
 
@@ -83,7 +83,7 @@ void op_transpose(Stack* stack) {
             }
         }
 
-        push(stack, val);
+        push(&stack, val);
         return;
     }
 
@@ -91,12 +91,12 @@ void op_transpose(Stack* stack) {
     int new_pitch = note_pitch(val) + semi;
     if (new_pitch < 0) new_pitch = 0;
     if (new_pitch > 127) new_pitch = 127;
-    push(stack, pack_note(new_pitch, note_vel(val), note_ch(val), note_dur(val)));
+    push(&stack, pack_note(new_pitch, note_vel(val), note_ch(val), note_dur(val)));
 }
 
 /* note! ( packed-note -- ) play the note immediately (blocking) */
-void op_note_play(Stack* stack) {
-    int32_t n = pop(stack);
+void op_note_play(Stack* s) {
+    int32_t n = pop(&stack);
 
     int pitch = note_pitch(n);
     int vel = note_vel(n);

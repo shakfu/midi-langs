@@ -504,6 +504,16 @@ fi
 echo ""
 
 # ============================================
+echo "--- Context Management ---"
+# ============================================
+
+test_contains "reset clears stack" "1 2 3 reset .s" "<0>"
+test_contains "reset message" "reset" "Interpreter state reset"
+test_contains "seq-gc runs" "seq-gc" "seq-gc:"
+
+echo ""
+
+# ============================================
 echo "--- Error Handling ---"
 # ============================================
 

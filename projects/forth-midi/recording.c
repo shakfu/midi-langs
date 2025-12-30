@@ -3,16 +3,7 @@
 #include "forth_midi.h"
 #include "midi_file.h"
 
-/* Recording globals - defined here */
-char* recording_buffer[MAX_RECORDING_LINES];
-int recording_count = 0;
-int recording_active = 0;
-
-/* MIDI capture globals - defined here */
-CapturedEvent capture_buffer[MAX_CAPTURE_EVENTS];
-int capture_count = 0;
-int capture_active = 0;
-struct timespec capture_start_time;
+/* All globals now accessed via g_ctx macros defined in forth_midi.h */
 
 /* Get current time in milliseconds since capture start */
 static uint32_t capture_get_time_ms(void) {
@@ -40,7 +31,7 @@ void capture_add_event(int type, int channel, int data1, int data2) {
 }
 
 /* rec ( -- ) Start recording input commands */
-void op_rec_start(Stack* stack) {
+void op_rec_start(Stack* s) {
     (void)stack;
     if (recording_active) {
         printf("Already recording (use 'stop' first)\n");
@@ -57,7 +48,7 @@ void op_rec_start(Stack* stack) {
 }
 
 /* stop ( -- ) Stop recording */
-void op_rec_stop(Stack* stack) {
+void op_rec_stop(Stack* s) {
     (void)stack;
     if (!recording_active) {
         printf("Not recording\n");
@@ -68,7 +59,7 @@ void op_rec_stop(Stack* stack) {
 }
 
 /* save ( filename -- ) Save recording to file (handled in interpreter) */
-void op_rec_save(Stack* stack) {
+void op_rec_save(Stack* s) {
     (void)stack;
     /* This is a no-op - save is handled specially in the interpreter
        because it needs the filename as a string token */
@@ -124,7 +115,7 @@ void recording_clear(void) {
 }
 
 /* rec-midi ( -- ) Start recording MIDI events */
-void op_capture_start(Stack* stack) {
+void op_capture_start(Stack* s) {
     (void)stack;
     if (capture_active) {
         printf("Already recording (use 'stop' first)\n");
@@ -137,7 +128,7 @@ void op_capture_start(Stack* stack) {
 }
 
 /* stop ( -- ) Stop recording (also called by op_rec_stop) */
-void op_capture_stop(Stack* stack) {
+void op_capture_stop(Stack* s) {
     (void)stack;
     if (!capture_active) {
         return;  /* Silent if not recording */
@@ -147,7 +138,7 @@ void op_capture_stop(Stack* stack) {
 }
 
 /* save-midi ( filename -- ) Save captured MIDI to file (handled in interpreter) */
-void op_save_midi(Stack* stack) {
+void op_save_midi(Stack* s) {
     (void)stack;
     /* This is a no-op - save-midi is handled specially in the interpreter */
 }
@@ -361,12 +352,12 @@ int capture_read_mid(const char* filename) {
 }
 
 /* Stack operations for MIDI file I/O */
-void op_write_mid(Stack* stack) {
+void op_write_mid(Stack* s) {
     (void)stack;
     /* This is a no-op - write-mid is handled specially in the interpreter */
 }
 
-void op_read_mid(Stack* stack) {
+void op_read_mid(Stack* s) {
     (void)stack;
     /* This is a no-op - read-mid is handled specially in the interpreter */
 }

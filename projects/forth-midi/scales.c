@@ -67,39 +67,39 @@ static const ScaleInfo scale_table[] = {
 };
 
 /* Scale constant words - push scale ID */
-void op_scale_major(Stack* stack) { push(stack, SCALE_ID_MAJOR); }
-void op_scale_dorian(Stack* stack) { push(stack, SCALE_ID_DORIAN); }
-void op_scale_phrygian(Stack* stack) { push(stack, SCALE_ID_PHRYGIAN); }
-void op_scale_lydian(Stack* stack) { push(stack, SCALE_ID_LYDIAN); }
-void op_scale_mixolydian(Stack* stack) { push(stack, SCALE_ID_MIXOLYDIAN); }
-void op_scale_minor(Stack* stack) { push(stack, SCALE_ID_MINOR); }
-void op_scale_locrian(Stack* stack) { push(stack, SCALE_ID_LOCRIAN); }
-void op_scale_harmonic_minor(Stack* stack) { push(stack, SCALE_ID_HARMONIC_MINOR); }
-void op_scale_melodic_minor(Stack* stack) { push(stack, SCALE_ID_MELODIC_MINOR); }
-void op_scale_pentatonic(Stack* stack) { push(stack, SCALE_ID_PENTATONIC_MAJOR); }
-void op_scale_pentatonic_minor(Stack* stack) { push(stack, SCALE_ID_PENTATONIC_MINOR); }
-void op_scale_blues(Stack* stack) { push(stack, SCALE_ID_BLUES); }
-void op_scale_whole_tone(Stack* stack) { push(stack, SCALE_ID_WHOLE_TONE); }
-void op_scale_chromatic(Stack* stack) { push(stack, SCALE_ID_CHROMATIC); }
-void op_scale_diminished_hw(Stack* stack) { push(stack, SCALE_ID_DIMINISHED_HW); }
-void op_scale_diminished_wh(Stack* stack) { push(stack, SCALE_ID_DIMINISHED_WH); }
-void op_scale_augmented_scale(Stack* stack) { push(stack, SCALE_ID_AUGMENTED); }
-void op_scale_bebop_dominant(Stack* stack) { push(stack, SCALE_ID_BEBOP_DOMINANT); }
-void op_scale_bebop_major(Stack* stack) { push(stack, SCALE_ID_BEBOP_MAJOR); }
-void op_scale_bebop_minor(Stack* stack) { push(stack, SCALE_ID_BEBOP_MINOR); }
-void op_scale_hungarian_minor(Stack* stack) { push(stack, SCALE_ID_HUNGARIAN_MINOR); }
-void op_scale_double_harmonic(Stack* stack) { push(stack, SCALE_ID_DOUBLE_HARMONIC); }
-void op_scale_neapolitan_major(Stack* stack) { push(stack, SCALE_ID_NEAPOLITAN_MAJOR); }
-void op_scale_neapolitan_minor(Stack* stack) { push(stack, SCALE_ID_NEAPOLITAN_MINOR); }
+void op_scale_major(Stack* s) { push(&stack, SCALE_ID_MAJOR); }
+void op_scale_dorian(Stack* s) { push(&stack, SCALE_ID_DORIAN); }
+void op_scale_phrygian(Stack* s) { push(&stack, SCALE_ID_PHRYGIAN); }
+void op_scale_lydian(Stack* s) { push(&stack, SCALE_ID_LYDIAN); }
+void op_scale_mixolydian(Stack* s) { push(&stack, SCALE_ID_MIXOLYDIAN); }
+void op_scale_minor(Stack* s) { push(&stack, SCALE_ID_MINOR); }
+void op_scale_locrian(Stack* s) { push(&stack, SCALE_ID_LOCRIAN); }
+void op_scale_harmonic_minor(Stack* s) { push(&stack, SCALE_ID_HARMONIC_MINOR); }
+void op_scale_melodic_minor(Stack* s) { push(&stack, SCALE_ID_MELODIC_MINOR); }
+void op_scale_pentatonic(Stack* s) { push(&stack, SCALE_ID_PENTATONIC_MAJOR); }
+void op_scale_pentatonic_minor(Stack* s) { push(&stack, SCALE_ID_PENTATONIC_MINOR); }
+void op_scale_blues(Stack* s) { push(&stack, SCALE_ID_BLUES); }
+void op_scale_whole_tone(Stack* s) { push(&stack, SCALE_ID_WHOLE_TONE); }
+void op_scale_chromatic(Stack* s) { push(&stack, SCALE_ID_CHROMATIC); }
+void op_scale_diminished_hw(Stack* s) { push(&stack, SCALE_ID_DIMINISHED_HW); }
+void op_scale_diminished_wh(Stack* s) { push(&stack, SCALE_ID_DIMINISHED_WH); }
+void op_scale_augmented_scale(Stack* s) { push(&stack, SCALE_ID_AUGMENTED); }
+void op_scale_bebop_dominant(Stack* s) { push(&stack, SCALE_ID_BEBOP_DOMINANT); }
+void op_scale_bebop_major(Stack* s) { push(&stack, SCALE_ID_BEBOP_MAJOR); }
+void op_scale_bebop_minor(Stack* s) { push(&stack, SCALE_ID_BEBOP_MINOR); }
+void op_scale_hungarian_minor(Stack* s) { push(&stack, SCALE_ID_HUNGARIAN_MINOR); }
+void op_scale_double_harmonic(Stack* s) { push(&stack, SCALE_ID_DOUBLE_HARMONIC); }
+void op_scale_neapolitan_major(Stack* s) { push(&stack, SCALE_ID_NEAPOLITAN_MAJOR); }
+void op_scale_neapolitan_minor(Stack* s) { push(&stack, SCALE_ID_NEAPOLITAN_MINOR); }
 
 /* scale ( root scale-id -- p1 p2 ... pN N ) build scale and push all pitches + count */
-static void op_scale(Stack* stack) {
-    int32_t scale_id = pop(stack);
-    int32_t root = pop(stack);
+static void op_scale(Stack* s) {
+    int32_t scale_id = pop(&stack);
+    int32_t root = pop(&stack);
 
     if (scale_id < 0 || scale_id >= SCALE_ID_COUNT) {
         printf("Invalid scale ID: %d\n", scale_id);
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
@@ -108,64 +108,64 @@ static void op_scale(Stack* stack) {
     int count = music_build_scale(root, info->intervals, info->size, pitches);
 
     for (int i = 0; i < count; i++) {
-        push(stack, pitches[i]);
+        push(&stack, pitches[i]);
     }
-    push(stack, count);
+    push(&stack, count);
 }
 
 /* degree ( root scale-id degree -- pitch ) get nth degree of scale (1-based) */
-static void op_degree(Stack* stack) {
-    int32_t deg = pop(stack);
-    int32_t scale_id = pop(stack);
-    int32_t root = pop(stack);
+static void op_degree(Stack* s) {
+    int32_t deg = pop(&stack);
+    int32_t scale_id = pop(&stack);
+    int32_t root = pop(&stack);
 
     if (scale_id < 0 || scale_id >= SCALE_ID_COUNT) {
         printf("Invalid scale ID: %d\n", scale_id);
-        push(stack, root);
+        push(&stack, root);
         return;
     }
 
     const ScaleInfo* info = &scale_table[scale_id];
     int pitch = music_scale_degree(root, info->intervals, info->size, deg);
-    push(stack, pitch >= 0 ? pitch : root);
+    push(&stack, pitch >= 0 ? pitch : root);
 }
 
 /* in-scale? ( pitch root scale-id -- flag ) check if pitch is in scale */
-static void op_in_scale(Stack* stack) {
-    int32_t scale_id = pop(stack);
-    int32_t root = pop(stack);
-    int32_t pitch = pop(stack);
+static void op_in_scale(Stack* s) {
+    int32_t scale_id = pop(&stack);
+    int32_t root = pop(&stack);
+    int32_t pitch = pop(&stack);
 
     if (scale_id < 0 || scale_id >= SCALE_ID_COUNT) {
         printf("Invalid scale ID: %d\n", scale_id);
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
     const ScaleInfo* info = &scale_table[scale_id];
     int result = music_in_scale(pitch, root, info->intervals, info->size);
-    push(stack, result ? -1 : 0);  /* Forth true = -1 */
+    push(&stack, result ? -1 : 0);  /* Forth true = -1 */
 }
 
 /* quantize ( pitch root scale-id -- quantized-pitch ) */
-static void op_quantize(Stack* stack) {
-    int32_t scale_id = pop(stack);
-    int32_t root = pop(stack);
-    int32_t pitch = pop(stack);
+static void op_quantize(Stack* s) {
+    int32_t scale_id = pop(&stack);
+    int32_t root = pop(&stack);
+    int32_t pitch = pop(&stack);
 
     if (scale_id < 0 || scale_id >= SCALE_ID_COUNT) {
         printf("Invalid scale ID: %d\n", scale_id);
-        push(stack, pitch);
+        push(&stack, pitch);
         return;
     }
 
     const ScaleInfo* info = &scale_table[scale_id];
     int result = music_quantize_to_scale(pitch, root, info->intervals, info->size);
-    push(stack, result);
+    push(&stack, result);
 }
 
 /* scales ( -- ) list all available scales */
-static void op_scales(Stack* stack) {
+static void op_scales(Stack* s) {
     (void)stack;
     printf("Available scales (%d total):\n", SCALE_ID_COUNT);
     for (int i = 0; i < SCALE_ID_COUNT; i++) {

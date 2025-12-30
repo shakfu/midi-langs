@@ -1,16 +1,74 @@
 /* context.c - ForthContext management */
 
+/* Disable macros to access ctx members directly */
+#define FORTH_NO_MACROS
 #include "forth_midi.h"
 
 /* Global context instance */
 ForthContext g_ctx;
+
+/* Reset runtime state (preserves dictionary and MIDI connections) */
+void forth_context_reset(ForthContext* ctx) {
+    if (!ctx) return;
+
+    /* Reset stack */
+    ctx->stack.top = -1;  /* -1 means empty stack */
+
+    /* Reset compile mode */
+    ctx->compile_mode = 0;
+    ctx->current_definition_name[0] = '\0';
+    ctx->current_definition_body[0] = '\0';
+    ctx->definition_body_len = 0;
+
+    /* Free and reset blocks */
+    for (int i = 0; i < ctx->block_count; i++) {
+        if (ctx->block_storage[i]) {
+            free(ctx->block_storage[i]);
+            ctx->block_storage[i] = NULL;
+        }
+    }
+    ctx->block_count = 0;
+    ctx->block_capture_mode = 0;
+    ctx->block_body_len = 0;
+    ctx->block_nesting = 0;
+
+    /* Reset conditionals */
+    ctx->cond_skip_mode = 0;
+    ctx->cond_skip_nesting = 0;
+    ctx->cond_in_true_branch = 0;
+
+    /* Reset bracket sequences */
+    for (int i = 0; i < ctx->bracket_seq_count; i++) {
+        if (ctx->bracket_seq_storage[i]) {
+            seq_release(ctx->bracket_seq_storage[i]);
+            ctx->bracket_seq_storage[i] = NULL;
+        }
+    }
+    ctx->bracket_seq_count = 0;
+    ctx->seq_capture_mode = 0;
+    ctx->seq_capture_count = 0;
+    ctx->seq_capture_chord_mode = 0;
+    ctx->seq_capture_chord_count = 0;
+    ctx->current_bracket_seq = NULL;
+
+    /* Reset pending parameters */
+    ctx->pending_channel = -1;
+    ctx->pending_velocity = -1;
+    ctx->pending_duration = -1;
+    ctx->pending_gate = -1;
+
+    /* Reset articulation */
+    ctx->articulation_staccato = 0;
+    ctx->articulation_accent = 0;
+    ctx->articulation_tenuto = 0;
+}
 
 /* Initialize context with default values */
 void forth_context_init(ForthContext* ctx) {
     if (!ctx) return;
 
     /* Core interpreter state */
-    ctx->stack.top = 0;
+    ctx->stack.top = -1;  /* -1 means empty stack */
     ctx->dict_count = 0;
 
     /* Compile mode state */
@@ -49,10 +107,10 @@ void forth_context_init(ForthContext* ctx) {
     ctx->out_port_count = 0;
 
     /* Context defaults for concise notation */
-    ctx->default_channel = 0;
-    ctx->default_velocity = 100;
-    ctx->default_duration = 250;
-    ctx->current_pitch = 60;  /* Middle C */
+    ctx->default_channel = 1;       /* 1-16 */
+    ctx->default_velocity = 80;     /* 0-127 */
+    ctx->default_duration = 500;    /* milliseconds */
+    ctx->current_pitch = 60;        /* Middle C */
 
     /* Articulation flags */
     ctx->articulation_staccato = 0;
@@ -79,7 +137,7 @@ void forth_context_init(ForthContext* ctx) {
     ctx->prng_seed = 12345;
 
     /* Named parameter system state */
-    ctx->default_gate = 80;
+    ctx->default_gate = 100;  /* Gate percentage (1-100) */
     ctx->pending_channel = -1;
     ctx->pending_velocity = -1;
     ctx->pending_duration = -1;

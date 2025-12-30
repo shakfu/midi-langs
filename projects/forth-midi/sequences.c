@@ -2,11 +2,7 @@
 
 #include "forth_midi.h"
 
-/* Sequence globals - defined here */
-Sequence sequences[MAX_SEQUENCES];
-int sequence_count = 0;
-int current_seq = -1;
-int global_bpm = 120;
+/* All globals now accessed via g_ctx macros defined in forth_midi.h */
 
 /* Helper to sort events by time (simple insertion sort) */
 static void seq_sort(Sequence* seq) {
@@ -41,22 +37,22 @@ static void add_event(int time, int type, int ch, int d1, int d2) {
 }
 
 /* seq-new ( -- seq-id ) Create new sequence */
-void op_seq_new(Stack* stack) {
+void op_seq_new(Stack* s) {
     if (sequence_count >= MAX_SEQUENCES) {
         printf("Max sequences reached\n");
-        push(stack, -1);
+        push(&stack, -1);
         return;
     }
     int id = sequence_count++;
     sequences[id].length = 0;
     sequences[id].bpm = global_bpm;
     current_seq = id;
-    push(stack, id);
+    push(&stack, id);
 }
 
 /* seq ( id -- ) Select sequence as current */
-void op_seq_select(Stack* stack) {
-    int32_t id = pop(stack);
+void op_seq_select(Stack* s) {
+    int32_t id = pop(&stack);
     if (id < 0 || id >= sequence_count) {
         printf("Invalid sequence id: %d\n", id);
         return;
@@ -65,16 +61,16 @@ void op_seq_select(Stack* stack) {
 }
 
 /* seq@ ( -- id ) Get current sequence id */
-void op_seq_current(Stack* stack) {
-    push(stack, current_seq);
+void op_seq_current(Stack* s) {
+    push(&stack, current_seq);
 }
 
 /* seq-note ( time pitch vel dur -- ) Add note to current sequence */
-void op_seq_note(Stack* stack) {
-    int32_t dur = pop(stack);
-    int32_t vel = pop(stack);
-    int32_t pitch = pop(stack);
-    int32_t time = pop(stack);
+void op_seq_note(Stack* s) {
+    int32_t dur = pop(&stack);
+    int32_t vel = pop(&stack);
+    int32_t pitch = pop(&stack);
+    int32_t time = pop(&stack);
 
     if (current_seq < 0) {
         printf("No sequence selected (use seq-new first)\n");
@@ -87,12 +83,12 @@ void op_seq_note(Stack* stack) {
 }
 
 /* seq-note-ch ( time ch pitch vel dur -- ) Add note with channel */
-void op_seq_note_ch(Stack* stack) {
-    int32_t dur = pop(stack);
-    int32_t vel = pop(stack);
-    int32_t pitch = pop(stack);
-    int32_t ch = pop(stack) - 1;  /* 1-16 -> 0-15 */
-    int32_t time = pop(stack);
+void op_seq_note_ch(Stack* s) {
+    int32_t dur = pop(&stack);
+    int32_t vel = pop(&stack);
+    int32_t pitch = pop(&stack);
+    int32_t ch = pop(&stack) - 1;  /* 1-16 -> 0-15 */
+    int32_t time = pop(&stack);
 
     if (current_seq < 0) {
         printf("No sequence selected\n");
@@ -104,9 +100,9 @@ void op_seq_note_ch(Stack* stack) {
 }
 
 /* seq-add ( packed-note time -- ) Add packed note at time */
-void op_seq_add(Stack* stack) {
-    int32_t time = pop(stack);
-    int32_t n = pop(stack);
+void op_seq_add(Stack* s) {
+    int32_t time = pop(&stack);
+    int32_t n = pop(&stack);
 
     if (current_seq < 0) {
         printf("No sequence selected\n");
@@ -123,23 +119,23 @@ void op_seq_add(Stack* stack) {
 }
 
 /* seq-length ( -- n ) Get length of current sequence */
-void op_seq_length(Stack* stack) {
+void op_seq_length(Stack* s) {
     if (current_seq < 0) {
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
-    push(stack, sequences[current_seq].length);
+    push(&stack, sequences[current_seq].length);
 }
 
 /* seq-clear ( -- ) Clear current sequence */
-void op_seq_clear(Stack* stack) {
+void op_seq_clear(Stack* s) {
     (void)stack;
     if (current_seq < 0) return;
     sequences[current_seq].length = 0;
 }
 
 /* seq-play ( -- ) Play current sequence */
-void op_seq_play(Stack* stack) {
+void op_seq_play(Stack* s) {
     (void)stack;
     if (current_seq < 0) {
         printf("No sequence selected\n");
@@ -202,8 +198,8 @@ void op_seq_play(Stack* stack) {
 }
 
 /* seq-transpose ( semitones -- ) Transpose all notes in current sequence */
-void op_seq_transpose(Stack* stack) {
-    int32_t semi = pop(stack);
+void op_seq_transpose(Stack* s) {
+    int32_t semi = pop(&stack);
     if (current_seq < 0) return;
 
     Sequence* seq = &sequences[current_seq];
@@ -218,7 +214,7 @@ void op_seq_transpose(Stack* stack) {
 }
 
 /* seq-show ( -- ) Show current sequence events */
-void op_seq_show(Stack* stack) {
+void op_seq_show(Stack* s) {
     (void)stack;
     if (current_seq < 0) {
         printf("No sequence selected\n");
@@ -236,7 +232,7 @@ void op_seq_show(Stack* stack) {
 }
 
 /* seq-reverse ( -- ) Reverse timing of current sequence */
-void op_seq_reverse(Stack* stack) {
+void op_seq_reverse(Stack* s) {
     (void)stack;
     if (current_seq < 0) return;
     Sequence* seq = &sequences[current_seq];
@@ -261,8 +257,8 @@ void op_seq_reverse(Stack* stack) {
 }
 
 /* seq-stretch ( factor -- ) Multiply all times by factor/100 */
-void op_seq_stretch(Stack* stack) {
-    int32_t factor = pop(stack);
+void op_seq_stretch(Stack* s) {
+    int32_t factor = pop(&stack);
     if (current_seq < 0) return;
 
     Sequence* seq = &sequences[current_seq];
@@ -272,14 +268,14 @@ void op_seq_stretch(Stack* stack) {
 }
 
 /* bpm! ( n -- ) Set tempo */
-void op_bpm_store(Stack* stack) {
-    int32_t bpm = pop(stack);
+void op_bpm_store(Stack* s) {
+    int32_t bpm = pop(&stack);
     if (bpm < 20) bpm = 20;
     if (bpm > 300) bpm = 300;
     global_bpm = bpm;
 }
 
 /* bpm@ ( -- n ) Get tempo */
-void op_bpm_fetch(Stack* stack) {
-    push(stack, global_bpm);
+void op_bpm_fetch(Stack* s) {
+    push(&stack, global_bpm);
 }

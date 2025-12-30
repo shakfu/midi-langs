@@ -2,9 +2,7 @@
 
 #include "forth_midi.h"
 
-/* Dictionary globals - defined here */
-Word dictionary[MAX_WORDS];
-int dict_count = 0;
+/* All globals now accessed via g_ctx macros defined in forth_midi.h */
 
 /* Find a word in the dictionary */
 Word* find_word(const char* name) {
@@ -66,7 +64,7 @@ void register_user_word(const char* name, const char* body) {
 }
 
 /* words ( -- ) List all words in the dictionary */
-void op_words(Stack* stack) {
+void op_words(Stack* s) {
     (void)stack;
     printf("Words (%d):\n", dict_count);
     for (int i = 0; i < dict_count; i++) {
@@ -76,42 +74,59 @@ void op_words(Stack* stack) {
     if (dict_count % 8 != 0) printf("\n");
 }
 
+/* reset ( -- ) Reset interpreter runtime state */
+void op_reset(Stack* s) {
+    (void)s;
+    /* Reset the legacy globals to match fresh state */
+    stack.top = -1;
+    compile_mode = 0;
+    block_capture_mode = 0;
+    block_count = 0;
+    cond_skip_mode = 0;
+    seq_capture_mode = 0;
+
+    /* Also reset g_ctx for future use */
+    forth_context_reset(&g_ctx);
+
+    printf("Interpreter state reset\n");
+}
+
 /* Dynamics - set default velocity */
-static void op_ppp(Stack* stack) { (void)stack; default_velocity = DYN_PPP; }
-static void op_pp(Stack* stack)  { (void)stack; default_velocity = DYN_PP; }
-static void op_p(Stack* stack)   { (void)stack; default_velocity = DYN_P; }
-static void op_mp(Stack* stack)  { (void)stack; default_velocity = DYN_MP; }
-static void op_mf(Stack* stack)  { (void)stack; default_velocity = DYN_MF; }
-static void op_f(Stack* stack)   { (void)stack; default_velocity = DYN_F; }
-static void op_ff(Stack* stack)  { (void)stack; default_velocity = DYN_FF; }
-static void op_fff(Stack* stack) { (void)stack; default_velocity = DYN_FFF; }
+static void op_ppp(Stack* s) { (void)stack; default_velocity = DYN_PPP; }
+static void op_pp(Stack* s)  { (void)stack; default_velocity = DYN_PP; }
+static void op_p(Stack* s)   { (void)stack; default_velocity = DYN_P; }
+static void op_mp(Stack* s)  { (void)stack; default_velocity = DYN_MP; }
+static void op_mf(Stack* s)  { (void)stack; default_velocity = DYN_MF; }
+static void op_f(Stack* s)   { (void)stack; default_velocity = DYN_F; }
+static void op_ff(Stack* s)  { (void)stack; default_velocity = DYN_FF; }
+static void op_fff(Stack* s) { (void)stack; default_velocity = DYN_FFF; }
 
 /* Rest - push rest marker */
-static void op_rest(Stack* stack) {
-    push(stack, REST_MARKER);
+static void op_rest(Stack* s) {
+    push(&stack, REST_MARKER);
 }
 
 /* op_random is declared in generative.c */
 
 /* Explicit parameter brackets */
-static void op_bracket_open(Stack* stack) {
-    push(stack, EXPLICIT_MARKER);
+static void op_bracket_open(Stack* s) {
+    push(&stack, EXPLICIT_MARKER);
 }
 
-static void op_bracket_close(Stack* stack) {
+static void op_bracket_close(Stack* s) {
     (void)stack;
 }
 
 /* cc ( ch cc# value -- ) Send Control Change */
-static void op_cc(Stack* stack) {
-    if (stack->top < 2) {
+static void op_cc(Stack* s) {
+    if (stack.top < 2) {
         printf("cc needs 3 values: channel cc# value\n");
         return;
     }
 
-    int32_t value = pop(stack);
-    int32_t cc_num = pop(stack);
-    int32_t channel = pop(stack);
+    int32_t value = pop(&stack);
+    int32_t cc_num = pop(&stack);
+    int32_t channel = pop(&stack);
 
     if (midi_out == NULL) {
         printf("No MIDI output open\n");
@@ -292,4 +307,5 @@ void init_dictionary(void) {
 
     /* Misc */
     add_word("words", op_words, 1);
+    add_word("reset", op_reset, 1);
 }

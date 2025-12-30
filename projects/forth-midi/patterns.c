@@ -3,78 +3,78 @@
 #include "forth_midi.h"
 
 /* Duration helpers - push tick values */
-void op_quarter(Stack* stack) { push(stack, TICKS_PER_QUARTER); }
-void op_half(Stack* stack) { push(stack, TICKS_PER_QUARTER * 2); }
-void op_whole(Stack* stack) { push(stack, TICKS_PER_QUARTER * 4); }
-void op_eighth(Stack* stack) { push(stack, TICKS_PER_QUARTER / 2); }
-void op_sixteenth(Stack* stack) { push(stack, TICKS_PER_QUARTER / 4); }
+void op_quarter(Stack* s) { push(&stack, TICKS_PER_QUARTER); }
+void op_half(Stack* s) { push(&stack, TICKS_PER_QUARTER * 2); }
+void op_whole(Stack* s) { push(&stack, TICKS_PER_QUARTER * 4); }
+void op_eighth(Stack* s) { push(&stack, TICKS_PER_QUARTER / 2); }
+void op_sixteenth(Stack* s) { push(&stack, TICKS_PER_QUARTER / 4); }
 
 /* Chord builders - push pitches relative to root */
 
 /* major ( root -- root root+4 root+7 ) */
-void op_chord_major(Stack* stack) {
-    int32_t root = pop(stack);
-    push(stack, root);
-    push(stack, root + 4);
-    push(stack, root + 7);
+void op_chord_major(Stack* s) {
+    int32_t root = pop(&stack);
+    push(&stack, root);
+    push(&stack, root + 4);
+    push(&stack, root + 7);
 }
 
 /* minor ( root -- root root+3 root+7 ) */
-void op_chord_minor(Stack* stack) {
-    int32_t root = pop(stack);
-    push(stack, root);
-    push(stack, root + 3);
-    push(stack, root + 7);
+void op_chord_minor(Stack* s) {
+    int32_t root = pop(&stack);
+    push(&stack, root);
+    push(&stack, root + 3);
+    push(&stack, root + 7);
 }
 
 /* dim ( root -- root root+3 root+6 ) */
-void op_chord_dim(Stack* stack) {
-    int32_t root = pop(stack);
-    push(stack, root);
-    push(stack, root + 3);
-    push(stack, root + 6);
+void op_chord_dim(Stack* s) {
+    int32_t root = pop(&stack);
+    push(&stack, root);
+    push(&stack, root + 3);
+    push(&stack, root + 6);
 }
 
 /* aug ( root -- root root+4 root+8 ) */
-void op_chord_aug(Stack* stack) {
-    int32_t root = pop(stack);
-    push(stack, root);
-    push(stack, root + 4);
-    push(stack, root + 8);
+void op_chord_aug(Stack* s) {
+    int32_t root = pop(&stack);
+    push(&stack, root);
+    push(&stack, root + 4);
+    push(&stack, root + 8);
 }
 
 /* dom7 ( root -- root root+4 root+7 root+10 ) */
-void op_chord_7(Stack* stack) {
-    int32_t root = pop(stack);
-    push(stack, root);
-    push(stack, root + 4);
-    push(stack, root + 7);
-    push(stack, root + 10);
+void op_chord_7(Stack* s) {
+    int32_t root = pop(&stack);
+    push(&stack, root);
+    push(&stack, root + 4);
+    push(&stack, root + 7);
+    push(&stack, root + 10);
 }
 
 /* maj7 ( root -- root root+4 root+7 root+11 ) */
-void op_chord_maj7(Stack* stack) {
-    int32_t root = pop(stack);
-    push(stack, root);
-    push(stack, root + 4);
-    push(stack, root + 7);
-    push(stack, root + 11);
+void op_chord_maj7(Stack* s) {
+    int32_t root = pop(&stack);
+    push(&stack, root);
+    push(&stack, root + 4);
+    push(&stack, root + 7);
+    push(&stack, root + 11);
 }
 
 /* min7 ( root -- root root+3 root+7 root+10 ) */
-void op_chord_min7(Stack* stack) {
-    int32_t root = pop(stack);
-    push(stack, root);
-    push(stack, root + 3);
-    push(stack, root + 7);
-    push(stack, root + 10);
+void op_chord_min7(Stack* s) {
+    int32_t root = pop(&stack);
+    push(&stack, root);
+    push(&stack, root + 3);
+    push(&stack, root + 7);
+    push(&stack, root + 10);
 }
 
 /* play-chord ( p1 p2 p3 vel dur n -- ) play n notes as chord */
-void op_play_chord(Stack* stack) {
-    int32_t n = pop(stack);
-    int32_t dur = pop(stack);
-    int32_t vel = pop(stack);
+void op_play_chord(Stack* s) {
+    int32_t n = pop(&stack);
+    int32_t dur = pop(&stack);
+    int32_t vel = pop(&stack);
 
     if (n < 1 || n > 8) {
         printf("Chord size must be 1-8\n");
@@ -83,7 +83,7 @@ void op_play_chord(Stack* stack) {
 
     int pitches[8];
     for (int i = n - 1; i >= 0; i--) {
-        pitches[i] = pop(stack);
+        pitches[i] = pop(&stack);
     }
 
     if (midi_out == NULL) {
@@ -109,11 +109,11 @@ void op_play_chord(Stack* stack) {
 }
 
 /* chord>seq ( p1 p2 ... pn vel dur time n -- ) add chord to sequence */
-void op_chord_to_seq(Stack* stack) {
-    int32_t n = pop(stack);
-    int32_t time = pop(stack);
-    int32_t dur = pop(stack);
-    int32_t vel = pop(stack);
+void op_chord_to_seq(Stack* s) {
+    int32_t n = pop(&stack);
+    int32_t time = pop(&stack);
+    int32_t dur = pop(&stack);
+    int32_t vel = pop(&stack);
 
     if (n < 1 || n > 8) {
         printf("Chord size must be 1-8\n");
@@ -126,7 +126,7 @@ void op_chord_to_seq(Stack* stack) {
 
     int pitches[8];
     for (int i = n - 1; i >= 0; i--) {
-        pitches[i] = pop(stack);
+        pitches[i] = pop(&stack);
     }
 
     Sequence* seq = &sequences[current_seq];
@@ -152,12 +152,12 @@ void op_chord_to_seq(Stack* stack) {
 }
 
 /* arp>seq ( p1 p2 ... pn vel notedur spacing time n -- ) add arpeggio to sequence */
-void op_arp_to_seq(Stack* stack) {
-    int32_t n = pop(stack);
-    int32_t time = pop(stack);
-    int32_t spacing = pop(stack);
-    int32_t notedur = pop(stack);
-    int32_t vel = pop(stack);
+void op_arp_to_seq(Stack* s) {
+    int32_t n = pop(&stack);
+    int32_t time = pop(&stack);
+    int32_t spacing = pop(&stack);
+    int32_t notedur = pop(&stack);
+    int32_t vel = pop(&stack);
 
     if (n < 1 || n > 8) {
         printf("Arp size must be 1-8\n");
@@ -170,7 +170,7 @@ void op_arp_to_seq(Stack* stack) {
 
     int pitches[8];
     for (int i = n - 1; i >= 0; i--) {
-        pitches[i] = pop(stack);
+        pitches[i] = pop(&stack);
     }
 
     Sequence* seq = &sequences[current_seq];

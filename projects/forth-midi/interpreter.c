@@ -2,50 +2,7 @@
 
 #include "forth_midi.h"
 
-/* Core interpreter state - defined here */
-Stack stack;
-
-/* Compile mode state */
-int compile_mode = 0;
-char current_definition_name[MAX_WORD_LENGTH];
-char current_definition_body[MAX_DEFINITION_LENGTH];
-int definition_body_len = 0;
-
-/* Anonymous block state */
-char* block_storage[MAX_BLOCKS];
-int block_count = 0;
-int block_capture_mode = 0;
-char current_block_body[MAX_DEFINITION_LENGTH];
-int block_body_len = 0;
-int block_nesting = 0;
-
-/* Conditional execution state */
-int cond_skip_mode = 0;
-int cond_skip_nesting = 0;
-int cond_in_true_branch = 0;
-
-/* Track last executed word for 'times' loop */
-char last_executed_word[MAX_WORD_LENGTH] = "";
-
-/* File loading depth */
-int load_depth = 0;
-
-/* Named parameter system state */
-int default_gate = 100;           /* Gate percentage (1-100) */
-int pending_channel = -1;         /* One-shot channel override (-1 if not set) */
-int pending_velocity = -1;        /* One-shot velocity override (-1 if not set) */
-int pending_duration = -1;        /* One-shot duration override (-1 if not set) */
-int pending_gate = -1;            /* One-shot gate override (-1 if not set) */
-
-/* Bracket sequence system */
-BracketSequence* bracket_seq_storage[MAX_BRACKET_SEQS];
-int bracket_seq_count = 0;
-int seq_capture_mode = 0;
-int seq_capture_count = 0;
-int seq_capture_chord_mode = 0;
-int seq_capture_chord_count = 0;
-int16_t seq_capture_chord_buffer[8];
-BracketSequence* current_bracket_seq = NULL;
+/* All globals now accessed via g_ctx macros defined in forth_midi.h */
 
 /* Forward declarations */
 void interpret(const char* input);
@@ -90,7 +47,7 @@ void seq_cleanup_all(void) {
 }
 
 /* seq-gc ( -- ) Garbage collect unreferenced sequences */
-void op_seq_gc(Stack* stack) {
+void op_seq_gc(Stack* s) {
     (void)stack;
     int freed = 0;
     for (int i = 0; i < bracket_seq_count; i++) {
@@ -575,50 +532,50 @@ int load_file(const char* filename) {
 }
 
 /* : ( -- ) Start word definition */
-void op_colon(Stack* stack) {
+void op_colon(Stack* s) {
     (void)stack;
     /* Handled specially in interpret() */
 }
 
 /* ; ( -- ) End word definition */
-void op_semicolon(Stack* stack) {
+void op_semicolon(Stack* s) {
     (void)stack;
     /* Handled specially in interpret() */
 }
 
 /* if ( flag -- ) Conditional execution */
-void op_if(Stack* stack) {
+void op_if(Stack* s) {
     (void)stack;
     /* Handled specially in interpret() */
 }
 
 /* else ( -- ) Alternative branch */
-void op_else(Stack* stack) {
+void op_else(Stack* s) {
     (void)stack;
     /* Handled specially in interpret() */
 }
 
 /* then ( -- ) End conditional */
-void op_then(Stack* stack) {
+void op_then(Stack* s) {
     (void)stack;
     /* Handled specially in interpret() */
 }
 
 /* { ( -- ) Start anonymous block */
-void op_block_open(Stack* stack) {
+void op_block_open(Stack* s) {
     (void)stack;
     /* Handled specially in interpret() */
 }
 
 /* } ( -- ) End anonymous block */
-void op_block_close(Stack* stack) {
+void op_block_close(Stack* s) {
     (void)stack;
     /* Handled specially in interpret() */
 }
 
 /* times ( n -- ) Repeat last word n times */
-void op_times(Stack* stack) {
-    int32_t n = pop(stack);
+void op_times(Stack* s) {
+    int32_t n = pop(&stack);
     if (n <= 0) return;
 
     if (last_executed_word[0] == '\0') {
@@ -635,7 +592,7 @@ void op_times(Stack* stack) {
     /* Already executed once, so repeat n-1 more times */
     for (int i = 1; i < n; i++) {
         if (word->is_primitive) {
-            word->function(stack);
+            word->function(&stack);
         } else if (word->body) {
             interpret(word->body);
         }
@@ -643,13 +600,13 @@ void op_times(Stack* stack) {
 }
 
 /* * ( seq|block|a n -- result ) Sequence/block repeat or multiplication */
-void op_star(Stack* stack) {
-    if (stack->top < 1) {
+void op_star(Stack* s) {
+    if (stack.top < 1) {
         printf("* needs two values\n");
         return;
     }
-    int32_t n = pop(stack);
-    int32_t val = pop(stack);
+    int32_t n = pop(&stack);
+    int32_t val = pop(&stack);
 
     /* Check if it's a bracket sequence */
     if ((val & 0xFF000000) == SEQ_MARKER) {
@@ -680,17 +637,17 @@ void op_star(Stack* stack) {
     }
 
     /* Otherwise treat as multiplication */
-    push(stack, val * n);
+    push(&stack, val * n);
 }
 
 /* load ( filename -- ) Load a file (handled specially) */
-void op_load(Stack* stack) {
+void op_load(Stack* s) {
     (void)stack;
     /* Handled specially in interpret() */
 }
 
 /* help ( -- ) Print help text */
-void op_help(Stack* stack) {
+void op_help(Stack* s) {
     (void)stack;
 
     printf("\nMIDI Forth - A Forth for MIDI sequence generation\n\n");

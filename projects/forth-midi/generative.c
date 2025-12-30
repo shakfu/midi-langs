@@ -2,8 +2,7 @@
 
 #include "forth_midi.h"
 
-/* Pure PRNG state (Linear Congruential Generator, same constants as glibc) */
-int32_t prng_seed = 42;
+/* All globals now accessed via g_ctx macros defined in forth_midi.h */
 
 /* Helper: advance PRNG and return non-negative value */
 static int32_t prng_next(void) {
@@ -12,51 +11,51 @@ static int32_t prng_next(void) {
 }
 
 /* seed! ( n -- ) Set the PRNG seed */
-void op_seed_store(Stack* stack) {
-    prng_seed = pop(stack);
+void op_seed_store(Stack* s) {
+    prng_seed = pop(&stack);
 }
 
 /* seed@ ( -- n ) Get the current PRNG seed */
-void op_seed_fetch(Stack* stack) {
-    push(stack, prng_seed);
+void op_seed_fetch(Stack* s) {
+    push(&stack, prng_seed);
 }
 
 /* next-random ( -- n ) Generate random number using seed, advances seed */
-void op_next_random(Stack* stack) {
-    push(stack, prng_next());
+void op_next_random(Stack* s) {
+    push(&stack, prng_next());
 }
 
 /* srand-range ( lo hi -- n ) Random int in range [lo, hi] using seed */
-void op_srand_range(Stack* stack) {
-    int32_t hi = pop(stack);
-    int32_t lo = pop(stack);
+void op_srand_range(Stack* s) {
+    int32_t hi = pop(&stack);
+    int32_t lo = pop(&stack);
     if (lo >= hi) {
-        push(stack, lo);
+        push(&stack, lo);
         return;
     }
     int32_t r = prng_next();
-    push(stack, lo + (r % (hi - lo + 1)));
+    push(&stack, lo + (r % (hi - lo + 1)));
 }
 
 /* chance ( probability -- flag ) Probability gate (0-100) using seed */
-void op_chance(Stack* stack) {
-    int32_t probability = pop(stack);
+void op_chance(Stack* s) {
+    int32_t probability = pop(&stack);
     if (probability < 0) probability = 0;
     if (probability > 100) probability = 100;
     int32_t r = prng_next() % 100;
-    push(stack, r < probability ? 1 : 0);
+    push(&stack, r < probability ? 1 : 0);
 }
 
 /* random ( -- n ) Push random number 0-99 (uses system rand) */
-void op_random(Stack* stack) {
-    push(stack, rand() % 100);
+void op_random(Stack* s) {
+    push(&stack, rand() % 100);
 }
 
 /* Helper: find ALT_MARKER position for alternatives syntax (c4|e4|g4) */
 /* Returns -1 if not found */
-static int find_list_marker(Stack* stack) {
-    for (int i = stack->top; i >= 0; i--) {
-        if (stack->data[i] == ALT_MARKER) {
+static int find_list_marker(Stack* s) {
+    for (int i = stack.top; i >= 0; i--) {
+        if (stack.data[i] == ALT_MARKER) {
             return i;
         }
     }
@@ -64,20 +63,20 @@ static int find_list_marker(Stack* stack) {
 }
 
 /* euclidean ( hits steps -- b1 b2 ... bn ) Bjorklund's algorithm */
-void op_euclidean(Stack* stack) {
-    int32_t steps = pop(stack);
-    int32_t hits = pop(stack);
+void op_euclidean(Stack* s) {
+    int32_t steps = pop(&stack);
+    int32_t hits = pop(&stack);
 
     if (steps <= 0) return;
     if (steps > 64) steps = 64;
 
     /* Edge cases */
     if (hits <= 0) {
-        for (int i = 0; i < steps; i++) push(stack, 0);
+        for (int i = 0; i < steps; i++) push(&stack, 0);
         return;
     }
     if (hits >= steps) {
-        for (int i = 0; i < steps; i++) push(stack, 1);
+        for (int i = 0; i < steps; i++) push(&stack, 1);
         return;
     }
 
@@ -127,18 +126,18 @@ void op_euclidean(Stack* stack) {
 
     /* Push pattern to stack */
     for (int i = 0; i < steps; i++) {
-        push(stack, pattern[i]);
+        push(&stack, pattern[i]);
     }
 }
 
 /* reverse ( seq -- seq ) Reverse sequence elements in place */
-void op_reverse(Stack* stack) {
-    if (stack->top < 0) {
+void op_reverse(Stack* s) {
+    if (stack.top < 0) {
         printf("reverse needs a sequence\n");
         return;
     }
 
-    int32_t top_val = peek(stack);
+    int32_t top_val = peek(&stack);
 
     /* Check if it's a sequence */
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
@@ -167,23 +166,23 @@ void op_reverse(Stack* stack) {
 }
 
 /* arp-up ( seq -- seq ) No change, ascending order */
-void op_arp_up(Stack* stack) {
+void op_arp_up(Stack* s) {
     (void)stack;
 }
 
 /* arp-down ( seq -- seq ) Reverse to descending order */
-void op_arp_down(Stack* stack) {
-    op_reverse(stack);
+void op_arp_down(Stack* s) {
+    op_reverse(&stack);
 }
 
 /* arp-up-down ( seq -- seq ) Duplicate sequence with middle reversed appended */
-void op_arp_up_down(Stack* stack) {
-    if (stack->top < 0) {
+void op_arp_up_down(Stack* s) {
+    if (stack.top < 0) {
         printf("arp-up-down needs a sequence\n");
         return;
     }
 
-    int32_t top_val = peek(stack);
+    int32_t top_val = peek(&stack);
 
     /* Check if it's a sequence */
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
@@ -217,22 +216,22 @@ void op_arp_up_down(Stack* stack) {
             out->elements[out->count++] = src->elements[i];
         }
 
-        pop(stack);
+        pop(&stack);
         int out_idx = bracket_seq_count++;
         bracket_seq_storage[out_idx] = out;
-        push(stack, SEQ_MARKER | out_idx);
+        push(&stack, SEQ_MARKER | out_idx);
         return;
     }
 
     /* Check for ALT_MARKER */
-    int marker_pos = find_list_marker(stack);
+    int marker_pos = find_list_marker(&stack);
     if (marker_pos >= 0) {
-        int count = stack->top - marker_pos;
+        int count = stack.top - marker_pos;
         if (count <= 1) return;
 
         /* Add reversed middle (skip first and last) */
-        for (int i = stack->top - 1; i > marker_pos + 1; i--) {
-            push(stack, stack->data[i]);
+        for (int i = stack.top - 1; i > marker_pos + 1; i--) {
+            push(&stack, stack.data[i]);
         }
         return;
     }
@@ -241,20 +240,20 @@ void op_arp_up_down(Stack* stack) {
 }
 
 /* retrograde - alias for reverse */
-void op_retrograde(Stack* stack) {
-    op_reverse(stack);
+void op_retrograde(Stack* s) {
+    op_reverse(&stack);
 }
 
 /* invert ( seq axis -- seq ) Invert pitches around axis */
-void op_invert(Stack* stack) {
-    int32_t axis = pop(stack);
+void op_invert(Stack* s) {
+    int32_t axis = pop(&stack);
 
-    if (stack->top < 0) {
+    if (stack.top < 0) {
         printf("invert needs a sequence and axis\n");
         return;
     }
 
-    int32_t top_val = peek(stack);
+    int32_t top_val = peek(&stack);
 
     /* Check if it's a sequence */
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
@@ -282,10 +281,10 @@ void op_invert(Stack* stack) {
     }
 
     /* Check for ALT_MARKER */
-    int marker_pos = find_list_marker(stack);
+    int marker_pos = find_list_marker(&stack);
     if (marker_pos >= 0) {
-        for (int i = marker_pos + 1; i <= stack->top; i++) {
-            stack->data[i] = 2 * axis - stack->data[i];
+        for (int i = marker_pos + 1; i <= stack.top; i++) {
+            stack.data[i] = 2 * axis - stack.data[i];
         }
         return;
     }
@@ -294,13 +293,13 @@ void op_invert(Stack* stack) {
 }
 
 /* shuffle ( seq -- seq ) Shuffle sequence elements in place */
-void op_shuffle(Stack* stack) {
-    if (stack->top < 0) {
+void op_shuffle(Stack* s) {
+    if (stack.top < 0) {
         printf("shuffle needs a sequence\n");
         return;
     }
 
-    int32_t top_val = peek(stack);
+    int32_t top_val = peek(&stack);
 
     /* Check if it's a sequence */
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
@@ -328,27 +327,27 @@ void op_shuffle(Stack* stack) {
 }
 
 /* pick ( seq -- value ) Pick one random element from sequence or alternatives */
-void op_pick_random(Stack* stack) {
-    if (stack->top < 0) {
+void op_pick_random(Stack* s) {
+    if (stack.top < 0) {
         printf("pick needs a sequence or alternatives\n");
         return;
     }
 
-    int32_t top_val = peek(stack);
+    int32_t top_val = peek(&stack);
 
     /* Check if it's a sequence */
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
-        pop(stack);  /* Remove sequence from stack */
+        pop(&stack);  /* Remove sequence from stack */
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
             printf("Invalid sequence\n");
-            push(stack, 0);
+            push(&stack, 0);
             return;
         }
 
         BracketSequence* seq = bracket_seq_storage[idx];
         if (seq->count < 1) {
-            push(stack, 0);
+            push(&stack, 0);
             return;
         }
 
@@ -362,73 +361,73 @@ void op_pick_random(Stack* stack) {
             case SEQ_ELEM_INTERVAL:
             case SEQ_ELEM_DYNAMIC:
             case SEQ_ELEM_DURATION:
-                push(stack, elem->value);
+                push(&stack, elem->value);
                 break;
             case SEQ_ELEM_CHORD:
                 /* Return first pitch of chord */
-                push(stack, elem->chord_pitches[0]);
+                push(&stack, elem->chord_pitches[0]);
                 break;
             case SEQ_ELEM_REST:
-                push(stack, REST_MARKER);
+                push(&stack, REST_MARKER);
                 break;
             default:
-                push(stack, 0);
+                push(&stack, 0);
         }
         return;
     }
 
     /* Check for ALT_MARKER (alternatives syntax: c4|e4|g4 pick) */
-    int marker_pos = find_list_marker(stack);
+    int marker_pos = find_list_marker(&stack);
     if (marker_pos >= 0) {
-        int count = stack->top - marker_pos;
+        int count = stack.top - marker_pos;
         if (count < 1) {
-            stack->top = marker_pos - 1;
-            push(stack, 0);
+            stack.top = marker_pos - 1;
+            push(&stack, 0);
             return;
         }
 
         int idx = prng_next() % count;
-        int32_t picked = stack->data[marker_pos + 1 + idx];
-        stack->top = marker_pos - 1;
-        push(stack, picked);
+        int32_t picked = stack.data[marker_pos + 1 + idx];
+        stack.top = marker_pos - 1;
+        push(&stack, picked);
         return;
     }
 
     printf("pick needs a sequence (use [ ... ]) or alternatives (use |)\n");
-    push(stack, 0);
+    push(&stack, 0);
 }
 
 /* pick-n ( seq n -- seq ) Pick n random elements from sequence (with replacement) */
-void op_pick_n(Stack* stack) {
-    int32_t n = pop(stack);
-    int32_t top_val = pop(stack);
+void op_pick_n(Stack* s) {
+    int32_t n = pop(&stack);
+    int32_t top_val = pop(&stack);
 
     /* Check if it's a sequence */
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
             printf("Invalid sequence\n");
-            push(stack, 0);
+            push(&stack, 0);
             return;
         }
 
         BracketSequence* src = bracket_seq_storage[idx];
         if (src->count < 1 || n <= 0) {
-            push(stack, top_val);
+            push(&stack, top_val);
             return;
         }
 
         /* Create output sequence */
         if (bracket_seq_count >= MAX_BRACKET_SEQS) {
             printf("Too many sequences\n");
-            push(stack, 0);
+            push(&stack, 0);
             return;
         }
 
         BracketSequence* out = seq_alloc();
         if (!out) {
             printf("Out of memory\n");
-            push(stack, 0);
+            push(&stack, 0);
             return;
         }
 
@@ -441,31 +440,31 @@ void op_pick_n(Stack* stack) {
 
         int out_idx = bracket_seq_count++;
         bracket_seq_storage[out_idx] = out;
-        push(stack, SEQ_MARKER | out_idx);
+        push(&stack, SEQ_MARKER | out_idx);
         return;
     }
 
     /* Check for ALT_MARKER - put value back and check */
-    push(stack, top_val);
-    int marker_pos = find_list_marker(stack);
+    push(&stack, top_val);
+    int marker_pos = find_list_marker(&stack);
     if (marker_pos >= 0) {
-        int count = stack->top - marker_pos;
+        int count = stack.top - marker_pos;
         if (count < 1 || n <= 0) {
-            stack->top = marker_pos;
+            stack.top = marker_pos;
             return;
         }
 
         int32_t values[64];
         int actual_count = count < 64 ? count : 64;
         for (int i = 0; i < actual_count; i++) {
-            values[i] = stack->data[marker_pos + 1 + i];
+            values[i] = stack.data[marker_pos + 1 + i];
         }
 
-        stack->top = marker_pos;
+        stack.top = marker_pos;
 
         for (int i = 0; i < n && i < 64; i++) {
             int pick_idx = prng_next() % actual_count;
-            push(stack, values[pick_idx]);
+            push(&stack, values[pick_idx]);
         }
         return;
     }
@@ -474,10 +473,10 @@ void op_pick_n(Stack* stack) {
 }
 
 /* random-walk ( start max-step n -- seq ) Generate random walk as sequence */
-void op_random_walk(Stack* stack) {
-    int32_t n = pop(stack);
-    int32_t max_step = pop(stack);
-    int32_t pitch = pop(stack);
+void op_random_walk(Stack* s) {
+    int32_t n = pop(&stack);
+    int32_t max_step = pop(&stack);
+    int32_t pitch = pop(&stack);
 
     if (n <= 0 || n > MAX_SEQ_ELEMENTS) {
         if (n > MAX_SEQ_ELEMENTS) n = MAX_SEQ_ELEMENTS;
@@ -487,14 +486,14 @@ void op_random_walk(Stack* stack) {
     /* Create a new sequence */
     if (bracket_seq_count >= MAX_BRACKET_SEQS) {
         printf("Too many sequences\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
     BracketSequence* seq = seq_alloc();
     if (!seq) {
         printf("Out of memory\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
@@ -513,33 +512,33 @@ void op_random_walk(Stack* stack) {
 
     int idx = bracket_seq_count++;
     bracket_seq_storage[idx] = seq;
-    push(stack, SEQ_MARKER | idx);
+    push(&stack, SEQ_MARKER | idx);
 }
 
 /* drunk-walk ( scale-seq start max-degrees n -- seq ) Drunk walk within scale */
-void op_drunk_walk(Stack* stack) {
-    int32_t n = pop(stack);
-    int32_t max_degrees = pop(stack);
-    int32_t start = pop(stack);
-    int32_t scale_val = pop(stack);
+void op_drunk_walk(Stack* s) {
+    int32_t n = pop(&stack);
+    int32_t max_degrees = pop(&stack);
+    int32_t start = pop(&stack);
+    int32_t scale_val = pop(&stack);
 
     /* Check if input is a sequence */
     if ((scale_val & 0xFF000000) != SEQ_MARKER) {
         printf("drunk-walk needs a scale sequence (use [ ... ])\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
     int scale_idx = scale_val & 0x00FFFFFF;
     if (scale_idx < 0 || scale_idx >= bracket_seq_count || !bracket_seq_storage[scale_idx]) {
         printf("Invalid scale sequence\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
     BracketSequence* scale_seq = bracket_seq_storage[scale_idx];
     if (scale_seq->count < 1 || n <= 0) {
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
@@ -555,7 +554,7 @@ void op_drunk_walk(Stack* stack) {
 
     if (actual_scale_count < 1) {
         printf("Scale sequence has no pitches\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
@@ -573,14 +572,14 @@ void op_drunk_walk(Stack* stack) {
     /* Create output sequence */
     if (bracket_seq_count >= MAX_BRACKET_SEQS) {
         printf("Too many sequences\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
     BracketSequence* out_seq = seq_alloc();
     if (!out_seq) {
         printf("Out of memory\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
@@ -600,27 +599,27 @@ void op_drunk_walk(Stack* stack) {
 
     int out_idx = bracket_seq_count++;
     bracket_seq_storage[out_idx] = out_seq;
-    push(stack, SEQ_MARKER | out_idx);
+    push(&stack, SEQ_MARKER | out_idx);
 }
 
 /* weighted-pick ( seq -- v ) Pick from sequence with alternating value/weight pairs */
-void op_weighted_pick(Stack* stack) {
-    int32_t top_val = peek(stack);
+void op_weighted_pick(Stack* s) {
+    int32_t top_val = peek(&stack);
 
     /* Check if it's a sequence */
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
-        pop(stack);
+        pop(&stack);
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
             printf("Invalid sequence\n");
-            push(stack, 0);
+            push(&stack, 0);
             return;
         }
 
         BracketSequence* seq = bracket_seq_storage[idx];
         if (seq->count < 2 || seq->count % 2 != 0) {
             printf("weighted-pick needs pairs of (value weight)\n");
-            push(stack, 0);
+            push(&stack, 0);
             return;
         }
 
@@ -638,7 +637,7 @@ void op_weighted_pick(Stack* stack) {
         if (total <= 0) {
             /* Return first value */
             SeqElement* first = &seq->elements[0];
-            push(stack, first->value);
+            push(&stack, first->value);
             return;
         }
 
@@ -657,18 +656,18 @@ void op_weighted_pick(Stack* stack) {
             }
         }
 
-        push(stack, result);
+        push(&stack, result);
         return;
     }
 
     /* Check for ALT_MARKER */
-    int marker_pos = find_list_marker(stack);
+    int marker_pos = find_list_marker(&stack);
     if (marker_pos >= 0) {
-        int count = stack->top - marker_pos;
+        int count = stack.top - marker_pos;
         if (count < 2 || count % 2 != 0) {
             printf("weighted-pick needs pairs of (value weight)\n");
-            stack->top = marker_pos - 1;
-            push(stack, 0);
+            stack.top = marker_pos - 1;
+            push(&stack, 0);
             return;
         }
 
@@ -676,50 +675,50 @@ void op_weighted_pick(Stack* stack) {
 
         int32_t total = 0;
         for (int i = 0; i < pairs; i++) {
-            total += stack->data[marker_pos + 2 + i * 2];
+            total += stack.data[marker_pos + 2 + i * 2];
         }
 
         if (total <= 0) {
-            stack->top = marker_pos - 1;
-            push(stack, stack->data[marker_pos + 1]);
+            stack.top = marker_pos - 1;
+            push(&stack, stack.data[marker_pos + 1]);
             return;
         }
 
         int32_t r = (prng_next() % total) + 1;
 
         int32_t cumulative = 0;
-        int32_t result = stack->data[marker_pos + 1];
+        int32_t result = stack.data[marker_pos + 1];
         for (int i = 0; i < pairs; i++) {
-            cumulative += stack->data[marker_pos + 2 + i * 2];
+            cumulative += stack.data[marker_pos + 2 + i * 2];
             if (r <= cumulative) {
-                result = stack->data[marker_pos + 1 + i * 2];
+                result = stack.data[marker_pos + 1 + i * 2];
                 break;
             }
         }
 
-        stack->top = marker_pos - 1;
-        push(stack, result);
+        stack.top = marker_pos - 1;
+        push(&stack, result);
         return;
     }
 
     printf("weighted-pick needs a sequence (use [ ... ]) or alternatives (use |)\n");
-    push(stack, 0);
+    push(&stack, 0);
 }
 
 /* concat ( seq1 seq2 -- seq ) Concatenate two sequences */
-void op_concat(Stack* stack) {
-    if (stack->top < 1) {
+void op_concat(Stack* s) {
+    if (stack.top < 1) {
         printf("concat needs two sequences\n");
         return;
     }
 
-    int32_t val2 = pop(stack);
-    int32_t val1 = pop(stack);
+    int32_t val2 = pop(&stack);
+    int32_t val1 = pop(&stack);
 
     /* Both must be sequences */
     if ((val1 & 0xFF000000) != SEQ_MARKER || (val2 & 0xFF000000) != SEQ_MARKER) {
         printf("concat needs two sequences\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
@@ -729,7 +728,7 @@ void op_concat(Stack* stack) {
     if (idx1 < 0 || idx1 >= bracket_seq_count || !bracket_seq_storage[idx1] ||
         idx2 < 0 || idx2 >= bracket_seq_count || !bracket_seq_storage[idx2]) {
         printf("Invalid sequence\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
@@ -739,14 +738,14 @@ void op_concat(Stack* stack) {
     /* Create new sequence */
     if (bracket_seq_count >= MAX_BRACKET_SEQS) {
         printf("Too many sequences\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
     BracketSequence* out = seq_alloc();
     if (!out) {
         printf("Out of memory\n");
-        push(stack, 0);
+        push(&stack, 0);
         return;
     }
 
@@ -762,6 +761,6 @@ void op_concat(Stack* stack) {
 
     int out_idx = bracket_seq_count++;
     bracket_seq_storage[out_idx] = out;
-    push(stack, SEQ_MARKER | out_idx);
+    push(&stack, SEQ_MARKER | out_idx);
 }
 
