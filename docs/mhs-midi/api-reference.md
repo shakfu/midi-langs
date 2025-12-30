@@ -450,3 +450,49 @@ midiSeedRandom :: Int -> IO ()
 midiRandom :: IO Int
 midiRandomRange :: Int -> Int -> IO Int
 ```
+
+### MIDI Recording
+
+Record MIDI events for replay or export. Records note-on, note-off, and CC events with timestamps.
+
+```haskell
+midiRecordStart :: Int -> IO Bool
+-- Start recording at given BPM
+
+midiRecordStop :: IO Int
+-- Stop recording, returns event count
+
+midiRecordSave :: String -> IO Bool
+-- Save recorded events to Haskell replay module
+
+midiRecordCount :: IO Int
+-- Get current event count
+
+midiRecordActive :: IO Bool
+-- Check if recording is active
+```
+
+#### Recording Example
+
+```haskell
+import Midi
+import MidiPerform
+
+main :: IO ()
+main = do
+    _ <- midiOpenVirtual "MhsMidi"
+    _ <- midiRecordStart 120
+
+    note c4
+    note e4
+    chord (major g4)
+
+    _ <- midiRecordStop
+    _ <- midiRecordSave "melody.hs"
+
+    midiClose
+```
+
+The generated file contains:
+- Event data as a Haskell list of tuples
+- A `replay` function that recreates the performance

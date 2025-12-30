@@ -8,6 +8,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "lua.h"
 #include "lauxlib.h"
@@ -18,6 +19,8 @@
 
 #define MAX_PORTS 64
 #define MIDI_OUT_MT "MidiOut"
+#define MAX_CAPTURE_EVENTS 4096
+#define TICKS_PER_QUARTER 480
 
 /* Global state */
 static libremidi_midi_observer_handle* midi_observer = NULL;
@@ -27,6 +30,46 @@ static lua_State *global_L = NULL;
 
 /* Default MIDI output for REPL convenience functions */
 static libremidi_midi_out_handle* default_midi_out = NULL;
+
+/* MIDI capture system */
+typedef struct {
+    uint32_t time_ms;
+    uint8_t type;      /* 0=note-on, 1=note-off, 2=cc */
+    uint8_t channel;
+    uint8_t data1;
+    uint8_t data2;
+} CapturedEvent;
+
+static CapturedEvent capture_buffer[MAX_CAPTURE_EVENTS];
+static int capture_count = 0;
+static int capture_active = 0;
+static struct timespec capture_start_time;
+static int capture_bpm = 120;
+
+/* Get current time in milliseconds since capture start */
+static uint32_t capture_get_time_ms(void) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    uint32_t elapsed = (now.tv_sec - capture_start_time.tv_sec) * 1000 +
+                       (now.tv_nsec - capture_start_time.tv_nsec) / 1000000;
+    return elapsed;
+}
+
+/* Add an event to the capture buffer */
+static void capture_add_event(int type, int channel, int data1, int data2) {
+    if (!capture_active) return;
+    if (capture_count >= MAX_CAPTURE_EVENTS) {
+        printf("Capture buffer full!\n");
+        capture_active = 0;
+        return;
+    }
+    CapturedEvent* e = &capture_buffer[capture_count++];
+    e->time_ms = capture_get_time_ms();
+    e->type = type;
+    e->channel = channel;
+    e->data1 = data1;
+    e->data2 = data2;
+}
 
 /* MidiOut userdata structure */
 typedef struct {
@@ -296,6 +339,7 @@ static int l_note_on(lua_State *L) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(0, channel - 1, pitch, velocity);
     return 0;
 }
 
@@ -323,6 +367,7 @@ static int l_note_off(lua_State *L) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(1, channel - 1, pitch, 0);
     return 0;
 }
 
@@ -352,6 +397,7 @@ static int l_note(lua_State *L) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(0, channel - 1, pitch, velocity);
 
     /* Sleep */
     usleep(duration * 1000);
@@ -360,6 +406,7 @@ static int l_note(lua_State *L) {
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
     msg[2] = 0;
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(1, channel - 1, pitch, 0);
 
     return 0;
 }
@@ -400,6 +447,7 @@ static int l_chord(lua_State *L) {
             velocity & 0x7F
         };
         libremidi_midi_out_send_message(data->handle, msg, 3);
+        capture_add_event(0, channel - 1, pitches[i], velocity);
     }
 
     /* Sleep */
@@ -413,6 +461,7 @@ static int l_chord(lua_State *L) {
             0
         };
         libremidi_midi_out_send_message(data->handle, msg, 3);
+        capture_add_event(1, channel - 1, pitches[i], 0);
     }
 
     return 0;
@@ -445,6 +494,7 @@ static int l_arpeggio(lua_State *L) {
                 velocity & 0x7F
             };
             libremidi_midi_out_send_message(data->handle, msg, 3);
+            capture_add_event(0, channel - 1, pitch, velocity);
 
             usleep(duration * 1000);
 
@@ -452,6 +502,7 @@ static int l_arpeggio(lua_State *L) {
             msg[0] = 0x80 | ((channel - 1) & 0x0F);
             msg[2] = 0;
             libremidi_midi_out_send_message(data->handle, msg, 3);
+            capture_add_event(1, channel - 1, pitch, 0);
         }
         lua_pop(L, 1);
     }
@@ -480,6 +531,7 @@ static int l_cc(lua_State *L) {
         value & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(2, channel - 1, control, value);
     return 0;
 }
 
@@ -774,6 +826,136 @@ static int l_pitch_bend(lua_State *L) {
     return 0;
 }
 
+/* ============================================================================
+ * MIDI Capture functions
+ * ============================================================================ */
+
+/* midi.record_midi([bpm]) - Start recording MIDI events */
+static int l_record_midi(lua_State *L) {
+    if (capture_active) {
+        printf("Already recording (use record_stop() first)\n");
+        return 0;
+    }
+    capture_bpm = luaL_optinteger(L, 1, 120);
+    capture_count = 0;
+    capture_active = 1;
+    clock_gettime(CLOCK_MONOTONIC, &capture_start_time);
+    printf("MIDI recording started at %d BPM. Play notes, then record_stop() and save_midi(filename).\n", capture_bpm);
+    return 0;
+}
+
+/* midi.record_stop() - Stop recording MIDI events */
+static int l_record_stop(lua_State *L) {
+    (void)L;
+    if (!capture_active) {
+        printf("Not recording\n");
+        return 0;
+    }
+    capture_active = 0;
+    printf("MIDI recording stopped. %d events recorded. Use save_midi(filename) to save.\n", capture_count);
+    return 0;
+}
+
+/* midi.save_midi(filename) - Save recorded MIDI to a Lua file */
+static int l_save_midi(lua_State *L) {
+    const char* filename = luaL_checkstring(L, 1);
+
+    if (capture_count == 0) {
+        printf("Nothing to save (no events recorded)\n");
+        return 0;
+    }
+
+    FILE* f = fopen(filename, "w");
+    if (f == NULL) {
+        return luaL_error(L, "Cannot create file '%s'", filename);
+    }
+
+    /* Write header */
+    fprintf(f, "-- MIDI capture\n");
+    fprintf(f, "-- %d events captured at %d BPM\n\n", capture_count, capture_bpm);
+    fprintf(f, "local m = midi.open()\n\n");
+    fprintf(f, "-- Notes with timing (start_ms, pitch, velocity, duration_ms, channel)\n");
+    fprintf(f, "local notes = {\n");
+
+    /* Track note-on events to pair with note-offs */
+    int note_on_time[16][128];
+    int note_on_vel[16][128];
+    for (int ch = 0; ch < 16; ch++) {
+        for (int p = 0; p < 128; p++) {
+            note_on_time[ch][p] = -1;
+            note_on_vel[ch][p] = 0;
+        }
+    }
+
+    int notes_written = 0;
+
+    for (int i = 0; i < capture_count; i++) {
+        CapturedEvent* e = &capture_buffer[i];
+
+        if (e->type == 0) {  /* Note-on */
+            note_on_time[e->channel][e->data1] = e->time_ms;
+            note_on_vel[e->channel][e->data1] = e->data2;
+        } else if (e->type == 1) {  /* Note-off */
+            int start_ms = note_on_time[e->channel][e->data1];
+            if (start_ms >= 0) {
+                int dur_ms = e->time_ms - start_ms;
+                if (dur_ms < 1) dur_ms = 1;
+                int vel = note_on_vel[e->channel][e->data1];
+
+                fprintf(f, "  {%d, %d, %d, %d, %d},\n",
+                        start_ms, e->data1, vel, dur_ms, e->channel + 1);
+                notes_written++;
+
+                note_on_time[e->channel][e->data1] = -1;
+            }
+        }
+    }
+
+    fprintf(f, "}\n\n");
+
+    /* Write playback code */
+    fprintf(f, "-- Playback function\n");
+    fprintf(f, "local function play()\n");
+    fprintf(f, "  local start = os.clock() * 1000\n");
+    fprintf(f, "  local next_idx = 1\n");
+    fprintf(f, "  while next_idx <= #notes do\n");
+    fprintf(f, "    local now = os.clock() * 1000 - start\n");
+    fprintf(f, "    while next_idx <= #notes and notes[next_idx][1] <= now do\n");
+    fprintf(f, "      local n = notes[next_idx]\n");
+    fprintf(f, "      m:note(n[2], n[3], n[4], n[5])\n");
+    fprintf(f, "      next_idx = next_idx + 1\n");
+    fprintf(f, "    end\n");
+    fprintf(f, "    if next_idx <= #notes then\n");
+    fprintf(f, "      midi.sleep(10)\n");
+    fprintf(f, "    end\n");
+    fprintf(f, "  end\n");
+    fprintf(f, "end\n\n");
+
+    fprintf(f, "-- Simple sequential playback\n");
+    fprintf(f, "for _, n in ipairs(notes) do\n");
+    fprintf(f, "  m:note(n[2], n[3], n[4], n[5])\n");
+    fprintf(f, "end\n\n");
+
+    fprintf(f, "m:close()\n");
+    fprintf(f, "-- %d notes written\n", notes_written);
+
+    fclose(f);
+    printf("Saved %d notes to '%s'\n", notes_written, filename);
+    return 0;
+}
+
+/* midi.record_status() - Get recording status */
+static int l_record_status(lua_State *L) {
+    lua_newtable(L);
+    lua_pushboolean(L, capture_active);
+    lua_setfield(L, -2, "active");
+    lua_pushinteger(L, capture_count);
+    lua_setfield(L, -2, "events");
+    lua_pushinteger(L, capture_bpm);
+    lua_setfield(L, -2, "bpm");
+    return 1;
+}
+
 /* help() function */
 static int l_help(lua_State *L) {
     (void)L;
@@ -825,6 +1007,12 @@ static int l_help(lua_State *L) {
     printf("  scale(root, scale_type)     Build scale (e.g., scale(c4, 'major'))\n");
     printf("  degree(root, scale_type, n) Get scale degree\n");
     printf("\n");
+    printf("MIDI Recording:\n");
+    printf("  midi.record_midi([bpm])     Start recording MIDI events\n");
+    printf("  midi.record_stop()          Stop recording\n");
+    printf("  midi.save_midi(filename)    Save recording to Lua file\n");
+    printf("  midi.record_status()        Get recording status\n");
+    printf("\n");
     printf("Constants: midi.c0-c8, midi.cs0-cs8, midi.d0-d8, etc.\n");
     printf("Dynamics: midi.ppp, pp, p, mp, mf, f, ff, fff\n");
     printf("Durations: midi.whole, half, quarter, eighth, sixteenth\n");
@@ -872,6 +1060,11 @@ static const luaL_Reg midi_funcs[] = {
     {"scale_degree", l_scale_degree},
     {"in_scale", l_in_scale},
     {"quantize", l_quantize},
+    /* Recording functions */
+    {"record_midi", l_record_midi},
+    {"record_stop", l_record_stop},
+    {"save_midi", l_save_midi},
+    {"record_status", l_record_status},
     {"help", l_help},
     {NULL, NULL}
 };

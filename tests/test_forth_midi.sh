@@ -418,29 +418,29 @@ fi
 echo ""
 
 # ============================================
-echo "--- MIDI Capture ---"
+echo "--- MIDI Recording ---"
 # ============================================
 
-# Test capture start message
-test_contains "capture starts" "capture" "MIDI capture started"
+# Test rec-midi start message
+test_contains "rec-midi starts" "rec-midi" "MIDI recording started"
 
-# Test capture stop shows event count
+# Test rec-midi stop shows event count
 TOTAL=$((TOTAL + 1))
-output=$(printf 'midi-open\ncapture\n100 dur!\nc4,\nstop\nmidi-close\n' | $MIDI_FORTH 2>&1)
-if echo "$output" | grep -q "2 events captured"; then
-    echo -e "${GREEN}PASS${NC}: capture stop shows event count"
+output=$(printf 'midi-open\nrec-midi\n100 dur!\nc4,\nstop\nmidi-close\n' | $MIDI_FORTH 2>&1)
+if echo "$output" | grep -q "2 events recorded"; then
+    echo -e "${GREEN}PASS${NC}: rec-midi stop shows event count"
     PASSED=$((PASSED + 1))
 else
-    echo -e "${RED}FAIL${NC}: capture stop shows event count"
+    echo -e "${RED}FAIL${NC}: rec-midi stop shows event count"
     echo "  Got: $output"
     FAILED=$((FAILED + 1))
 fi
 
 # Test save-midi creates file with sequence commands
 TOTAL=$((TOTAL + 1))
-rm -f "$TMPDIR/captured.4th"
-printf 'midi-open\ncapture\n100 dur!\nc4,\ne4,\nstop\nsave-midi %s/captured.4th\nmidi-close\n' "$TMPDIR" | $MIDI_FORTH > /dev/null 2>&1
-if [ -f "$TMPDIR/captured.4th" ] && grep -q "seq-note-ch" "$TMPDIR/captured.4th"; then
+rm -f "$TMPDIR/recorded.4th"
+printf 'midi-open\nrec-midi\n100 dur!\nc4,\ne4,\nstop\nsave-midi %s/recorded.4th\nmidi-close\n' "$TMPDIR" | $MIDI_FORTH > /dev/null 2>&1
+if [ -f "$TMPDIR/recorded.4th" ] && grep -q "seq-note-ch" "$TMPDIR/recorded.4th"; then
     echo -e "${GREEN}PASS${NC}: save-midi creates sequence file"
     PASSED=$((PASSED + 1))
 else
@@ -448,14 +448,14 @@ else
     FAILED=$((FAILED + 1))
 fi
 
-# Test captured file can be loaded and sequence shown
+# Test recorded file can be loaded and sequence shown
 TOTAL=$((TOTAL + 1))
-output=$(printf 'load %s/captured.4th\nseq-show\n' "$TMPDIR" | $MIDI_FORTH 2>&1)
+output=$(printf 'load %s/recorded.4th\nseq-show\n' "$TMPDIR" | $MIDI_FORTH 2>&1)
 if echo "$output" | grep -q "Sequence 0:" && echo "$output" | grep -q "ON"; then
-    echo -e "${GREEN}PASS${NC}: captured file loads as sequence"
+    echo -e "${GREEN}PASS${NC}: recorded file loads as sequence"
     PASSED=$((PASSED + 1))
 else
-    echo -e "${RED}FAIL${NC}: captured file loads as sequence"
+    echo -e "${RED}FAIL${NC}: recorded file loads as sequence"
     echo "  Got: $output"
     FAILED=$((FAILED + 1))
 fi

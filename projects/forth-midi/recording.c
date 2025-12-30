@@ -122,27 +122,27 @@ void recording_clear(void) {
     recording_active = 0;
 }
 
-/* capture ( -- ) Start capturing MIDI events */
+/* rec-midi ( -- ) Start recording MIDI events */
 void op_capture_start(Stack* stack) {
     (void)stack;
     if (capture_active) {
-        printf("Already capturing (use 'stop' first)\n");
+        printf("Already recording (use 'stop' first)\n");
         return;
     }
     capture_count = 0;
     capture_active = 1;
     clock_gettime(CLOCK_MONOTONIC, &capture_start_time);
-    printf("MIDI capture started. Play notes, then 'stop' and 'save-midi filename'.\n");
+    printf("MIDI recording started. Play notes, then 'stop' and 'save-midi filename'.\n");
 }
 
-/* stop ( -- ) Stop capturing (also called by op_rec_stop) */
+/* stop ( -- ) Stop recording (also called by op_rec_stop) */
 void op_capture_stop(Stack* stack) {
     (void)stack;
     if (!capture_active) {
-        return;  /* Silent if not capturing */
+        return;  /* Silent if not recording */
     }
     capture_active = 0;
-    printf("MIDI capture stopped. %d events captured. Use 'save-midi filename' to save.\n", capture_count);
+    printf("MIDI recording stopped. %d events recorded. Use 'save-midi filename' to save.\n", capture_count);
 }
 
 /* save-midi ( filename -- ) Save captured MIDI to file (handled in interpreter) */
@@ -154,7 +154,7 @@ void op_save_midi(Stack* stack) {
 /* Save captured MIDI to file as Forth sequence commands */
 int capture_save_midi(const char* filename) {
     if (capture_count == 0) {
-        printf("Nothing to save (capture is empty)\n");
+        printf("Nothing to save (recording is empty)\n");
         return -1;
     }
 
@@ -165,8 +165,8 @@ int capture_save_midi(const char* filename) {
     }
 
     /* Write header */
-    fprintf(f, "\\ MIDI capture\n");
-    fprintf(f, "\\ %d events captured\n\n", capture_count);
+    fprintf(f, "\\ MIDI recording\n");
+    fprintf(f, "\\ %d events recorded\n\n", capture_count);
     fprintf(f, "\\ Tempo: %d BPM\n", global_bpm);
     fprintf(f, "%d bpm!\n\n", global_bpm);
     fprintf(f, "seq-new drop\n\n");

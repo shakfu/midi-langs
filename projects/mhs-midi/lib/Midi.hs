@@ -28,6 +28,13 @@ module Midi (
     midiSeedRandom,
     midiRandom,
     midiRandomRange,
+
+    -- * Recording
+    midiRecordStart,
+    midiRecordStop,
+    midiRecordSave,
+    midiRecordCount,
+    midiRecordActive,
 ) where
 
 import Foreign.C.Types
@@ -55,6 +62,11 @@ foreign import ccall "midi_ffi.h midi_panic" c_midi_panic :: IO ()
 foreign import ccall "midi_ffi.h midi_seed_random" c_midi_seed_random :: CInt -> IO ()
 foreign import ccall "midi_ffi.h midi_random" c_midi_random :: IO CInt
 foreign import ccall "midi_ffi.h midi_random_range" c_midi_random_range :: CInt -> CInt -> IO CInt
+foreign import ccall "midi_ffi.h midi_record_start" c_midi_record_start :: CInt -> IO CInt
+foreign import ccall "midi_ffi.h midi_record_stop" c_midi_record_stop :: IO CInt
+foreign import ccall "midi_ffi.h midi_record_save" c_midi_record_save :: CString -> IO CInt
+foreign import ccall "midi_ffi.h midi_record_count" c_midi_record_count :: IO CInt
+foreign import ccall "midi_ffi.h midi_record_active" c_midi_record_active :: IO CInt
 
 -----------------------------------------------------------
 -- MIDI initialization and port management
@@ -180,3 +192,38 @@ midiRandomRange :: Int -> Int -> IO Int
 midiRandomRange minVal maxVal = do
     r <- c_midi_random_range (fromIntegral minVal) (fromIntegral maxVal)
     return (fromIntegral r)
+
+-----------------------------------------------------------
+-- MIDI recording
+-----------------------------------------------------------
+
+-- | Start MIDI recording with given BPM
+midiRecordStart :: Int -> IO Bool
+midiRecordStart bpm = do
+    r <- c_midi_record_start (fromIntegral bpm)
+    return (r == 0)
+
+-- | Stop MIDI recording, returns event count
+midiRecordStop :: IO Int
+midiRecordStop = do
+    r <- c_midi_record_stop
+    return (fromIntegral r)
+
+-- | Save recorded MIDI to file
+midiRecordSave :: String -> IO Bool
+midiRecordSave filename = do
+    withCString filename $ \cname -> do
+        r <- c_midi_record_save cname
+        return (r == 0)
+
+-- | Get current recording event count
+midiRecordCount :: IO Int
+midiRecordCount = do
+    r <- c_midi_record_count
+    return (fromIntegral r)
+
+-- | Check if recording is active
+midiRecordActive :: IO Bool
+midiRecordActive = do
+    r <- c_midi_record_active
+    return (r /= 0)

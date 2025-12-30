@@ -9,16 +9,61 @@
 
 #include "py_prelude.h"
 #include "music_theory.h"
+#include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <time.h>
 
 #define MAX_PORTS 64
+#define MAX_CAPTURE_EVENTS 4096
 
 // Global state
 static libremidi_midi_observer_handle* midi_observer = NULL;
 static libremidi_midi_out_port* out_ports[MAX_PORTS];
 static int out_port_count = 0;
+
+// MIDI capture state
+typedef struct {
+    uint32_t time_ms;
+    uint8_t type;      // 0=note-on, 1=note-off, 2=cc
+    uint8_t channel;
+    uint8_t data1;
+    uint8_t data2;
+} CapturedEvent;
+
+static CapturedEvent capture_buffer[MAX_CAPTURE_EVENTS];
+static int capture_count = 0;
+static int capture_active = 0;
+static struct timespec capture_start_time;
+static int capture_bpm = 120;
+
+// Get current time in ms since capture start
+static uint32_t capture_get_time_ms(void) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    uint64_t start_ms = (uint64_t)capture_start_time.tv_sec * 1000 +
+                        (uint64_t)capture_start_time.tv_nsec / 1000000;
+    uint64_t now_ms = (uint64_t)now.tv_sec * 1000 +
+                      (uint64_t)now.tv_nsec / 1000000;
+    return (uint32_t)(now_ms - start_ms);
+}
+
+// Add event to capture buffer
+static void capture_add_event(int type, int channel, int data1, int data2) {
+    if (!capture_active) return;
+    if (capture_count >= MAX_CAPTURE_EVENTS) {
+        printf("Capture buffer full!\n");
+        capture_active = 0;
+        return;
+    }
+    CapturedEvent* e = &capture_buffer[capture_count++];
+    e->time_ms = capture_get_time_ms();
+    e->type = type;
+    e->channel = channel;
+    e->data1 = data1;
+    e->data2 = data2;
+}
 
 // MidiOut type
 static py_Type tp_MidiOut;
@@ -405,6 +450,7 @@ static bool MidiOut_note_on(int argc, py_StackRef argv) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(0, channel - 1, pitch, velocity);
 
     py_newnone(py_retval());
     return true;
@@ -453,6 +499,7 @@ static bool MidiOut_note_off(int argc, py_StackRef argv) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(1, channel - 1, pitch, velocity);
 
     py_newnone(py_retval());
     return true;
@@ -522,6 +569,7 @@ static bool MidiOut_note(int argc, py_StackRef argv) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(0, channel - 1, pitch, velocity);
 
     // Wait
     if (duration > 0) {
@@ -532,6 +580,7 @@ static bool MidiOut_note(int argc, py_StackRef argv) {
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
     msg[2] = 0;
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(1, channel - 1, pitch, 0);
 
     py_newnone(py_retval());
     return true;
@@ -633,6 +682,7 @@ static bool MidiOut_chord(int argc, py_StackRef argv) {
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
         libremidi_midi_out_send_message(data->handle, msg, 3);
+        capture_add_event(0, channel - 1, pitches[i], velocity);
     }
 
     // Wait
@@ -646,6 +696,7 @@ static bool MidiOut_chord(int argc, py_StackRef argv) {
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
         libremidi_midi_out_send_message(data->handle, msg, 3);
+        capture_add_event(1, channel - 1, pitches[i], 0);
     }
 
     py_newnone(py_retval());
@@ -691,6 +742,7 @@ static bool MidiOut_cc(int argc, py_StackRef argv) {
         value & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(2, channel - 1, control, value);
 
     py_newnone(py_retval());
     return true;
@@ -880,6 +932,114 @@ static bool MidiOut__repr__(int argc, py_StackRef argv) {
 }
 
 // ============================================================================
+// MIDI recording functions
+// ============================================================================
+
+// midi.record_midi(bpm=120) - Start recording MIDI events
+static bool midi_record_midi(int argc, py_StackRef argv) {
+    if (argc > 1) {
+        return py_exception(tp_TypeError, "record_midi() takes 0-1 arguments");
+    }
+
+    capture_bpm = 120;
+    if (argc == 1) {
+        PY_CHECK_ARG_TYPE(0, tp_int);
+        capture_bpm = (int)py_toint(py_arg(0));
+        if (capture_bpm < 1) capture_bpm = 1;
+        if (capture_bpm > 300) capture_bpm = 300;
+    }
+
+    capture_count = 0;
+    capture_active = 1;
+    clock_gettime(CLOCK_MONOTONIC, &capture_start_time);
+    printf("MIDI recording started at %d BPM\n", capture_bpm);
+
+    py_newnone(py_retval());
+    return true;
+}
+
+// midi.record_stop() - Stop recording MIDI events
+static bool midi_record_stop(int argc, py_StackRef argv) {
+    PY_CHECK_ARGC(0);
+
+    if (capture_active) {
+        capture_active = 0;
+        printf("MIDI recording stopped. %d events recorded.\n", capture_count);
+    } else {
+        printf("Recording not active.\n");
+    }
+
+    py_newnone(py_retval());
+    return true;
+}
+
+// midi.save_midi(filename) - Save recorded events to a Python replay file
+static bool midi_save_midi(int argc, py_StackRef argv) {
+    PY_CHECK_ARGC(1);
+    PY_CHECK_ARG_TYPE(0, tp_str);
+
+    const char* filename = py_tostr(py_arg(0));
+
+    if (capture_count == 0) {
+        printf("No events recorded.\n");
+        py_newnone(py_retval());
+        return true;
+    }
+
+    FILE* f = fopen(filename, "w");
+    if (!f) {
+        return py_exception(tp_RuntimeError, "Cannot open file: %s", filename);
+    }
+
+    fprintf(f, "# MIDI recording - %d events at %d BPM\n", capture_count, capture_bpm);
+    fprintf(f, "# Replay with: exec(open('%s').read())\n\n", filename);
+    fprintf(f, "import midi\n");
+    fprintf(f, "import time\n\n");
+    fprintf(f, "out = midi.open()\n\n");
+    fprintf(f, "events = [\n");
+
+    for (int i = 0; i < capture_count; i++) {
+        CapturedEvent* e = &capture_buffer[i];
+        fprintf(f, "    (%u, %d, %d, %d, %d),\n",
+                e->time_ms, e->type, e->channel + 1, e->data1, e->data2);
+    }
+
+    fprintf(f, "]\n\n");
+    fprintf(f, "start = time.time() * 1000\n");
+    fprintf(f, "for time_ms, event_type, channel, data1, data2 in events:\n");
+    fprintf(f, "    now = time.time() * 1000 - start\n");
+    fprintf(f, "    if time_ms > now:\n");
+    fprintf(f, "        time.sleep((time_ms - now) / 1000)\n");
+    fprintf(f, "    if event_type == 0:\n");
+    fprintf(f, "        out.note_on(data1, data2, channel)\n");
+    fprintf(f, "    elif event_type == 1:\n");
+    fprintf(f, "        out.note_off(data1, data2, channel)\n");
+    fprintf(f, "    elif event_type == 2:\n");
+    fprintf(f, "        out.cc(data1, data2, channel)\n");
+    fprintf(f, "\nout.all_notes_off()\n");
+    fprintf(f, "out.close()\n");
+
+    fclose(f);
+    printf("Saved %d events to %s\n", capture_count, filename);
+
+    py_newnone(py_retval());
+    return true;
+}
+
+// midi.record_status() - Return recording status as dict
+static bool midi_record_status(int argc, py_StackRef argv) {
+    PY_CHECK_ARGC(0);
+
+    py_newtuple(py_retval(), 3);
+    py_Ref tuple = py_retval();
+    py_newbool(py_tuple_getitem(tuple, 0), capture_active);
+    py_newint(py_tuple_getitem(tuple, 1), capture_count);
+    py_newint(py_tuple_getitem(tuple, 2), capture_bpm);
+
+    return true;
+}
+
+// ============================================================================
 // Module initialization
 // ============================================================================
 
@@ -897,6 +1057,12 @@ void pk_midi_module_init(void) {
     py_bindfunc(mod, "scale_degree", midi_scale_degree);
     py_bindfunc(mod, "in_scale", midi_in_scale);
     py_bindfunc(mod, "quantize_to_scale", midi_quantize_to_scale);
+
+    // Recording functions
+    py_bindfunc(mod, "record_midi", midi_record_midi);
+    py_bindfunc(mod, "record_stop", midi_record_stop);
+    py_bindfunc(mod, "save_midi", midi_save_midi);
+    py_bindfunc(mod, "record_status", midi_record_status);
 
     // Create MidiOut type
     tp_MidiOut = py_newtype("MidiOut", tp_object, mod, MidiOut_dtor);

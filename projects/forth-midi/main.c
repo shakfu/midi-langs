@@ -56,7 +56,7 @@ static void interpreter_loop(void) {
                 strcmp(first_word, "stop") != 0 &&
                 strcmp(first_word, "save") != 0 &&
                 strcmp(first_word, "save-midi") != 0 &&
-                strcmp(first_word, "capture") != 0 &&
+                strcmp(first_word, "rec-midi") != 0 &&
                 strcmp(first_word, "load") != 0) {
                 recording_add_line(input);
             }

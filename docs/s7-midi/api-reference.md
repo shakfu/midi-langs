@@ -849,3 +849,81 @@ Arpeggiate notes on the default MIDI port.
 (arp (major c4))                ; Arpeggiate C major
 (arp (min7 a3) mf sixteenth)    ; Fast A minor 7 arpeggio
 ```
+
+---
+
+## MIDI Recording
+
+Record MIDI events for replay or export. Records note-on, note-off, and CC events with timestamps.
+
+### record-midi
+
+```scheme
+(record-midi [bpm])
+```
+
+Start recording MIDI events. Optional BPM parameter (default 120) is stored with the recording for reference.
+
+```scheme
+(record-midi)        ; Start at 120 BPM
+(record-midi 140)    ; Start at 140 BPM
+```
+
+### record-stop
+
+```scheme
+(record-stop)
+```
+
+Stop recording MIDI events. Prints the number of events recorded.
+
+```scheme
+(record-stop)
+; => MIDI recording stopped. 42 events recorded.
+```
+
+### save-midi
+
+```scheme
+(save-midi filename)
+```
+
+Save recorded events to a Scheme replay script. The generated file can be loaded to replay the recorded performance.
+
+```scheme
+(save-midi "my_song.scm")
+; => Saved 42 events to my_song.scm
+```
+
+The generated file contains:
+- Event data as a Scheme list
+- Replay code that recreates the timing
+
+### record-status
+
+```scheme
+(record-status) -> (active count bpm)
+```
+
+Get current recording status. Returns a list of three values: whether recording is active, event count, and BPM.
+
+```scheme
+(record-status)   ; => (#t 42 120)
+```
+
+### Recording Example
+
+```scheme
+(define m (midi-open))
+
+(record-midi 120)
+
+(midi-note m c4 mf quarter)
+(midi-note m e4 mf quarter)
+(midi-chord m (major g4) f half)
+
+(record-stop)
+(save-midi "melody.scm")
+
+(midi-close m)
+```

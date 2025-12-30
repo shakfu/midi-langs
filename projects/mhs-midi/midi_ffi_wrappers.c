@@ -105,6 +105,30 @@ from_t mhs_midi_cc(int s) {
 }
 
 /* ========================================================================
+ * Recording functions
+ * ======================================================================== */
+
+from_t mhs_midi_record_start(int s) {
+    return mhs_from_Int(s, 1, midi_record_start(mhs_to_Int(s, 0)));
+}
+
+from_t mhs_midi_record_stop(int s) {
+    return mhs_from_Int(s, 0, midi_record_stop());
+}
+
+from_t mhs_midi_record_save(int s) {
+    return mhs_from_Int(s, 1, midi_record_save(mhs_to_Ptr(s, 0)));
+}
+
+from_t mhs_midi_record_count(int s) {
+    return mhs_from_Int(s, 0, midi_record_count());
+}
+
+from_t mhs_midi_record_active(int s) {
+    return mhs_from_Int(s, 0, midi_record_active());
+}
+
+/* ========================================================================
  * FFI table - names must match Midi.hs foreign import declarations
  * ======================================================================== */
 
@@ -130,6 +154,12 @@ static const struct ffi_entry midi_ffi_table[] = {
     { "midi_send",    3, mhs_midi_send },
     { "midi_note_on", 3, mhs_midi_note_on },
     { "midi_cc",      3, mhs_midi_cc },
+    /* recording functions */
+    { "midi_record_start",  1, mhs_midi_record_start },
+    { "midi_record_stop",   0, mhs_midi_record_stop },
+    { "midi_record_save",   1, mhs_midi_record_save },
+    { "midi_record_count",  0, mhs_midi_record_count },
+    { "midi_record_active", 0, mhs_midi_record_active },
     /* sentinel */
     { 0, 0, 0 }
 };

@@ -10,6 +10,7 @@
 
 #define MAX_PORTS 64
 #define MAX_PORT_NAME 256
+#define MAX_CAPTURE_EVENTS 4096
 
 /* Global state */
 static libremidi_midi_observer_handle* g_observer = NULL;
@@ -18,6 +19,48 @@ static libremidi_midi_out_port* g_ports[MAX_PORTS];
 static char g_port_names[MAX_PORTS][MAX_PORT_NAME];
 static int g_port_count = 0;
 static int g_initialized = 0;
+
+/* MIDI capture state */
+typedef struct {
+    uint32_t time_ms;
+    uint8_t type;      /* 0=note-on, 1=note-off, 2=cc */
+    uint8_t channel;
+    uint8_t data1;
+    uint8_t data2;
+} CapturedEvent;
+
+static CapturedEvent capture_buffer[MAX_CAPTURE_EVENTS];
+static int capture_count = 0;
+static int capture_active = 0;
+static struct timespec capture_start_time;
+static int capture_bpm = 120;
+
+/* Get current time in ms since capture start */
+static uint32_t capture_get_time_ms(void) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    uint64_t start_ms = (uint64_t)capture_start_time.tv_sec * 1000 +
+                        (uint64_t)capture_start_time.tv_nsec / 1000000;
+    uint64_t now_ms = (uint64_t)now.tv_sec * 1000 +
+                      (uint64_t)now.tv_nsec / 1000000;
+    return (uint32_t)(now_ms - start_ms);
+}
+
+/* Add event to capture buffer */
+static void capture_add_event(int type, int channel, int data1, int data2) {
+    if (!capture_active) return;
+    if (capture_count >= MAX_CAPTURE_EVENTS) {
+        printf("Capture buffer full!\n");
+        capture_active = 0;
+        return;
+    }
+    CapturedEvent* e = &capture_buffer[capture_count++];
+    e->time_ms = capture_get_time_ms();
+    e->type = type;
+    e->channel = channel;
+    e->data1 = data1;
+    e->data2 = data2;
+}
 
 /* Callback for port enumeration */
 static void port_callback(void* ctx, const libremidi_midi_out_port* port) {
@@ -198,19 +241,25 @@ int midi_send(uint8_t status, uint8_t data1, uint8_t data2) {
 int midi_note_on(int channel, int pitch, int velocity) {
     if (channel < 1 || channel > 16) return -1;
     uint8_t status = 0x90 | ((channel - 1) & 0x0F);
-    return midi_send(status, (uint8_t)pitch, (uint8_t)velocity);
+    int result = midi_send(status, (uint8_t)pitch, (uint8_t)velocity);
+    capture_add_event(0, channel - 1, pitch, velocity);
+    return result;
 }
 
 int midi_note_off(int channel, int pitch) {
     if (channel < 1 || channel > 16) return -1;
     uint8_t status = 0x80 | ((channel - 1) & 0x0F);
-    return midi_send(status, (uint8_t)pitch, 0);
+    int result = midi_send(status, (uint8_t)pitch, 0);
+    capture_add_event(1, channel - 1, pitch, 0);
+    return result;
 }
 
 int midi_cc(int channel, int controller, int value) {
     if (channel < 1 || channel > 16) return -1;
     uint8_t status = 0xB0 | ((channel - 1) & 0x0F);
-    return midi_send(status, (uint8_t)controller, (uint8_t)value);
+    int result = midi_send(status, (uint8_t)controller, (uint8_t)value);
+    capture_add_event(2, channel - 1, controller, value);
+    return result;
 }
 
 int midi_program(int channel, int program) {
@@ -278,4 +327,79 @@ int midi_random_range(int min, int max) {
     if (min >= max) return min;
     int r = midi_random();
     return min + (r % (max - min + 1));
+}
+
+/* MIDI recording functions */
+int midi_record_start(int bpm) {
+    capture_bpm = bpm;
+    if (capture_bpm < 1) capture_bpm = 1;
+    if (capture_bpm > 300) capture_bpm = 300;
+    capture_count = 0;
+    capture_active = 1;
+    clock_gettime(CLOCK_MONOTONIC, &capture_start_time);
+    printf("MIDI recording started at %d BPM\n", capture_bpm);
+    return 0;
+}
+
+int midi_record_stop(void) {
+    if (capture_active) {
+        capture_active = 0;
+        printf("MIDI recording stopped. %d events recorded.\n", capture_count);
+    } else {
+        printf("Recording not active.\n");
+    }
+    return capture_count;
+}
+
+int midi_record_save(const char* filename) {
+    if (capture_count == 0) {
+        printf("No events recorded.\n");
+        return -1;
+    }
+
+    FILE* f = fopen(filename, "w");
+    if (!f) {
+        printf("Cannot open file: %s\n", filename);
+        return -1;
+    }
+
+    fprintf(f, "-- MIDI recording - %d events at %d BPM\n", capture_count, capture_bpm);
+    fprintf(f, "-- Replay with: :load %s\n\n", filename);
+    fprintf(f, "import Midi\n");
+    fprintf(f, "import Data.List (foldl')\n\n");
+    fprintf(f, "events :: [(Int, Int, Int, Int, Int)]\n");
+    fprintf(f, "events = [\n");
+
+    for (int i = 0; i < capture_count; i++) {
+        CapturedEvent* e = &capture_buffer[i];
+        fprintf(f, "  (%u, %d, %d, %d, %d)%s\n",
+                e->time_ms, e->type, e->channel + 1, e->data1, e->data2,
+                i < capture_count - 1 ? "," : "");
+    }
+
+    fprintf(f, "  ]\n\n");
+    fprintf(f, "playEvent :: (Int, Int, Int, Int, Int) -> IO ()\n");
+    fprintf(f, "playEvent (_, 0, ch, pitch, vel) = do _ <- noteOn ch pitch vel; return ()\n");
+    fprintf(f, "playEvent (_, 1, ch, pitch, _)   = do _ <- noteOff ch pitch; return ()\n");
+    fprintf(f, "playEvent (_, 2, ch, ctrl, val)  = do _ <- cc ch ctrl val; return ()\n");
+    fprintf(f, "playEvent _                       = return ()\n\n");
+    fprintf(f, "replay :: IO ()\n");
+    fprintf(f, "replay = do\n");
+    fprintf(f, "  _ <- openVirtual \"MhsMidi\"\n");
+    fprintf(f, "  mapM_ (\\(t, ty, ch, d1, d2) -> do\n");
+    fprintf(f, "    playEvent (t, ty, ch, d1, d2)\n");
+    fprintf(f, "    sleep 10) events\n");
+    fprintf(f, "  panic\n");
+
+    fclose(f);
+    printf("Saved %d events to %s\n", capture_count, filename);
+    return 0;
+}
+
+int midi_record_count(void) {
+    return capture_count;
+}
+
+int midi_record_active(void) {
+    return capture_active;
 }

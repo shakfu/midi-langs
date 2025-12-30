@@ -104,11 +104,20 @@ function(add_mhs_midi_example NAME MODULE)
 endfunction()
 
 # Build example executables (target_name, ModuleName)
+# NOTE: Dependencies are added between targets to prevent parallel MicroHs
+# compilations, which corrupt the shared .mhscache file
 add_mhs_midi_example(hello_midi HelloMidi)
 add_mhs_midi_example(chords Chords)
 add_mhs_midi_example(melody_example Melody)
 add_mhs_midi_example(arpeggio Arpeggio)
 add_mhs_midi_example(list_ports ListPorts)
+
+# Serialize MicroHs compilations to avoid .mhscache corruption
+# Each target depends on the previous one
+add_dependencies(chords hello_midi)
+add_dependencies(melody_example chords)
+add_dependencies(arpeggio melody_example)
+add_dependencies(list_ports arpeggio)
 
 # Custom target to build all mhs-midi examples
 add_custom_target(mhs-midi-examples

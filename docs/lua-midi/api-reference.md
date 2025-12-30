@@ -649,3 +649,84 @@ help()
 ```
 
 Display available functions and usage information.
+
+---
+
+## MIDI Recording
+
+Record MIDI events for replay or export. Records note-on, note-off, and CC events with timestamps.
+
+### record_midi
+
+```lua
+record_midi([bpm])
+```
+
+Start recording MIDI events. Optional BPM parameter (default 120) is stored with the recording for reference.
+
+```lua
+record_midi()        -- Start at 120 BPM
+record_midi(140)     -- Start at 140 BPM
+```
+
+### record_stop
+
+```lua
+record_stop()
+```
+
+Stop recording MIDI events. Prints the number of events recorded.
+
+```lua
+record_stop()
+-- => MIDI recording stopped. 42 events recorded.
+```
+
+### save_midi
+
+```lua
+save_midi(filename)
+```
+
+Save recorded events to a Lua replay script. The generated file can be executed to replay the recorded performance.
+
+```lua
+save_midi("my_song.lua")
+-- => Saved 42 events to my_song.lua
+```
+
+The generated file contains:
+- Event data as a Lua table
+- Replay code that recreates the timing
+
+### record_status
+
+```lua
+record_status() -> (active, count, bpm)
+```
+
+Get current recording status. Returns three values: whether recording is active, event count, and BPM.
+
+```lua
+local active, count, bpm = record_status()
+print(active)   -- true/false
+print(count)    -- number of events
+print(bpm)      -- recording BPM
+```
+
+### Recording Example
+
+```lua
+m = midi.open()
+
+record_midi(120)
+
+m:note(c4, mf, quarter)
+m:note(e4, mf, quarter)
+m:chord(major(g4), f, half)
+
+record_stop()
+save_midi("melody.lua")
+
+m:close()
+```

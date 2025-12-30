@@ -8,6 +8,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "s7.h"
 #include <libremidi/libremidi-c.h>
@@ -15,6 +16,8 @@
 #include "music_theory.h"
 
 #define MAX_PORTS 64
+#define MAX_CAPTURE_EVENTS 4096
+#define TICKS_PER_QUARTER 480
 
 /* Global state */
 static libremidi_midi_observer_handle* midi_observer = NULL;
@@ -24,6 +27,46 @@ static s7_scheme *global_sc = NULL;
 
 /* MidiOut type tag */
 static s7_int midi_out_tag = 0;
+
+/* MIDI capture system */
+typedef struct {
+    uint32_t time_ms;
+    uint8_t type;      /* 0=note-on, 1=note-off, 2=cc */
+    uint8_t channel;
+    uint8_t data1;
+    uint8_t data2;
+} CapturedEvent;
+
+static CapturedEvent capture_buffer[MAX_CAPTURE_EVENTS];
+static int capture_count = 0;
+static int capture_active = 0;
+static struct timespec capture_start_time;
+static int capture_bpm = 120;
+
+/* Get current time in milliseconds since capture start */
+static uint32_t capture_get_time_ms(void) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    uint32_t elapsed = (now.tv_sec - capture_start_time.tv_sec) * 1000 +
+                       (now.tv_nsec - capture_start_time.tv_nsec) / 1000000;
+    return elapsed;
+}
+
+/* Add an event to the capture buffer */
+static void capture_add_event(int type, int channel, int data1, int data2) {
+    if (!capture_active) return;
+    if (capture_count >= MAX_CAPTURE_EVENTS) {
+        printf("Capture buffer full!\n");
+        capture_active = 0;
+        return;
+    }
+    CapturedEvent* e = &capture_buffer[capture_count++];
+    e->time_ms = capture_get_time_ms();
+    e->type = type;
+    e->channel = channel;
+    e->data1 = data1;
+    e->data2 = data2;
+}
 
 /* MidiOut data structure */
 typedef struct {
@@ -333,6 +376,7 @@ static s7_pointer g_midi_note_on(s7_scheme *sc, s7_pointer args) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(0, channel - 1, pitch, velocity);
 
     return s7_unspecified(sc);
 }
@@ -369,6 +413,7 @@ static s7_pointer g_midi_note_off(s7_scheme *sc, s7_pointer args) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(1, channel - 1, pitch, 0);
 
     return s7_unspecified(sc);
 }
@@ -413,6 +458,7 @@ static s7_pointer g_midi_note(s7_scheme *sc, s7_pointer args) {
         velocity & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(0, channel - 1, pitch, velocity);
 
     /* Wait */
     if (duration > 0) {
@@ -423,6 +469,7 @@ static s7_pointer g_midi_note(s7_scheme *sc, s7_pointer args) {
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
     msg[2] = 0;
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(1, channel - 1, pitch, 0);
 
     return s7_unspecified(sc);
 }
@@ -483,6 +530,7 @@ static s7_pointer g_midi_chord(s7_scheme *sc, s7_pointer args) {
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
         libremidi_midi_out_send_message(data->handle, msg, 3);
+        capture_add_event(0, channel - 1, pitches[i], velocity);
     }
 
     /* Wait */
@@ -496,6 +544,7 @@ static s7_pointer g_midi_chord(s7_scheme *sc, s7_pointer args) {
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
         libremidi_midi_out_send_message(data->handle, msg, 3);
+        capture_add_event(1, channel - 1, pitches[i], 0);
     }
 
     return s7_unspecified(sc);
@@ -526,6 +575,7 @@ static s7_pointer g_midi_cc(s7_scheme *sc, s7_pointer args) {
         value & 0x7F
     };
     libremidi_midi_out_send_message(data->handle, msg, 3);
+    capture_add_event(2, channel - 1, control, value);
 
     return s7_unspecified(sc);
 }
@@ -820,6 +870,120 @@ static s7_pointer g_help(s7_scheme *sc, s7_pointer args) {
 }
 
 /* ============================================================================
+ * MIDI Recording functions
+ * ============================================================================ */
+
+/* (record-midi [bpm]) - Start recording MIDI events */
+static s7_pointer g_record_midi(s7_scheme *sc, s7_pointer args) {
+    if (capture_active) {
+        printf("Already recording (use (record-stop) first)\n");
+        return s7_unspecified(sc);
+    }
+    capture_bpm = 120;
+    if (args != s7_nil(sc)) {
+        capture_bpm = (int)s7_integer(s7_car(args));
+    }
+    capture_count = 0;
+    capture_active = 1;
+    clock_gettime(CLOCK_MONOTONIC, &capture_start_time);
+    printf("MIDI recording started at %d BPM. Play notes, then (record-stop) and (save-midi filename).\n", capture_bpm);
+    return s7_unspecified(sc);
+}
+
+/* (record-stop) - Stop recording MIDI events */
+static s7_pointer g_record_stop(s7_scheme *sc, s7_pointer args) {
+    (void)args;
+    if (!capture_active) {
+        printf("Not recording\n");
+        return s7_unspecified(sc);
+    }
+    capture_active = 0;
+    printf("MIDI recording stopped. %d events recorded. Use (save-midi filename) to save.\n", capture_count);
+    return s7_unspecified(sc);
+}
+
+/* (save-midi filename) - Save recorded MIDI to a Scheme file */
+static s7_pointer g_save_midi(s7_scheme *sc, s7_pointer args) {
+    const char* filename = s7_string(s7_car(args));
+
+    if (capture_count == 0) {
+        printf("Nothing to save (recording is empty)\n");
+        return s7_unspecified(sc);
+    }
+
+    FILE* f = fopen(filename, "w");
+    if (f == NULL) {
+        return s7_error(sc, s7_make_symbol(sc, "file-error"),
+                        s7_list(sc, 1, s7_make_string(sc, "Cannot create file")));
+    }
+
+    /* Write header */
+    fprintf(f, ";; MIDI recording\n");
+    fprintf(f, ";; %d events recorded at %d BPM\n\n", capture_count, capture_bpm);
+    fprintf(f, "(define m (midi-open))\n\n");
+    fprintf(f, ";; Notes: (start-ms pitch velocity duration-ms channel)\n");
+    fprintf(f, "(define notes '(\n");
+
+    /* Track note-on events to pair with note-offs */
+    int note_on_time[16][128];
+    int note_on_vel[16][128];
+    for (int ch = 0; ch < 16; ch++) {
+        for (int p = 0; p < 128; p++) {
+            note_on_time[ch][p] = -1;
+            note_on_vel[ch][p] = 0;
+        }
+    }
+
+    int notes_written = 0;
+
+    for (int i = 0; i < capture_count; i++) {
+        CapturedEvent* e = &capture_buffer[i];
+
+        if (e->type == 0) {  /* Note-on */
+            note_on_time[e->channel][e->data1] = e->time_ms;
+            note_on_vel[e->channel][e->data1] = e->data2;
+        } else if (e->type == 1) {  /* Note-off */
+            int start_ms = note_on_time[e->channel][e->data1];
+            if (start_ms >= 0) {
+                int dur_ms = e->time_ms - start_ms;
+                if (dur_ms < 1) dur_ms = 1;
+                int vel = note_on_vel[e->channel][e->data1];
+
+                fprintf(f, "  (%d %d %d %d %d)\n",
+                        start_ms, e->data1, vel, dur_ms, e->channel + 1);
+                notes_written++;
+
+                note_on_time[e->channel][e->data1] = -1;
+            }
+        }
+    }
+
+    fprintf(f, "))\n\n");
+
+    /* Write playback code */
+    fprintf(f, ";; Playback\n");
+    fprintf(f, "(for-each (lambda (n)\n");
+    fprintf(f, "  (midi-note m (cadr n) (caddr n) (cadddr n) (car (cddddr n))))\n");
+    fprintf(f, "  notes)\n\n");
+
+    fprintf(f, "(midi-close m)\n");
+    fprintf(f, ";; %d notes written\n", notes_written);
+
+    fclose(f);
+    printf("Saved %d notes to '%s'\n", notes_written, filename);
+    return s7_unspecified(sc);
+}
+
+/* (record-status) - Get recording status */
+static s7_pointer g_record_status(s7_scheme *sc, s7_pointer args) {
+    (void)args;
+    return s7_list(sc, 3,
+                   s7_cons(sc, s7_make_symbol(sc, "active"), s7_make_boolean(sc, capture_active)),
+                   s7_cons(sc, s7_make_symbol(sc, "events"), s7_make_integer(sc, capture_count)),
+                   s7_cons(sc, s7_make_symbol(sc, "bpm"), s7_make_integer(sc, capture_bpm)));
+}
+
+/* ============================================================================
  * Module initialization
  * ============================================================================ */
 
@@ -893,6 +1057,19 @@ void s7_midi_init(s7_scheme *sc) {
 
     s7_define_function(sc, "help", g_help, 0, 0, false,
                        "(help) displays available functions");
+
+    /* Recording functions */
+    s7_define_function(sc, "record-midi", g_record_midi, 0, 1, false,
+                       "(record-midi [bpm]) starts MIDI recording");
+
+    s7_define_function(sc, "record-stop", g_record_stop, 0, 0, false,
+                       "(record-stop) stops MIDI recording");
+
+    s7_define_function(sc, "save-midi", g_save_midi, 1, 0, false,
+                       "(save-midi filename) saves recorded MIDI to file");
+
+    s7_define_function(sc, "record-status", g_record_status, 0, 0, false,
+                       "(record-status) returns recording status");
 
     /* Load Scheme prelude */
     s7_load_c_string(sc, SCHEME_PRELUDE_MODULE, strlen(SCHEME_PRELUDE_MODULE));

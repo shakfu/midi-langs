@@ -21,7 +21,7 @@ static const char* pitch_names[] = {
 /* Additional built-in words not in dictionary */
 static const char* builtin_words[] = {
     "quit", "help", "if", "else", "then", ":", ";", "load", "words",
-    "rec", "stop", "save", "capture", "save-midi", "midi-open-as",
+    "rec", "stop", "save", "rec-midi", "save-midi", "midi-open-as",
     NULL
 };
 

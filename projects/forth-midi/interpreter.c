@@ -256,7 +256,7 @@ void op_help(Stack* stack) {
     printf("File Operations:\n");
     printf("  load filename           Load and execute a .4th file\n");
     printf("  rec / stop / save       Record commands to file\n");
-    printf("  capture / stop / save-midi  Capture MIDI events\n");
+    printf("  rec-midi / stop / save-midi  Record MIDI events\n");
     printf("\n");
     printf("Generative:\n");
     printf("  c4|e4,                  Alternative (random selection)\n");
@@ -523,7 +523,7 @@ void interpret(const char* input) {
             continue;
         }
 
-        if (strcmp(word, "capture") == 0) {
+        if (strcmp(word, "rec-midi") == 0) {
             op_capture_start(&stack);
             continue;
         }

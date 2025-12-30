@@ -12,7 +12,7 @@ A Forth-like MIDI interpreter with concise musical notation for generating and t
 - Generative: probability `75%`, alternatives `c4|e4|g4`
 - 49 built-in scales with `scale`, `degree`, `quantize`
 - Sequences for non-blocking playback
-- Recording and MIDI capture
+- Command recording and MIDI event recording
 - Virtual and hardware MIDI port support
 
 ## Quick Start

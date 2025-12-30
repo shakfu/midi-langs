@@ -742,3 +742,83 @@ Common Control Change numbers:
 | `midi.CC_SUSTAIN`    | 64    | Sustain pedal    |
 | `midi.CC_REVERB`     | 91    | Reverb send      |
 | `midi.CC_CHORUS`     | 93    | Chorus send      |
+
+---
+
+## MIDI Recording
+
+Record MIDI events for replay or export. Records note-on, note-off, and CC events with timestamps.
+
+### midi.record_midi
+
+```python
+midi.record_midi(bpm=120)
+```
+
+Start recording MIDI events. Optional BPM parameter is stored with the recording for reference.
+
+```python
+midi.record_midi()       # Start at 120 BPM
+midi.record_midi(140)    # Start at 140 BPM
+```
+
+### midi.record_stop
+
+```python
+midi.record_stop()
+```
+
+Stop recording MIDI events. Prints the number of events recorded.
+
+```python
+midi.record_stop()
+# => MIDI recording stopped. 42 events recorded.
+```
+
+### midi.save_midi
+
+```python
+midi.save_midi(filename: str)
+```
+
+Save recorded events to a Python replay script. The generated file can be executed to replay the recorded performance.
+
+```python
+midi.save_midi("my_song.py")
+# => Saved 42 events to my_song.py
+```
+
+The generated file contains:
+- Event data as a Python list of tuples
+- Replay code that recreates the timing
+
+### midi.record_status
+
+```python
+midi.record_status() -> tuple[bool, int, int]
+```
+
+Get current recording status. Returns a tuple of (active, count, bpm).
+
+```python
+active, count, bpm = midi.record_status()
+print(active)   # True/False
+print(count)    # number of events
+print(bpm)      # recording BPM
+```
+
+### Recording Example
+
+```python
+import midi
+
+with midi.open() as m:
+    midi.record_midi(120)
+
+    m.note("C4", midi.mf, midi.quarter)
+    m.note("E4", midi.mf, midi.quarter)
+    m.chord(midi.major("G4"), midi.f, midi.half)
+
+    midi.record_stop()
+    midi.save_midi("melody.py")
+```
