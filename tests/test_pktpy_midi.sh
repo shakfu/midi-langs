@@ -292,5 +292,89 @@ $PKTPY "$TMPFILE" | grep -q "ok" || { rm -f "$TMPFILE"; echo "FAIL: musical exam
 rm -f "$TMPFILE"
 echo "  PASS"
 
+# ============================================================================
+# MIDI File I/O Tests
+# ============================================================================
+
+# Test 24: write_mid function exists
+echo "Test 24: write_mid function exists..."
+echo 'import midi; print(callable(midi.write_mid))' | $PKTPY | grep -q "True" || { echo "FAIL: write_mid not callable"; exit 1; }
+echo "  PASS"
+
+# Test 25: read_mid function exists
+echo "Test 25: read_mid function exists..."
+echo 'import midi; print(callable(midi.read_mid))' | $PKTPY | grep -q "True" || { echo "FAIL: read_mid not callable"; exit 1; }
+echo "  PASS"
+
+# Test 26: Write and read MIDI file round-trip
+echo "Test 26: MIDI file round-trip..."
+MIDFILE=$(mktemp /tmp/test_midi_XXXXXX.mid)
+TMPFILE=$(mktemp)
+cat > "$TMPFILE" << EOF
+import midi
+midi.record_midi(120)
+m = midi.open()
+m.note_on(60, 80)
+import time
+time.sleep(0.01)
+m.note_off(60)
+m.note_on(64, 90)
+time.sleep(0.01)
+m.note_off(64)
+m.close()
+midi.record_stop()
+midi.write_mid("$MIDFILE")
+
+data = midi.read_mid("$MIDFILE")
+if not data:
+    print("FAIL:no_data")
+elif "events" not in data:
+    print("FAIL:no_events")
+elif len(data["events"]) < 4:
+    print("FAIL:event_count:" + str(len(data["events"])))
+else:
+    print("ok")
+EOF
+$PKTPY "$TMPFILE" 2>&1 | grep -q "ok" || { rm -f "$TMPFILE" "$MIDFILE"; echo "FAIL: MIDI file round-trip failed"; exit 1; }
+rm -f "$TMPFILE" "$MIDFILE"
+echo "  PASS"
+
+# Test 27: read_mid returns correct structure
+echo "Test 27: read_mid structure..."
+MIDFILE=$(mktemp /tmp/test_midi_XXXXXX.mid)
+TMPFILE=$(mktemp)
+cat > "$TMPFILE" << EOF
+import midi
+midi.record_midi(120)
+m = midi.open()
+m.note_on(60, 80)
+import time
+time.sleep(0.01)
+m.note_off(60)
+m.close()
+midi.record_stop()
+midi.write_mid("$MIDFILE")
+
+data = midi.read_mid("$MIDFILE")
+ok = True
+if "num_tracks" not in data:
+    ok = False
+    print("FAIL:num_tracks")
+if "ppqn" not in data:
+    ok = False
+    print("FAIL:ppqn")
+if "tempo" not in data:
+    ok = False
+    print("FAIL:tempo")
+if "events" not in data:
+    ok = False
+    print("FAIL:events")
+if ok:
+    print("ok")
+EOF
+$PKTPY "$TMPFILE" 2>&1 | grep -q "ok" || { rm -f "$TMPFILE" "$MIDFILE"; echo "FAIL: read_mid structure check failed"; exit 1; }
+rm -f "$TMPFILE" "$MIDFILE"
+echo "  PASS"
+
 echo ""
 echo "All tests passed!"

@@ -218,5 +218,74 @@ result=$($S7MIDI -e '(n c4)' 2>&1 || true)
 echo "$result" | grep -q "no-midi-port\|No MIDI port" || { echo "FAIL: n without open should raise error"; exit 1; }
 echo "  PASS"
 
+# ============================================================================
+# MIDI File I/O Tests
+# ============================================================================
+
+# Test 27: write-mid function exists
+echo "Test 27: write-mid function exists..."
+result=$($S7MIDI -e '(procedure? write-mid)')
+[ "$result" = "#t" ] || { echo "FAIL: write-mid not a procedure"; exit 1; }
+echo "  PASS"
+
+# Test 28: read-mid function exists
+echo "Test 28: read-mid function exists..."
+result=$($S7MIDI -e '(procedure? read-mid)')
+[ "$result" = "#t" ] || { echo "FAIL: read-mid not a procedure"; exit 1; }
+echo "  PASS"
+
+# Test 29: Write and read MIDI file round-trip
+echo "Test 29: MIDI file round-trip..."
+TMPFILE=$(mktemp /tmp/test_midi_XXXXXX.mid)
+result=$($S7MIDI -e "(begin
+  (record-midi 120)
+  (define m (midi-open))
+  (midi-note-on m 60 80)
+  (midi-sleep 10)
+  (midi-note-off m 60)
+  (midi-note-on m 64 90)
+  (midi-sleep 10)
+  (midi-note-off m 64)
+  (midi-close m)
+  (record-stop)
+  (write-mid \"$TMPFILE\")
+
+  (define data (read-mid \"$TMPFILE\"))
+  (if (not data)
+      \"FAIL:no_data\"
+      (let ((events (cdr (assq 'events data))))
+        (if (not events)
+            \"FAIL:no_events\"
+            (if (< (length events) 4)
+                (string-append \"FAIL:event_count:\" (number->string (length events)))
+                \"ok\")))))" 2>&1)
+rm -f "$TMPFILE"
+echo "$result" | grep -q "ok" || { echo "FAIL: MIDI file round-trip failed: $result"; exit 1; }
+echo "  PASS"
+
+# Test 30: read-mid returns correct structure
+echo "Test 30: read-mid structure..."
+TMPFILE=$(mktemp /tmp/test_midi_XXXXXX.mid)
+result=$($S7MIDI -e "(begin
+  (record-midi 120)
+  (define m (midi-open))
+  (midi-note-on m 60 80)
+  (midi-sleep 10)
+  (midi-note-off m 60)
+  (midi-close m)
+  (record-stop)
+  (write-mid \"$TMPFILE\")
+
+  (define data (read-mid \"$TMPFILE\"))
+  (define ok #t)
+  (if (not (assq 'num-tracks data)) (begin (set! ok #f) (display \"FAIL:num-tracks\")))
+  (if (not (assq 'ppqn data)) (begin (set! ok #f) (display \"FAIL:ppqn\")))
+  (if (not (assq 'tempo data)) (begin (set! ok #f) (display \"FAIL:tempo\")))
+  (if (not (assq 'events data)) (begin (set! ok #f) (display \"FAIL:events\")))
+  (if ok \"ok\" \"FAIL\"))" 2>&1)
+rm -f "$TMPFILE"
+echo "$result" | grep -q "ok" || { echo "FAIL: read-mid structure check failed: $result"; exit 1; }
+echo "  PASS"
+
 echo ""
 echo "All tests passed!"

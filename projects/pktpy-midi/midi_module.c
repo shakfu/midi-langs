@@ -9,6 +9,7 @@
 
 #include "py_prelude.h"
 #include "music_theory.h"
+#include "midi_file.h"
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -17,6 +18,7 @@
 
 #define MAX_PORTS 64
 #define MAX_CAPTURE_EVENTS 4096
+#define TICKS_PER_QUARTER 480
 
 // Global state
 static libremidi_midi_observer_handle* midi_observer = NULL;
@@ -1040,6 +1042,187 @@ static bool midi_record_status(int argc, py_StackRef argv) {
 }
 
 // ============================================================================
+// MIDI File I/O (using libremidi reader/writer)
+// ============================================================================
+
+// midi.write_mid(filename, ppqn=480) - Write captured events to standard MIDI file
+static bool midi_write_mid(int argc, py_StackRef argv) {
+    if (argc < 1 || argc > 2) {
+        return py_exception(tp_TypeError, "write_mid() takes 1-2 arguments");
+    }
+    PY_CHECK_ARG_TYPE(0, tp_str);
+
+    const char* filename = py_tostr(py_arg(0));
+    int ppqn = TICKS_PER_QUARTER;
+    if (argc >= 2) {
+        PY_CHECK_ARG_TYPE(1, tp_int);
+        ppqn = (int)py_toint(py_arg(1));
+    }
+
+    if (capture_count == 0) {
+        printf("Nothing to save (no events recorded)\n");
+        py_newnone(py_retval());
+        return true;
+    }
+
+    midi_file_writer* writer = NULL;
+    if (midi_file_writer_new(&writer) != 0) {
+        return py_exception(tp_RuntimeError, "Failed to create MIDI file writer");
+    }
+
+    midi_file_writer_set_ppqn(writer, (uint16_t)ppqn);
+    midi_file_writer_add_track(writer);
+
+    // Add tempo event at the beginning
+    midi_file_writer_tempo_bpm(writer, 0, 0, capture_bpm);
+
+    // Convert milliseconds to ticks: tick = ms * ppqn * bpm / 60000
+    double ms_to_tick = (double)ppqn * capture_bpm / 60000.0;
+
+    for (int i = 0; i < capture_count; i++) {
+        CapturedEvent* e = &capture_buffer[i];
+        int tick = (int)(e->time_ms * ms_to_tick);
+        int channel = e->channel + 1;  // 1-based for midi_file API
+
+        switch (e->type) {
+            case 0:  // note-on
+                midi_file_writer_note_on(writer, tick, 0, channel, e->data1, e->data2);
+                break;
+            case 1:  // note-off
+                midi_file_writer_note_off(writer, tick, 0, channel, e->data1, 0);
+                break;
+            case 2:  // cc
+                midi_file_writer_cc(writer, tick, 0, channel, e->data1, e->data2);
+                break;
+        }
+    }
+
+    int result = midi_file_writer_save(writer, filename);
+    midi_file_writer_free(writer);
+
+    if (result != 0) {
+        return py_exception(tp_RuntimeError, "Failed to write MIDI file: %s", filename);
+    }
+
+    printf("Saved %d events to '%s'\n", capture_count, filename);
+    py_newnone(py_retval());
+    return true;
+}
+
+// Storage for collected events
+#define MAX_READ_EVENTS 4096
+typedef struct {
+    int track;
+    int tick;
+    uint8_t type;
+    uint8_t channel;
+    uint8_t data1;
+    uint8_t data2;
+} ReadEvent;
+
+static ReadEvent read_events_buffer[MAX_READ_EVENTS];
+static int read_events_count = 0;
+
+static void read_mid_callback(void* ctx, const midi_file_event* event) {
+    (void)ctx;
+
+    // Skip meta events and system messages
+    if (event->type < 0x80 || event->type >= 0xF0) return;
+
+    if (read_events_count >= MAX_READ_EVENTS) return;
+
+    ReadEvent* e = &read_events_buffer[read_events_count++];
+    e->track = event->track;
+    e->tick = event->tick;
+    e->type = event->type;
+    e->channel = event->channel;
+    e->data1 = event->data1;
+    e->data2 = event->data2;
+}
+
+// midi.read_mid(filename) - Read MIDI file and return dict with events
+static bool midi_read_mid(int argc, py_StackRef argv) {
+    PY_CHECK_ARGC(1);
+    PY_CHECK_ARG_TYPE(0, tp_str);
+
+    const char* filename = py_tostr(py_arg(0));
+
+    midi_file_reader* reader = NULL;
+    if (midi_file_reader_new(&reader) != 0) {
+        return py_exception(tp_RuntimeError, "Failed to create MIDI file reader");
+    }
+
+    int result = midi_file_reader_load(reader, filename);
+    if (result == 0) {
+        midi_file_reader_free(reader);
+        return py_exception(tp_RuntimeError, "Failed to parse MIDI file: %s", filename);
+    }
+
+    // Collect events into buffer first
+    read_events_count = 0;
+    midi_file_reader_for_each(reader, NULL, read_mid_callback);
+
+    // Extract metadata before freeing reader
+    int num_tracks = midi_file_reader_num_tracks(reader);
+    float ppqn = midi_file_reader_ppqn(reader);
+    float tempo = midi_file_reader_tempo(reader);
+    float duration = midi_file_reader_duration(reader);
+    int format = midi_file_reader_format(reader);
+
+    midi_file_reader_free(reader);
+
+    // Use registers for stable storage (py_r0 = result dict, py_r1 = events list)
+    // Registers are GlobalRef and don't move when the stack changes
+
+    // Create result dict in register r0
+    py_newdict(py_r0());
+
+    // Set metadata - use r2 as temp for values
+    py_newint(py_r2(), num_tracks);
+    py_dict_setitem_by_str(py_r0(), "num_tracks", py_r2());
+
+    py_newint(py_r2(), (int)ppqn);
+    py_dict_setitem_by_str(py_r0(), "ppqn", py_r2());
+
+    py_newint(py_r2(), (int)tempo);
+    py_dict_setitem_by_str(py_r0(), "tempo", py_r2());
+
+    py_newint(py_r2(), (int)duration);
+    py_dict_setitem_by_str(py_r0(), "duration", py_r2());
+
+    py_newint(py_r2(), format);
+    py_dict_setitem_by_str(py_r0(), "format", py_r2());
+
+    // Create events list in register r1
+    py_newlist(py_r1());
+
+    // Add events using py_list_emplace which gives a stable slot in the list
+    for (int i = 0; i < read_events_count; i++) {
+        ReadEvent* e = &read_events_buffer[i];
+
+        // py_list_emplace returns a stable ItemRef slot in the list
+        py_Ref slot = py_list_emplace(py_r1());
+
+        // Create tuple directly in the slot; py_newtuple returns pointer to tuple data
+        py_Ref p = py_newtuple(slot, 6);
+        py_newint(&p[0], e->track);
+        py_newint(&p[1], e->tick);
+        py_newint(&p[2], e->channel);
+        py_newint(&p[3], e->type);
+        py_newint(&p[4], e->data1);
+        py_newint(&p[5], e->data2);
+    }
+
+    // Set events on result dict
+    py_dict_setitem_by_str(py_r0(), "events", py_r1());
+
+    // Copy result to retval
+    py_assign(py_retval(), py_r0());
+
+    return true;
+}
+
+// ============================================================================
 // Module initialization
 // ============================================================================
 
@@ -1063,6 +1246,10 @@ void pk_midi_module_init(void) {
     py_bindfunc(mod, "record_stop", midi_record_stop);
     py_bindfunc(mod, "save_midi", midi_save_midi);
     py_bindfunc(mod, "record_status", midi_record_status);
+
+    // MIDI File I/O functions
+    py_bindfunc(mod, "write_mid", midi_write_mid);
+    py_bindfunc(mod, "read_mid", midi_read_mid);
 
     // Create MidiOut type
     tp_MidiOut = py_newtype("MidiOut", tp_object, mod, MidiOut_dtor);

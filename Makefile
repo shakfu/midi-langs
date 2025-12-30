@@ -56,7 +56,7 @@ test-quick: build
 test-verbose: build
 	@$(CTEST) --test-dir $(BUILD_DIR) -V
 
-rebuild: clean build
+rebuild: reset build test
 
 reset:
 	@rm -rf build

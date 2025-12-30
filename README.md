@@ -6,7 +6,7 @@ A collection of mini MIDI-capable languages for generating and transforming MIDI
 |----------|----------|-------|
 | **forth-midi** | Custom Forth | Concise stack-based notation |
 | **lua-midi** | [Lua 5.5](https://www.lua.org/) | Scripting with tables/closures |
-| **mhs-midi** | [MicroHs](https://github.com/augustss/MicroHs) | Pure functional Haskell |
+| **mhs-midi** | [MicroHs](https://github.com/augustss/MicroHs) | Minimal functional Haskell |
 | **pktpy-midi** | [PocketPy](https://pocketpy.dev) | Pythonic with context managers |
 | **s7-midi** | [s7 Scheme](https://ccrma.stanford.edu/software/snd/snd/s7.html) | Lisp with macros |
 

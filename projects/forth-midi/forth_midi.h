@@ -383,6 +383,12 @@ void op_capture_start(Stack* stack);
 void op_capture_stop(Stack* stack);
 void op_save_midi(Stack* stack);
 
+/* Standard MIDI file I/O */
+int capture_write_mid(const char* filename);
+int capture_read_mid(const char* filename);
+void op_write_mid(Stack* stack);
+void op_read_mid(Stack* stack);
+
 /* ============================================================================
  * Function Declarations - Dictionary (dictionary.c)
  * ============================================================================ */

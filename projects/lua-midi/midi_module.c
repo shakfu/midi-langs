@@ -16,6 +16,7 @@
 
 #include "lua_prelude.h"
 #include "music_theory.h"
+#include "midi_file.h"
 
 #define MAX_PORTS 64
 #define MIDI_OUT_MT "MidiOut"
@@ -956,6 +957,182 @@ static int l_record_status(lua_State *L) {
     return 1;
 }
 
+/* ============================================================================
+ * MIDI File I/O (using libremidi reader/writer)
+ * ============================================================================ */
+
+/* midi.write_mid(filename, [ppqn]) - Write captured events to standard MIDI file */
+static int l_write_mid(lua_State *L) {
+    const char* filename = luaL_checkstring(L, 1);
+    int ppqn = luaL_optinteger(L, 2, TICKS_PER_QUARTER);
+
+    if (capture_count == 0) {
+        printf("Nothing to save (no events recorded)\n");
+        return 0;
+    }
+
+    midi_file_writer* writer = NULL;
+    if (midi_file_writer_new(&writer) != 0) {
+        return luaL_error(L, "Failed to create MIDI file writer");
+    }
+
+    midi_file_writer_set_ppqn(writer, (uint16_t)ppqn);
+    midi_file_writer_add_track(writer);
+
+    /* Add tempo event at the beginning */
+    midi_file_writer_tempo_bpm(writer, 0, 0, capture_bpm);
+
+    /* Convert milliseconds to ticks: tick = ms * ppqn * bpm / 60000 */
+    double ms_to_tick = (double)ppqn * capture_bpm / 60000.0;
+
+    for (int i = 0; i < capture_count; i++) {
+        CapturedEvent* e = &capture_buffer[i];
+        int tick = (int)(e->time_ms * ms_to_tick);
+        int channel = e->channel + 1;  /* 1-based for midi_file API */
+
+        switch (e->type) {
+            case 0:  /* note-on */
+                midi_file_writer_note_on(writer, tick, 0, channel, e->data1, e->data2);
+                break;
+            case 1:  /* note-off */
+                midi_file_writer_note_off(writer, tick, 0, channel, e->data1, 0);
+                break;
+            case 2:  /* cc */
+                midi_file_writer_cc(writer, tick, 0, channel, e->data1, e->data2);
+                break;
+        }
+    }
+
+    int result = midi_file_writer_save(writer, filename);
+    midi_file_writer_free(writer);
+
+    if (result != 0) {
+        return luaL_error(L, "Failed to write MIDI file '%s'", filename);
+    }
+
+    printf("Saved %d events to '%s'\n", capture_count, filename);
+    return 0;
+}
+
+/* Callback context for reading MIDI file */
+typedef struct {
+    lua_State *L;
+    int table_idx;
+    int event_num;
+} ReadMidContext;
+
+static void read_mid_callback(void* ctx, const midi_file_event* event) {
+    ReadMidContext* rctx = (ReadMidContext*)ctx;
+    lua_State *L = rctx->L;
+
+    /* Skip meta events and system messages */
+    if (event->type < 0x80 || event->type >= 0xF0) return;
+
+    rctx->event_num++;
+
+    /* Create event table */
+    lua_newtable(L);
+
+    lua_pushinteger(L, event->track);
+    lua_setfield(L, -2, "track");
+
+    lua_pushinteger(L, event->tick);
+    lua_setfield(L, -2, "tick");
+
+    lua_pushinteger(L, event->channel);
+    lua_setfield(L, -2, "channel");
+
+    /* Decode message type */
+    const char* type_name = "unknown";
+    switch (event->type) {
+        case 0x80: type_name = "note_off"; break;
+        case 0x90: type_name = (event->data2 > 0) ? "note_on" : "note_off"; break;
+        case 0xA0: type_name = "poly_pressure"; break;
+        case 0xB0: type_name = "cc"; break;
+        case 0xC0: type_name = "program"; break;
+        case 0xD0: type_name = "aftertouch"; break;
+        case 0xE0: type_name = "pitch_bend"; break;
+    }
+    lua_pushstring(L, type_name);
+    lua_setfield(L, -2, "type");
+
+    /* Add data fields based on type */
+    if (event->type == 0x80 || event->type == 0x90) {
+        lua_pushinteger(L, event->data1);
+        lua_setfield(L, -2, "pitch");
+        lua_pushinteger(L, event->data2);
+        lua_setfield(L, -2, "velocity");
+    } else if (event->type == 0xB0) {
+        lua_pushinteger(L, event->data1);
+        lua_setfield(L, -2, "control");
+        lua_pushinteger(L, event->data2);
+        lua_setfield(L, -2, "value");
+    } else if (event->type == 0xC0) {
+        lua_pushinteger(L, event->data1);
+        lua_setfield(L, -2, "program");
+    } else if (event->type == 0xE0) {
+        int bend = event->data1 | (event->data2 << 7);
+        lua_pushinteger(L, bend);
+        lua_setfield(L, -2, "value");
+    } else {
+        lua_pushinteger(L, event->data1);
+        lua_setfield(L, -2, "data1");
+        lua_pushinteger(L, event->data2);
+        lua_setfield(L, -2, "data2");
+    }
+
+    /* Add to events array */
+    lua_rawseti(L, rctx->table_idx, rctx->event_num);
+}
+
+/* midi.read_mid(filename) - Read MIDI file and return table of events */
+static int l_read_mid(lua_State *L) {
+    const char* filename = luaL_checkstring(L, 1);
+
+    midi_file_reader* reader = NULL;
+    if (midi_file_reader_new(&reader) != 0) {
+        return luaL_error(L, "Failed to create MIDI file reader");
+    }
+
+    int result = midi_file_reader_load(reader, filename);
+    if (result == 0) {
+        midi_file_reader_free(reader);
+        return luaL_error(L, "Failed to parse MIDI file '%s'", filename);
+    }
+
+    /* Create result table */
+    lua_newtable(L);
+    int result_idx = lua_gettop(L);
+
+    /* Add metadata */
+    lua_pushinteger(L, midi_file_reader_num_tracks(reader));
+    lua_setfield(L, result_idx, "num_tracks");
+
+    lua_pushnumber(L, midi_file_reader_ppqn(reader));
+    lua_setfield(L, result_idx, "ppqn");
+
+    lua_pushnumber(L, midi_file_reader_tempo(reader));
+    lua_setfield(L, result_idx, "tempo");
+
+    lua_pushnumber(L, midi_file_reader_duration(reader));
+    lua_setfield(L, result_idx, "duration");
+
+    lua_pushinteger(L, midi_file_reader_format(reader));
+    lua_setfield(L, result_idx, "format");
+
+    /* Create events array */
+    lua_newtable(L);
+    int events_idx = lua_gettop(L);
+
+    ReadMidContext ctx = { L, events_idx, 0 };
+    midi_file_reader_for_each(reader, &ctx, read_mid_callback);
+
+    lua_setfield(L, result_idx, "events");
+
+    midi_file_reader_free(reader);
+    return 1;
+}
+
 /* help() function */
 static int l_help(lua_State *L) {
     (void)L;
@@ -1013,6 +1190,10 @@ static int l_help(lua_State *L) {
     printf("  midi.save_midi(filename)    Save recording to Lua file\n");
     printf("  midi.record_status()        Get recording status\n");
     printf("\n");
+    printf("MIDI File I/O:\n");
+    printf("  midi.write_mid(filename)    Write recording to .mid file\n");
+    printf("  midi.read_mid(filename)     Read .mid file -> {events, ppqn, tempo, ...}\n");
+    printf("\n");
     printf("Constants: midi.c0-c8, midi.cs0-cs8, midi.d0-d8, etc.\n");
     printf("Dynamics: midi.ppp, pp, p, mp, mf, f, ff, fff\n");
     printf("Durations: midi.whole, half, quarter, eighth, sixteenth\n");
@@ -1065,6 +1246,9 @@ static const luaL_Reg midi_funcs[] = {
     {"record_stop", l_record_stop},
     {"save_midi", l_save_midi},
     {"record_status", l_record_status},
+    /* MIDI file I/O */
+    {"write_mid", l_write_mid},
+    {"read_mid", l_read_mid},
     {"help", l_help},
     {NULL, NULL}
 };

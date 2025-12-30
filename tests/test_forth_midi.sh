@@ -463,6 +463,47 @@ fi
 echo ""
 
 # ============================================
+echo "--- MIDI File I/O ---"
+# ============================================
+
+# Test write-mid creates file
+TOTAL=$((TOTAL + 1))
+rm -f "$TMPDIR/test.mid"
+printf 'midi-open\nrec-midi\nc4,\ne4,\nstop\nwrite-mid %s/test.mid\nmidi-close\n' "$TMPDIR" | $MIDI_FORTH > /dev/null 2>&1
+if [ -f "$TMPDIR/test.mid" ]; then
+    echo -e "${GREEN}PASS${NC}: write-mid creates MIDI file"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: write-mid creates MIDI file"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test read-mid displays file info
+TOTAL=$((TOTAL + 1))
+output=$(printf 'read-mid %s/test.mid\n' "$TMPDIR" | $MIDI_FORTH 2>&1)
+if echo "$output" | grep -q "ppqn: 480" && echo "$output" | grep -q "tracks:"; then
+    echo -e "${GREEN}PASS${NC}: read-mid displays file info"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: read-mid displays file info"
+    echo "  Got: $output"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test read-mid displays events
+TOTAL=$((TOTAL + 1))
+if echo "$output" | grep -q "note-on"; then
+    echo -e "${GREEN}PASS${NC}: read-mid displays events"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}FAIL${NC}: read-mid displays events"
+    echo "  Got: $output"
+    FAILED=$((FAILED + 1))
+fi
+
+echo ""
+
+# ============================================
 echo "--- Error Handling ---"
 # ============================================
 

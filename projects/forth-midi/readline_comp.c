@@ -22,6 +22,7 @@ static const char* pitch_names[] = {
 static const char* builtin_words[] = {
     "quit", "help", "if", "else", "then", ":", ";", "load", "words",
     "rec", "stop", "save", "rec-midi", "save-midi", "midi-open-as",
+    "write-mid", "read-mid",
     NULL
 };
 

@@ -6,6 +6,17 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **MIDI File I/O**: Read and write standard MIDI files (.mid) across all language implementations
+  - Common C library `midi_file.h/cpp` wrapping libremidi's reader/writer classes
+  - **s7-midi**: `(write-mid filename)` and `(read-mid filename)` functions
+  - **pktpy-midi**: `midi.write_mid(filename)` and `midi.read_mid(filename)` functions
+  - **lua-midi**: `midi.write_mid(filename)` and `midi.read_mid(filename)` functions
+  - **forth-midi**: `write-mid filename` and `read-mid filename` commands
+  - Write functions save captured MIDI events to standard Type 1 MIDI files
+  - Read functions parse MIDI files and return metadata (tracks, ppqn, tempo, duration, format) and events
+  - Round-trip tested: write then read back produces consistent data
+  - Integrated with existing recording/capture systems in each language
+
 - **s7-midi Readline Support**: Interactive REPL with readline and autocomplete
   - Tab completion for MIDI functions (`midi-open`, `midi-note`, `midi-chord`, etc.)
   - Tab completion for Scheme keywords (`define`, `lambda`, `let`, `if`, etc.)

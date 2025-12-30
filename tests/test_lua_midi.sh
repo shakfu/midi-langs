@@ -211,5 +211,73 @@ print("ok")
 [ "$result" = "ok" ] || { echo "FAIL: musical example failed, got $result"; exit 1; }
 echo "  PASS"
 
+# ============================================================================
+# MIDI File I/O Tests
+# ============================================================================
+
+# Test 27: write_mid function exists
+echo "Test 27: write_mid function..."
+result=$($LUAMIDI -e 'print(type(midi.write_mid))')
+[ "$result" = "function" ] || { echo "FAIL: write_mid not a function"; exit 1; }
+echo "  PASS"
+
+# Test 28: read_mid function exists
+echo "Test 28: read_mid function..."
+result=$($LUAMIDI -e 'print(type(midi.read_mid))')
+[ "$result" = "function" ] || { echo "FAIL: read_mid not a function"; exit 1; }
+echo "  PASS"
+
+# Test 29: Write and read MIDI file round-trip
+echo "Test 29: MIDI file round-trip..."
+TMPFILE=$(mktemp /tmp/test_midi_XXXXXX.mid)
+result=$($LUAMIDI -e "
+midi.record_midi(120)
+local m = midi.open()
+m:note_on(60, 80)
+midi.sleep(10)
+m:note_off(60)
+m:note_on(64, 90)
+midi.sleep(10)
+m:note_off(64)
+m:close()
+midi.record_stop()
+midi.write_mid('$TMPFILE')
+
+local data = midi.read_mid('$TMPFILE')
+if not data then print('FAIL:no_data') return end
+if not data.events then print('FAIL:no_events') return end
+if #data.events < 4 then print('FAIL:event_count:'..#data.events) return end
+if data.ppqn <= 0 then print('FAIL:bad_ppqn') return end
+print('ok')
+" 2>&1)
+rm -f "$TMPFILE"
+echo "$result" | grep -q "ok" || { echo "FAIL: MIDI file round-trip failed: $result"; exit 1; }
+echo "  PASS"
+
+# Test 30: read_mid returns correct structure
+echo "Test 30: read_mid structure..."
+TMPFILE=$(mktemp /tmp/test_midi_XXXXXX.mid)
+result=$($LUAMIDI -e "
+midi.record_midi(120)
+local m = midi.open()
+m:note_on(60, 80)
+midi.sleep(10)
+m:note_off(60)
+m:close()
+midi.record_stop()
+midi.write_mid('$TMPFILE')
+
+local data = midi.read_mid('$TMPFILE')
+local ok = true
+if type(data.num_tracks) ~= 'number' then ok = false; print('FAIL:num_tracks') end
+if type(data.ppqn) ~= 'number' then ok = false; print('FAIL:ppqn') end
+if type(data.tempo) ~= 'number' then ok = false; print('FAIL:tempo') end
+if type(data.events) ~= 'table' then ok = false; print('FAIL:events') end
+if ok then print('ok') end
+" 2>&1)
+rm -f "$TMPFILE"
+echo "$result" | grep -q "ok" || { echo "FAIL: read_mid structure check failed: $result"; exit 1; }
+echo "  PASS"
+
 echo ""
 echo "All tests passed!"

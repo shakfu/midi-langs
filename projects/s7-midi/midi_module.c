@@ -14,6 +14,7 @@
 #include <libremidi/libremidi-c.h>
 #include "scm_prelude.h"
 #include "music_theory.h"
+#include "midi_file.h"
 
 #define MAX_PORTS 64
 #define MAX_CAPTURE_EVENTS 4096
@@ -835,6 +836,13 @@ static s7_pointer g_help(s7_scheme *sc, s7_pointer args) {
         "  (midi-program m prog [ch])  Program change\n"
         "  (midi-all-notes-off m [ch]) All notes off\n"
         "\n"
+        "Recording and File I/O:\n"
+        "  (record-midi [bpm])         Start recording\n"
+        "  (record-stop)               Stop recording\n"
+        "  (save-midi filename)        Save as Scheme file\n"
+        "  (write-mid filename [ppqn]) Save as standard MIDI file\n"
+        "  (read-mid filename)         Read MIDI file\n"
+        "\n"
         "Utilities:\n"
         "  (note \"C4\") or (note 'c4)  Parse note name to MIDI number\n"
         "  (midi-sleep ms)             Sleep for milliseconds\n"
@@ -984,6 +992,179 @@ static s7_pointer g_record_status(s7_scheme *sc, s7_pointer args) {
 }
 
 /* ============================================================================
+ * MIDI File I/O (using libremidi reader/writer)
+ * ============================================================================ */
+
+/* (write-mid filename [ppqn]) - Write captured events to standard MIDI file */
+static s7_pointer g_write_mid(s7_scheme *sc, s7_pointer args) {
+    const char* filename = s7_string(s7_car(args));
+    args = s7_cdr(args);
+
+    int ppqn = TICKS_PER_QUARTER;
+    if (args != s7_nil(sc)) {
+        ppqn = (int)s7_integer(s7_car(args));
+    }
+
+    if (capture_count == 0) {
+        printf("Nothing to save (no events recorded)\n");
+        return s7_unspecified(sc);
+    }
+
+    midi_file_writer* writer = NULL;
+    if (midi_file_writer_new(&writer) != 0) {
+        return s7_error(sc, s7_make_symbol(sc, "midi-error"),
+                        s7_list(sc, 1, s7_make_string(sc, "Failed to create MIDI file writer")));
+    }
+
+    midi_file_writer_set_ppqn(writer, (uint16_t)ppqn);
+    midi_file_writer_add_track(writer);
+
+    /* Add tempo event at the beginning */
+    midi_file_writer_tempo_bpm(writer, 0, 0, capture_bpm);
+
+    /* Convert milliseconds to ticks: tick = ms * ppqn * bpm / 60000 */
+    double ms_to_tick = (double)ppqn * capture_bpm / 60000.0;
+
+    for (int i = 0; i < capture_count; i++) {
+        CapturedEvent* e = &capture_buffer[i];
+        int tick = (int)(e->time_ms * ms_to_tick);
+        int channel = e->channel + 1;  /* 1-based for midi_file API */
+
+        switch (e->type) {
+            case 0:  /* note-on */
+                midi_file_writer_note_on(writer, tick, 0, channel, e->data1, e->data2);
+                break;
+            case 1:  /* note-off */
+                midi_file_writer_note_off(writer, tick, 0, channel, e->data1, 0);
+                break;
+            case 2:  /* cc */
+                midi_file_writer_cc(writer, tick, 0, channel, e->data1, e->data2);
+                break;
+        }
+    }
+
+    int result = midi_file_writer_save(writer, filename);
+    midi_file_writer_free(writer);
+
+    if (result != 0) {
+        return s7_error(sc, s7_make_symbol(sc, "file-error"),
+                        s7_list(sc, 1, s7_make_string(sc, "Failed to write MIDI file")));
+    }
+
+    printf("Saved %d events to '%s'\n", capture_count, filename);
+    return s7_unspecified(sc);
+}
+
+/* Callback context for reading MIDI file */
+typedef struct {
+    s7_scheme *sc;
+    s7_pointer events_list;
+} ReadMidContext;
+
+static void read_mid_callback(void* ctx, const midi_file_event* event) {
+    ReadMidContext* rctx = (ReadMidContext*)ctx;
+    s7_scheme* sc = rctx->sc;
+
+    /* Skip meta events and system messages */
+    if (event->type < 0x80 || event->type >= 0xF0) return;
+
+    /* Decode message type */
+    const char* type_name = "unknown";
+    switch (event->type) {
+        case 0x80: type_name = "note-off"; break;
+        case 0x90: type_name = (event->data2 > 0) ? "note-on" : "note-off"; break;
+        case 0xA0: type_name = "poly-pressure"; break;
+        case 0xB0: type_name = "cc"; break;
+        case 0xC0: type_name = "program"; break;
+        case 0xD0: type_name = "aftertouch"; break;
+        case 0xE0: type_name = "pitch-bend"; break;
+    }
+
+    /* Create event as alist */
+    s7_pointer event_list = s7_nil(sc);
+
+    /* Add fields in reverse order since cons prepends */
+    if (event->type == 0x80 || event->type == 0x90) {
+        event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "velocity"),
+                                         s7_make_integer(sc, event->data2)), event_list);
+        event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "pitch"),
+                                         s7_make_integer(sc, event->data1)), event_list);
+    } else if (event->type == 0xB0) {
+        event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "value"),
+                                         s7_make_integer(sc, event->data2)), event_list);
+        event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "control"),
+                                         s7_make_integer(sc, event->data1)), event_list);
+    } else if (event->type == 0xC0) {
+        event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "program"),
+                                         s7_make_integer(sc, event->data1)), event_list);
+    } else if (event->type == 0xE0) {
+        int bend = event->data1 | (event->data2 << 7);
+        event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "value"),
+                                         s7_make_integer(sc, bend)), event_list);
+    } else {
+        event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "data2"),
+                                         s7_make_integer(sc, event->data2)), event_list);
+        event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "data1"),
+                                         s7_make_integer(sc, event->data1)), event_list);
+    }
+
+    event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "type"),
+                                     s7_make_symbol(sc, type_name)), event_list);
+    event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "channel"),
+                                     s7_make_integer(sc, event->channel)), event_list);
+    event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "tick"),
+                                     s7_make_integer(sc, event->tick)), event_list);
+    event_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "track"),
+                                     s7_make_integer(sc, event->track)), event_list);
+
+    /* Add event to list */
+    rctx->events_list = s7_cons(sc, event_list, rctx->events_list);
+}
+
+/* (read-mid filename) - Read MIDI file and return alist with events */
+static s7_pointer g_read_mid(s7_scheme *sc, s7_pointer args) {
+    const char* filename = s7_string(s7_car(args));
+
+    midi_file_reader* reader = NULL;
+    if (midi_file_reader_new(&reader) != 0) {
+        return s7_error(sc, s7_make_symbol(sc, "midi-error"),
+                        s7_list(sc, 1, s7_make_string(sc, "Failed to create MIDI file reader")));
+    }
+
+    int result = midi_file_reader_load(reader, filename);
+    if (result == 0) {
+        midi_file_reader_free(reader);
+        return s7_error(sc, s7_make_symbol(sc, "file-error"),
+                        s7_list(sc, 1, s7_make_string(sc, "Failed to parse MIDI file")));
+    }
+
+    /* Gather events */
+    ReadMidContext ctx = { sc, s7_nil(sc) };
+    s7_gc_protect(sc, ctx.events_list);
+    midi_file_reader_for_each(reader, &ctx, read_mid_callback);
+
+    /* Reverse list to get chronological order */
+    s7_pointer events = s7_reverse(sc, ctx.events_list);
+
+    /* Build result alist */
+    s7_pointer result_list = s7_nil(sc);
+    result_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "events"), events), result_list);
+    result_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "format"),
+                                      s7_make_integer(sc, midi_file_reader_format(reader))), result_list);
+    result_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "duration"),
+                                      s7_make_real(sc, midi_file_reader_duration(reader))), result_list);
+    result_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "tempo"),
+                                      s7_make_real(sc, midi_file_reader_tempo(reader))), result_list);
+    result_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "ppqn"),
+                                      s7_make_real(sc, midi_file_reader_ppqn(reader))), result_list);
+    result_list = s7_cons(sc, s7_cons(sc, s7_make_symbol(sc, "num-tracks"),
+                                      s7_make_integer(sc, midi_file_reader_num_tracks(reader))), result_list);
+
+    midi_file_reader_free(reader);
+    return result_list;
+}
+
+/* ============================================================================
  * Module initialization
  * ============================================================================ */
 
@@ -1070,6 +1251,13 @@ void s7_midi_init(s7_scheme *sc) {
 
     s7_define_function(sc, "record-status", g_record_status, 0, 0, false,
                        "(record-status) returns recording status");
+
+    /* MIDI File I/O functions */
+    s7_define_function(sc, "write-mid", g_write_mid, 1, 1, false,
+                       "(write-mid filename [ppqn]) writes captured events to standard MIDI file");
+
+    s7_define_function(sc, "read-mid", g_read_mid, 1, 0, false,
+                       "(read-mid filename) reads MIDI file and returns alist with events");
 
     /* Load Scheme prelude */
     s7_load_c_string(sc, SCHEME_PRELUDE_MODULE, strlen(SCHEME_PRELUDE_MODULE));

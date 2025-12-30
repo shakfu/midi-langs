@@ -20,8 +20,8 @@ add_executable(forth_midi ${FORTH_MIDI_SOURCES})
 
 target_compile_options(forth_midi PRIVATE -Wall -Wextra)
 
-# Link with libremidi and music_theory
-target_link_libraries(forth_midi PRIVATE libremidi music_theory)
+# Link with libremidi, music_theory, and midi_file
+target_link_libraries(forth_midi PRIVATE libremidi music_theory midi_file)
 
 # Link with readline
 find_library(READLINE_LIBRARY readline)

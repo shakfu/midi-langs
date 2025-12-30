@@ -256,7 +256,9 @@ void op_help(Stack* stack) {
     printf("File Operations:\n");
     printf("  load filename           Load and execute a .4th file\n");
     printf("  rec / stop / save       Record commands to file\n");
-    printf("  rec-midi / stop / save-midi  Record MIDI events\n");
+    printf("  rec-midi / stop / save-midi  Record MIDI events (Forth format)\n");
+    printf("  write-mid filename      Write captured events to .mid file\n");
+    printf("  read-mid filename       Read and display .mid file info\n");
     printf("\n");
     printf("Generative:\n");
     printf("  c4|e4,                  Alternative (random selection)\n");
@@ -392,6 +394,10 @@ void interpret(const char* input) {
                 capture_save_midi(word);
             } else if (awaiting_filename == 4) {
                 open_virtual_port(word);
+            } else if (awaiting_filename == 5) {
+                capture_write_mid(word);
+            } else if (awaiting_filename == 6) {
+                capture_read_mid(word);
             }
             awaiting_filename = 0;
             continue;
@@ -546,6 +552,16 @@ void interpret(const char* input) {
 
         if (strcmp(word, "midi-open-as") == 0) {
             awaiting_filename = 4;
+            continue;
+        }
+
+        if (strcmp(word, "write-mid") == 0) {
+            awaiting_filename = 5;
+            continue;
+        }
+
+        if (strcmp(word, "read-mid") == 0) {
+            awaiting_filename = 6;
             continue;
         }
 
