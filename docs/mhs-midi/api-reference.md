@@ -463,13 +463,16 @@ midiRecordStop :: IO Int
 -- Stop recording, returns event count
 
 midiRecordSave :: String -> IO Bool
--- Save recorded events to Haskell replay module
+-- Save recorded events to standard MIDI file (.mid)
 
 midiRecordCount :: IO Int
 -- Get current event count
 
 midiRecordActive :: IO Bool
 -- Check if recording is active
+
+midiReadMid :: String -> IO Bool
+-- Read and display MIDI file info
 ```
 
 #### Recording Example
@@ -488,11 +491,25 @@ main = do
     chord (major g4)
 
     _ <- midiRecordStop
-    _ <- midiRecordSave "melody.hs"
+    _ <- midiRecordSave "melody.mid"  -- Standard MIDI file
 
     midiClose
 ```
 
-The generated file contains:
-- Event data as a Haskell list of tuples
-- A `replay` function that recreates the performance
+The MIDI file can be opened in any DAW or MIDI player.
+
+#### Reading MIDI Files
+
+```haskell
+import Midi
+
+main :: IO ()
+main = do
+    -- Read and display MIDI file info and events
+    _ <- midiReadMid "song.mid"
+    return ()
+```
+
+This prints:
+- File metadata (format, tracks, PPQN, tempo, duration)
+- All events with tick, channel, type, and data bytes

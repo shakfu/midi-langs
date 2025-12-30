@@ -67,4 +67,7 @@ int midi_record_save(const char* filename);
 int midi_record_count(void);
 int midi_record_active(void);
 
+/* MIDI file reading */
+int midi_read_mid(const char* filename);
+
 #endif /* MIDI_FFI_H */

@@ -927,3 +927,69 @@ Get current recording status. Returns a list of three values: whether recording 
 
 (midi-close m)
 ```
+
+---
+
+## MIDI File I/O
+
+Read and write standard MIDI files (.mid format).
+
+### write-mid
+
+```scheme
+(write-mid filename [ppqn])
+```
+
+Write recorded events to a standard MIDI file. Optional PPQN parameter (default 480).
+
+```scheme
+(define m (midi-open))
+(record-midi 120)
+
+(midi-note m c4 mf quarter)
+(midi-note m e4 mf quarter)
+(midi-chord m (major g4) f half)
+
+(record-stop)
+(write-mid "melody.mid")   ; Standard MIDI file
+
+(midi-close m)
+```
+
+### read-mid
+
+```scheme
+(read-mid filename) -> alist
+```
+
+Read a standard MIDI file and return its contents as an association list with metadata and events.
+
+```scheme
+(define data (read-mid "song.mid"))
+
+;; Metadata
+(cdr (assq 'num-tracks data))  ; Number of tracks
+(cdr (assq 'ppqn data))        ; Pulses per quarter note
+(cdr (assq 'tempo data))       ; Tempo in microseconds per beat
+(cdr (assq 'duration data))    ; Duration in milliseconds
+(cdr (assq 'format data))      ; MIDI format (0, 1, or 2)
+
+;; Events - list of (track tick channel type data1 data2)
+(define events (cdr (assq 'events data)))
+(for-each
+  (lambda (event)
+    (display (format #f "t=~A ch=~A type=~A d1=~A d2=~A~%"
+                     (cadr event)   ; tick
+                     (caddr event)  ; channel
+                     (cadddr event) ; type
+                     (car (cddddr event))   ; data1
+                     (cadr (cddddr event))))) ; data2
+  events)
+```
+
+Event types (in the type field):
+- `144` (`#x90`) = Note On
+- `128` (`#x80`) = Note Off
+- `176` (`#xB0`) = Control Change
+- `192` (`#xC0`) = Program Change
+- `224` (`#xE0`) = Pitch Bend

@@ -1,6 +1,7 @@
 /* midi_ffi.c - C FFI implementation for MicroHs MIDI library */
 #include "midi_ffi.h"
 #include "music_theory.h"
+#include "midi_file.h"
 #include <libremidi/libremidi-c.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +12,7 @@
 #define MAX_PORTS 64
 #define MAX_PORT_NAME 256
 #define MAX_CAPTURE_EVENTS 4096
+#define TICKS_PER_QUARTER 480
 
 /* Global state */
 static libremidi_midi_observer_handle* g_observer = NULL;
@@ -357,41 +359,47 @@ int midi_record_save(const char* filename) {
         return -1;
     }
 
-    FILE* f = fopen(filename, "w");
-    if (!f) {
-        printf("Cannot open file: %s\n", filename);
+    /* Create MIDI file writer */
+    midi_file_writer* writer = NULL;
+    if (midi_file_writer_new(&writer) != 0) {
+        printf("Cannot create MIDI file writer\n");
         return -1;
     }
 
-    fprintf(f, "-- MIDI recording - %d events at %d BPM\n", capture_count, capture_bpm);
-    fprintf(f, "-- Replay with: :load %s\n\n", filename);
-    fprintf(f, "import Midi\n");
-    fprintf(f, "import Data.List (foldl')\n\n");
-    fprintf(f, "events :: [(Int, Int, Int, Int, Int)]\n");
-    fprintf(f, "events = [\n");
+    /* Set PPQN and add a track */
+    midi_file_writer_set_ppqn(writer, TICKS_PER_QUARTER);
+    midi_file_writer_add_track(writer);
 
+    /* Add tempo meta event */
+    int us_per_beat = 60000000 / capture_bpm;
+    midi_file_writer_tempo(writer, 0, 0, us_per_beat);
+
+    /* Convert captured events to MIDI file events */
     for (int i = 0; i < capture_count; i++) {
         CapturedEvent* e = &capture_buffer[i];
-        fprintf(f, "  (%u, %d, %d, %d, %d)%s\n",
-                e->time_ms, e->type, e->channel + 1, e->data1, e->data2,
-                i < capture_count - 1 ? "," : "");
+        int tick = (e->time_ms * capture_bpm * TICKS_PER_QUARTER) / 60000;
+
+        if (e->type == 0) {
+            /* Note-on */
+            midi_file_writer_note_on(writer, tick, 0, e->channel + 1, e->data1, e->data2);
+        } else if (e->type == 1) {
+            /* Note-off */
+            midi_file_writer_note_off(writer, tick, 0, e->channel + 1, e->data1, 0);
+        } else if (e->type == 2) {
+            /* Control change */
+            midi_file_writer_cc(writer, tick, 0, e->channel + 1, e->data1, e->data2);
+        }
     }
 
-    fprintf(f, "  ]\n\n");
-    fprintf(f, "playEvent :: (Int, Int, Int, Int, Int) -> IO ()\n");
-    fprintf(f, "playEvent (_, 0, ch, pitch, vel) = do _ <- noteOn ch pitch vel; return ()\n");
-    fprintf(f, "playEvent (_, 1, ch, pitch, _)   = do _ <- noteOff ch pitch; return ()\n");
-    fprintf(f, "playEvent (_, 2, ch, ctrl, val)  = do _ <- cc ch ctrl val; return ()\n");
-    fprintf(f, "playEvent _                       = return ()\n\n");
-    fprintf(f, "replay :: IO ()\n");
-    fprintf(f, "replay = do\n");
-    fprintf(f, "  _ <- openVirtual \"MhsMidi\"\n");
-    fprintf(f, "  mapM_ (\\(t, ty, ch, d1, d2) -> do\n");
-    fprintf(f, "    playEvent (t, ty, ch, d1, d2)\n");
-    fprintf(f, "    sleep 10) events\n");
-    fprintf(f, "  panic\n");
+    /* Write to file */
+    int result = midi_file_writer_save(writer, filename);
+    midi_file_writer_free(writer);
 
-    fclose(f);
+    if (result != 0) {
+        printf("Failed to write MIDI file: %s\n", filename);
+        return -1;
+    }
+
     printf("Saved %d events to %s\n", capture_count, filename);
     return 0;
 }
@@ -402,4 +410,70 @@ int midi_record_count(void) {
 
 int midi_record_active(void) {
     return capture_active;
+}
+
+/* Callback for reading MIDI file events */
+static void read_mid_callback(void* ctx, const midi_file_event* event) {
+    (void)ctx;
+
+    /* Filter meta events for tempo display */
+    if (event->type == 0x51) {
+        printf("  tempo: %d us/beat (%d BPM)\n",
+               event->data1, 60000000 / event->data1);
+        return;
+    }
+
+    /* Only show channel events */
+    if (event->type < 0x80 || event->type >= 0xF0) return;
+
+    int status = event->type & 0xF0;
+    const char* type_name = "unknown";
+    switch (status) {
+        case 0x80: type_name = "note-off"; break;
+        case 0x90: type_name = (event->data2 > 0) ? "note-on" : "note-off"; break;
+        case 0xA0: type_name = "aftertouch"; break;
+        case 0xB0: type_name = "cc"; break;
+        case 0xC0: type_name = "program"; break;
+        case 0xD0: type_name = "ch-pressure"; break;
+        case 0xE0: type_name = "pitch-bend"; break;
+    }
+
+    printf("  t=%5d ch=%2d %-10s %3d %3d\n",
+           event->tick, event->channel + 1, type_name, event->data1, event->data2);
+}
+
+int midi_read_mid(const char* filename) {
+    midi_file_reader* reader = NULL;
+    if (midi_file_reader_new(&reader) != 0) {
+        printf("Cannot create MIDI file reader\n");
+        return -1;
+    }
+
+    int result = midi_file_reader_load(reader, filename);
+    if (result == 0) {
+        midi_file_reader_free(reader);
+        printf("Cannot read MIDI file: %s\n", filename);
+        return -1;
+    }
+
+    /* Display file info */
+    int num_tracks = midi_file_reader_num_tracks(reader);
+    float ppqn = midi_file_reader_ppqn(reader);
+    float tempo = midi_file_reader_tempo(reader);
+    float duration = midi_file_reader_duration(reader);
+    int format = midi_file_reader_format(reader);
+
+    printf("MIDI file: %s\n", filename);
+    printf("  format: %d\n", format);
+    printf("  tracks: %d\n", num_tracks);
+    printf("  ppqn: %.0f\n", ppqn);
+    printf("  tempo: %.0f us/beat (%.0f BPM)\n", tempo, 60000000.0 / tempo);
+    printf("  duration: %.0f ms\n", duration);
+    printf("Events:\n");
+
+    /* Display events */
+    midi_file_reader_for_each(reader, NULL, read_mid_callback);
+
+    midi_file_reader_free(reader);
+    return 0;
 }

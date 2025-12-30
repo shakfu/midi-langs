@@ -129,6 +129,14 @@ from_t mhs_midi_record_active(int s) {
 }
 
 /* ========================================================================
+ * MIDI File I/O functions
+ * ======================================================================== */
+
+from_t mhs_midi_read_mid(int s) {
+    return mhs_from_Int(s, 1, midi_read_mid(mhs_to_Ptr(s, 0)));
+}
+
+/* ========================================================================
  * FFI table - names must match Midi.hs foreign import declarations
  * ======================================================================== */
 
@@ -160,6 +168,8 @@ static const struct ffi_entry midi_ffi_table[] = {
     { "midi_record_save",   1, mhs_midi_record_save },
     { "midi_record_count",  0, mhs_midi_record_count },
     { "midi_record_active", 0, mhs_midi_record_active },
+    /* MIDI file I/O */
+    { "midi_read_mid",      1, mhs_midi_read_mid },
     /* sentinel */
     { 0, 0, 0 }
 };

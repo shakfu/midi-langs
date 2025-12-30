@@ -72,3 +72,22 @@ c4 major 100 whole 2880 3 chord>seq
 seq-play
 midi-close
 ```
+
+## MIDI File I/O
+
+Record and save to standard MIDI files:
+
+```forth
+midi-open
+rec-midi                 \ Start recording
+c4, e4, g4,              \ Play some notes
+stop                     \ Stop recording
+write-mid song.mid       \ Save as standard MIDI file
+midi-close
+```
+
+Read and display MIDI file info:
+
+```forth
+read-mid song.mid        \ Display file info and events
+```

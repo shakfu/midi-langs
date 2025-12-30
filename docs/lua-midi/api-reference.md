@@ -730,3 +730,64 @@ save_midi("melody.lua")
 
 m:close()
 ```
+
+---
+
+## MIDI File I/O
+
+Read and write standard MIDI files (.mid format).
+
+### write_mid
+
+```lua
+write_mid(filename)
+```
+
+Write recorded events to a standard MIDI file. The file can be opened in any DAW or MIDI player.
+
+```lua
+m = midi.open()
+record_midi(120)
+
+m:note(c4, mf, quarter)
+m:note(e4, mf, quarter)
+m:chord(major(g4), f, half)
+
+record_stop()
+write_mid("melody.mid")   -- Standard MIDI file
+
+m:close()
+```
+
+### read_mid
+
+```lua
+read_mid(filename) -> table
+```
+
+Read a standard MIDI file and return its contents as a table with metadata and events.
+
+```lua
+local data = read_mid("song.mid")
+
+-- Metadata
+print(data.num_tracks)  -- Number of tracks
+print(data.ppqn)        -- Pulses per quarter note
+print(data.tempo)       -- Tempo in microseconds per beat
+print(data.duration)    -- Duration in milliseconds
+print(data.format)      -- MIDI format (0, 1, or 2)
+
+-- Events
+for _, event in ipairs(data.events) do
+    local track, tick, channel, type, data1, data2 = table.unpack(event)
+    print(string.format("t=%d ch=%d type=%02X d1=%d d2=%d",
+                        tick, channel, type, data1, data2))
+end
+```
+
+Event types (in the `type` field):
+- `0x90` = Note On
+- `0x80` = Note Off
+- `0xB0` = Control Change
+- `0xC0` = Program Change
+- `0xE0` = Pitch Bend

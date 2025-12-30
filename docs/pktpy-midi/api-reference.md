@@ -822,3 +822,64 @@ with midi.open() as m:
     midi.record_stop()
     midi.save_midi("melody.py")
 ```
+
+---
+
+## MIDI File I/O
+
+Read and write standard MIDI files (.mid format).
+
+### midi.write_mid
+
+```python
+midi.write_mid(filename)
+```
+
+Write recorded events to a standard MIDI file. The file can be opened in any DAW or MIDI player.
+
+```python
+import midi
+
+with midi.open() as m:
+    midi.record_midi(120)
+
+    m.note("C4", midi.mf, midi.quarter)
+    m.note("E4", midi.mf, midi.quarter)
+    m.chord(midi.major("G4"), midi.f, midi.half)
+
+    midi.record_stop()
+    midi.write_mid("melody.mid")   # Standard MIDI file
+```
+
+### midi.read_mid
+
+```python
+midi.read_mid(filename) -> dict
+```
+
+Read a standard MIDI file and return its contents as a dictionary with metadata and events.
+
+```python
+import midi
+
+data = midi.read_mid("song.mid")
+
+# Metadata
+print(data["num_tracks"])  # Number of tracks
+print(data["ppqn"])        # Pulses per quarter note
+print(data["tempo"])       # Tempo in microseconds per beat
+print(data["duration"])    # Duration in milliseconds
+print(data["format"])      # MIDI format (0, 1, or 2)
+
+# Events - list of tuples (track, tick, channel, type, data1, data2)
+for event in data["events"]:
+    track, tick, channel, event_type, data1, data2 = event
+    print(f"t={tick} ch={channel} type={event_type:#04x} d1={data1} d2={data2}")
+```
+
+Event types (in the `type` field):
+- `0x90` = Note On
+- `0x80` = Note Off
+- `0xB0` = Control Change
+- `0xC0` = Program Change
+- `0xE0` = Pitch Bend

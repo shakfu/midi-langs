@@ -35,6 +35,9 @@ module Midi (
     midiRecordSave,
     midiRecordCount,
     midiRecordActive,
+
+    -- * MIDI File I/O
+    midiReadMid,
 ) where
 
 import Foreign.C.Types
@@ -67,6 +70,7 @@ foreign import ccall "midi_ffi.h midi_record_stop" c_midi_record_stop :: IO CInt
 foreign import ccall "midi_ffi.h midi_record_save" c_midi_record_save :: CString -> IO CInt
 foreign import ccall "midi_ffi.h midi_record_count" c_midi_record_count :: IO CInt
 foreign import ccall "midi_ffi.h midi_record_active" c_midi_record_active :: IO CInt
+foreign import ccall "midi_ffi.h midi_read_mid" c_midi_read_mid :: CString -> IO CInt
 
 -----------------------------------------------------------
 -- MIDI initialization and port management
@@ -227,3 +231,14 @@ midiRecordActive :: IO Bool
 midiRecordActive = do
     r <- c_midi_record_active
     return (r /= 0)
+
+-----------------------------------------------------------
+-- MIDI File I/O
+-----------------------------------------------------------
+
+-- | Read and display MIDI file info
+midiReadMid :: String -> IO Bool
+midiReadMid filename = do
+    withCString filename $ \cname -> do
+        r <- c_midi_read_mid cname
+        return (r == 0)
