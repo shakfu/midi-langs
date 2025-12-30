@@ -182,8 +182,10 @@ typedef struct ForthContext {
     /* Track last executed word */
     char last_executed_word[MAX_WORD_LENGTH];
 
-    /* File loading depth */
+    /* File loading depth and error context */
     int load_depth;
+    const char* current_file;  /* Current file being loaded (NULL if REPL) */
+    int current_line;          /* Current line number in file */
 
     /* MIDI handles */
     libremidi_midi_observer_handle* midi_observer;
@@ -221,6 +223,9 @@ typedef struct ForthContext {
 
     /* Generative music PRNG state */
     int32_t prng_seed;
+
+    /* Sleep disable flag (for CI/testing) */
+    int no_sleep_mode;
 
     /* Named parameter system state */
     int default_gate;
@@ -286,6 +291,8 @@ void forth_context_reset(ForthContext* ctx);
 
 /* File loading depth */
 #define load_depth                  (g_ctx.load_depth)
+#define current_file                (g_ctx.current_file)
+#define current_line                (g_ctx.current_line)
 
 /* MIDI globals */
 #define midi_observer               (g_ctx.midi_observer)
@@ -323,6 +330,9 @@ void forth_context_reset(ForthContext* ctx);
 
 /* Generative music PRNG state */
 #define prng_seed                   (g_ctx.prng_seed)
+
+/* Sleep disable flag */
+#define no_sleep_mode               (g_ctx.no_sleep_mode)
 
 /* Named parameter system state */
 #define default_gate                (g_ctx.default_gate)
@@ -387,6 +397,8 @@ void midi_send_cc(int cc, int value, int channel);
 void midi_send_program_change(int program, int channel);
 void midi_send_pitch_bend(int value, int channel);
 void midi_sleep_ms(int ms);
+int forth_no_sleep(void);       /* Returns 1 if --no-sleep mode is active */
+void forth_set_no_sleep(int v); /* Set no-sleep mode (call from main) */
 
 int open_virtual_port(const char* name);
 void op_midi_list(Stack* s);
@@ -420,6 +432,7 @@ void op_gate_fetch(Stack* s);
 void op_octave_up(Stack* s);
 void op_octave_down(Stack* s);
 void op_program_change(Stack* s);
+void op_ctx_fetch(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Generative (generative.c)
@@ -465,6 +478,10 @@ void op_seq_reverse(Stack* s);
 void op_seq_stretch(Stack* s);
 void op_bpm_store(Stack* s);
 void op_bpm_fetch(Stack* s);
+int seq_write_mid(const char* filename);
+int seq_save(const char* filename);
+void op_seq_write_mid(Stack* s);
+void op_seq_save(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Packed Notes (packed_notes.c)

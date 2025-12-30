@@ -1,11 +1,26 @@
 /* interpreter.c - Interpreter and tokenizer for MIDI Forth interpreter */
 
 #include "forth_midi.h"
+#include <stdarg.h>
 
 /* All globals now accessed via g_ctx macros defined in forth_midi.h */
 
 /* Forward declarations */
 void interpret(const char* input);
+
+/* Print error with file/line context if loading a file */
+static void forth_error(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    if (current_file != NULL) {
+        printf("%s:%d: ", current_file, current_line);
+    }
+    vprintf(fmt, args);
+    printf("\n");
+
+    va_end(args);
+}
 
 /* ============================================================================
  * Bracket Sequence Memory Management
@@ -493,13 +508,19 @@ int load_file(const char* filename) {
         return -1;
     }
 
+    /* Save previous file context for nested loads */
+    const char* prev_file = current_file;
+    int prev_line = current_line;
+
     load_depth++;
+    current_file = filename;
 
     char line[MAX_INPUT_LENGTH * 4];
     int line_num = 0;
 
     while (fgets(line, sizeof(line), f) != NULL) {
         line_num++;
+        current_line = line_num;
 
         /* Remove trailing newline */
         size_t len = strlen(line);
@@ -527,6 +548,10 @@ int load_file(const char* filename) {
 
     fclose(f);
     load_depth--;
+
+    /* Restore previous file context */
+    current_file = prev_file;
+    current_line = prev_line;
 
     return 0;
 }
@@ -728,7 +753,7 @@ void process_token(const char* token) {
             return;
         }
 
-        printf("Unknown word: %s\n", token);
+        forth_error("Unknown word: %s", token);
         return;
     }
 
@@ -947,6 +972,10 @@ void interpret(const char* input) {
                 capture_write_mid(word);
             } else if (awaiting_filename == 6) {
                 capture_read_mid(word);
+            } else if (awaiting_filename == 7) {
+                seq_write_mid(word);
+            } else if (awaiting_filename == 8) {
+                seq_save(word);
             }
             awaiting_filename = 0;
             continue;
@@ -1144,6 +1173,16 @@ void interpret(const char* input) {
 
         if (strcmp(word, "read-mid") == 0) {
             awaiting_filename = 6;
+            continue;
+        }
+
+        if (strcmp(word, "seq-write-mid") == 0) {
+            awaiting_filename = 7;
+            continue;
+        }
+
+        if (strcmp(word, "seq-save") == 0) {
+            awaiting_filename = 8;
             continue;
         }
 

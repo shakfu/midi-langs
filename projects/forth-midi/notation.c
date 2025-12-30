@@ -510,3 +510,20 @@ void op_program_change(Stack* s) {
 
     midi_send_program_change(program, channel);
 }
+
+/* ctx@ ( -- ) Show current context defaults */
+void op_ctx_fetch(Stack* s) {
+    (void)s;
+    printf("Context defaults:\n");
+    printf("  channel:  %d\n", default_channel);
+    printf("  velocity: %d\n", default_velocity);
+    printf("  duration: %d ms\n", default_duration);
+    printf("  gate:     %d%%\n", default_gate);
+    printf("  bpm:      %d\n", global_bpm);
+    printf("  pitch:    %d\n", current_pitch);
+    if (midi_out != NULL) {
+        printf("  midi:     open\n");
+    } else {
+        printf("  midi:     closed\n");
+    }
+}

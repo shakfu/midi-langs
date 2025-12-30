@@ -3,6 +3,17 @@
 #include "forth_midi.h"
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <getopt.h>
+
+/* Print usage */
+static void print_usage(const char* prog) {
+    printf("Usage: %s [options] [file.4th ...]\n", prog);
+    printf("Options:\n");
+    printf("  --script FILE   Run FILE in batch mode (no REPL, exit on error)\n");
+    printf("  --no-sleep      Disable all sleep/delay calls (for testing)\n");
+    printf("  --help          Show this help\n");
+    printf("\nWithout --script, files are loaded then REPL starts.\n");
+}
 
 /* Interactive interpreter loop */
 static void interpreter_loop(void) {
@@ -95,6 +106,39 @@ static void cleanup(void) {
 }
 
 int main(int argc, char* argv[]) {
+    const char* script_file = NULL;
+    int show_help = 0;
+
+    static struct option long_options[] = {
+        {"script",   required_argument, 0, 's'},
+        {"no-sleep", no_argument,       0, 'n'},
+        {"help",     no_argument,       0, 'h'},
+        {0, 0, 0, 0}
+    };
+
+    int opt;
+    while ((opt = getopt_long(argc, argv, "s:nh", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 's':
+                script_file = optarg;
+                break;
+            case 'n':
+                forth_set_no_sleep(1);
+                break;
+            case 'h':
+                show_help = 1;
+                break;
+            default:
+                print_usage(argv[0]);
+                return 1;
+        }
+    }
+
+    if (show_help) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
     /* Seed random number generator */
     srand((unsigned int)time(NULL));
 
@@ -104,14 +148,19 @@ int main(int argc, char* argv[]) {
     /* Initialize dictionary with primitives */
     init_dictionary();
 
-    /* Initialize readline autocomplete */
+    /* Script mode: run file and exit */
+    if (script_file) {
+        int result = load_file(script_file);
+        cleanup();
+        return result == 0 ? 0 : 1;
+    }
+
+    /* Initialize readline autocomplete (only for interactive mode) */
     init_readline_completion();
 
-    /* If a file is provided as argument, load it */
-    if (argc > 1) {
-        for (int i = 1; i < argc; i++) {
-            load_file(argv[i]);
-        }
+    /* Load any additional files provided as arguments */
+    for (int i = optind; i < argc; i++) {
+        load_file(argv[i]);
     }
 
     /* Start interactive interpreter */

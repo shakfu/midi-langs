@@ -126,7 +126,7 @@ void midi_send_pitch_bend(int value, int channel) {
 }
 
 void midi_sleep_ms(int ms) {
-    if (ms > 0) {
+    if (ms > 0 && !forth_no_sleep()) {
         usleep(ms * 1000);
     }
 }
@@ -208,9 +208,58 @@ void op_midi_open(Stack* s) {
     printf("Opened MIDI output: %s\n", name);
 }
 
-/* Helper to open virtual port with a given name */
+/* Helper to open port by name (searches hardware ports first, then creates virtual) */
 int open_virtual_port(const char* name) {
-    /* Close existing output if open */
+    /* First, search hardware ports for substring match */
+    midi_init_observer();
+
+    /* Re-enumerate ports to get current list */
+    for (int i = 0; i < out_port_count; i++) {
+        libremidi_midi_out_port_free(out_ports[i]);
+    }
+    out_port_count = 0;
+    libremidi_midi_observer_enumerate_output_ports(midi_observer, NULL, on_output_port_found);
+
+    /* Search for substring match in hardware port names */
+    for (int i = 0; i < out_port_count; i++) {
+        const char* port_name = NULL;
+        size_t len = 0;
+        if (libremidi_midi_out_port_name(out_ports[i], &port_name, &len) == 0) {
+            if (strstr(port_name, name) != NULL) {
+                /* Found a match - open this hardware port */
+                if (midi_out != NULL) {
+                    libremidi_midi_out_free(midi_out);
+                    midi_out = NULL;
+                }
+
+                libremidi_midi_configuration midi_conf;
+                if (libremidi_midi_configuration_init(&midi_conf) != 0) {
+                    printf("Failed to init MIDI config\n");
+                    return -1;
+                }
+                midi_conf.version = MIDI1;
+                midi_conf.out_port = out_ports[i];
+
+                libremidi_api_configuration api_conf;
+                if (libremidi_midi_api_configuration_init(&api_conf) != 0) {
+                    printf("Failed to init API config\n");
+                    return -1;
+                }
+                api_conf.configuration_type = Output;
+                api_conf.api = UNSPECIFIED;
+
+                int ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
+                if (ret != 0) {
+                    printf("Failed to open MIDI output: %d\n", ret);
+                    return ret;
+                }
+                printf("Opened MIDI output: %s\n", port_name);
+                return 0;
+            }
+        }
+    }
+
+    /* No hardware port matched - create virtual port */
     if (midi_out != NULL) {
         libremidi_midi_out_free(midi_out);
         midi_out = NULL;
@@ -285,8 +334,7 @@ void op_all_notes_off(Stack* s) {
 
 /* ms ( n -- ) Sleep for n milliseconds */
 void op_sleep(Stack* s) {
+    (void)s;
     int32_t ms = pop(&stack);
-    if (ms > 0) {
-        usleep(ms * 1000);
-    }
+    midi_sleep_ms(ms);
 }

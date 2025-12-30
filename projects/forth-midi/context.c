@@ -7,6 +7,16 @@
 /* Global context instance */
 ForthContext g_ctx;
 
+/* Check if sleep is disabled */
+int forth_no_sleep(void) {
+    return g_ctx.no_sleep_mode;
+}
+
+/* Set no-sleep mode (called from main) */
+void forth_set_no_sleep(int v) {
+    g_ctx.no_sleep_mode = v;
+}
+
 /* Reset runtime state (preserves dictionary and MIDI connections) */
 void forth_context_reset(ForthContext* ctx) {
     if (!ctx) return;
@@ -95,8 +105,10 @@ void forth_context_init(ForthContext* ctx) {
     /* Track last executed word */
     ctx->last_executed_word[0] = '\0';
 
-    /* File loading depth */
+    /* File loading depth and error context */
     ctx->load_depth = 0;
+    ctx->current_file = NULL;
+    ctx->current_line = 0;
 
     /* MIDI handles */
     ctx->midi_observer = NULL;
@@ -135,6 +147,9 @@ void forth_context_init(ForthContext* ctx) {
 
     /* Generative music PRNG state */
     ctx->prng_seed = 12345;
+
+    /* Sleep disable flag */
+    ctx->no_sleep_mode = 0;
 
     /* Named parameter system state */
     ctx->default_gate = 100;  /* Gate percentage (1-100) */

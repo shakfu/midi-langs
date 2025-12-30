@@ -244,6 +244,7 @@ void init_dictionary(void) {
     add_word("note!", op_note_play, 1);
     add_word("bpm!", op_bpm_store, 1);
     add_word("bpm@", op_bpm_fetch, 1);
+    add_word("ctx@", op_ctx_fetch, 1);
 
     /* Sequences */
     add_word("seq-new", op_seq_new, 1);

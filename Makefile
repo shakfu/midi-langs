@@ -18,7 +18,7 @@ HEADER_PY  := projects/pktpy-midi/py_prelude.h
 PRELUDE_HEADERS := $(HEADER_SCM) $(HEADER_LUA) $(HEADER_PY)
 
 .PHONY: all build configure clean test test-quick test-verbose rebuild help \
-		reset preludes
+		reset preludes build-debug
 
 all: build
 
@@ -43,6 +43,10 @@ configure: $(MHS) $(PRELUDE_HEADERS)
 
 build: configure
 	@$(CMAKE) --build $(BUILD_DIR) -j4
+
+build-debug: $(MHS) $(PRELUDE_HEADERS)
+	@$(CMAKE) -DENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -B $(BUILD_DIR)
+	@$(CMAKE) --build $(BUILD_DIR)
 
 clean:
 	@rm -rf $(BUILD_DIR)

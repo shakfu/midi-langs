@@ -1,3 +1,14 @@
+# C unit tests for forth_midi
+add_executable(test_forth_midi_unit test_forth_midi_unit.c)
+target_link_libraries(test_forth_midi_unit PRIVATE forth_midi_lib)
+target_include_directories(test_forth_midi_unit PRIVATE ${CMAKE_SOURCE_DIR}/projects/forth-midi)
+
+add_test(
+    NAME forth_midi_unit_tests
+    COMMAND test_forth_midi_unit
+)
+set_tests_properties(forth_midi_unit_tests PROPERTIES LABELS "quick")
+
 # Test using the comprehensive shell script
 add_test(
     NAME forth_midi_test_suite
@@ -180,4 +191,39 @@ add_test(
 set_tests_properties(mhs_midi_test_suite PROPERTIES
     TIMEOUT 120
     LABELS "integration"
+)
+
+# Golden .4th test programs for forth_midi
+add_test(
+    NAME forth_midi_golden_basic
+    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_basic.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_basic.4th | grep -q ' 0 '"
+)
+
+add_test(
+    NAME forth_midi_golden_notation
+    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_notation.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_notation.4th | grep -q ' 0 '"
+)
+
+add_test(
+    NAME forth_midi_golden_blocks
+    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_blocks.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_blocks.4th | grep -q ' 0 '"
+)
+
+add_test(
+    NAME forth_midi_golden_generative
+    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_generative.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_generative.4th | grep -q ' 0 '"
+)
+
+add_test(
+    NAME forth_midi_golden_sequences
+    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_sequences.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_sequences.4th | grep -q ' 0 '"
+)
+
+set_tests_properties(
+    forth_midi_golden_basic
+    forth_midi_golden_notation
+    forth_midi_golden_blocks
+    forth_midi_golden_generative
+    forth_midi_golden_sequences
+    PROPERTIES LABELS "golden"
 )

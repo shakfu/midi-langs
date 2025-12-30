@@ -6,6 +6,41 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **forth-midi Script/Batch Mode**: CLI flags for non-interactive execution
+  - `--script FILE` - Run FILE and exit (no REPL, returns non-zero on error)
+  - `--no-sleep` - Disable all sleep/delay calls (for CI/testing)
+  - `--help` - Show usage information
+  - Files can still be loaded before REPL with positional arguments
+
+- **forth-midi Sequence Export**: Save sequences to files
+  - `seq-write-mid filename` - Write current sequence to standard MIDI file
+  - `seq-save filename` - Export sequence as .4th source file with seq-note commands
+
+- **forth-midi Context Introspection**: Debug helper
+  - `ctx@` - Display current context defaults (channel, velocity, duration, gate, bpm, pitch, midi status)
+
+- **forth-midi Load Diagnostics**: Better error messages when loading files
+  - Errors now show `filename:line:` prefix when loading .4th files
+  - Helps locate problems in scripts quickly
+
+- **forth-midi MIDI Port Substring Search**: Enhanced midi-open
+  - `midi-open` now searches hardware ports by substring before creating virtual port
+  - Example: `midi-open` finds "IAC Driver" if available, otherwise creates virtual port
+
+- **Testing Infrastructure**:
+  - C unit tests for forth-midi (`test_forth_midi_unit.c`)
+    - Tests for `parse_pitch()` with various note names, sharps, flats, articulation suffixes
+    - Tests for packed note encoding/decoding
+    - Tests for stack operations
+    - Tests for tick/ms timing conversions
+  - Golden .4th test programs in `tests/golden/`:
+    - `test_basic.4th` - Arithmetic, comparisons, stack ops, conditionals, word definitions
+    - `test_notation.4th` - Pitch parsing, octave commands, parameter settings
+    - `test_blocks.4th` - Anonymous blocks with `{ } n *`
+    - `test_generative.4th` - Random, seed operations
+    - `test_sequences.4th` - Sequence creation and manipulation
+  - Static library `forth_midi_lib` for linking unit tests
+
 - **MIDI File I/O**: Read and write standard MIDI files (.mid) across all language implementations
   - Common C library `midi_file.h/cpp` wrapping libremidi's reader/writer classes
   - **s7-midi**: `(write-mid filename)` and `(read-mid filename)` functions
