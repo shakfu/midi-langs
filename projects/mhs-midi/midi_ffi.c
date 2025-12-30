@@ -412,6 +412,52 @@ int midi_record_active(void) {
     return capture_active;
 }
 
+/* Save recording as Haskell source file */
+int midi_record_save_hs(const char* filename) {
+    if (capture_count == 0) {
+        printf("No events recorded.\n");
+        return -1;
+    }
+
+    FILE* f = fopen(filename, "w");
+    if (!f) {
+        printf("Cannot open file: %s\n", filename);
+        return -1;
+    }
+
+    fprintf(f, "-- MIDI recording - %d events at %d BPM\n", capture_count, capture_bpm);
+    fprintf(f, "-- Replay with: :load %s\n\n", filename);
+    fprintf(f, "import Midi\n");
+    fprintf(f, "import Data.List (foldl')\n\n");
+    fprintf(f, "events :: [(Int, Int, Int, Int, Int)]\n");
+    fprintf(f, "events = [\n");
+
+    for (int i = 0; i < capture_count; i++) {
+        CapturedEvent* e = &capture_buffer[i];
+        fprintf(f, "  (%u, %d, %d, %d, %d)%s\n",
+                e->time_ms, e->type, e->channel + 1, e->data1, e->data2,
+                i < capture_count - 1 ? "," : "");
+    }
+
+    fprintf(f, "  ]\n\n");
+    fprintf(f, "playEvent :: (Int, Int, Int, Int, Int) -> IO ()\n");
+    fprintf(f, "playEvent (_, 0, ch, pitch, vel) = do _ <- noteOn ch pitch vel; return ()\n");
+    fprintf(f, "playEvent (_, 1, ch, pitch, _)   = do _ <- noteOff ch pitch; return ()\n");
+    fprintf(f, "playEvent (_, 2, ch, ctrl, val)  = do _ <- cc ch ctrl val; return ()\n");
+    fprintf(f, "playEvent _                       = return ()\n\n");
+    fprintf(f, "replay :: IO ()\n");
+    fprintf(f, "replay = do\n");
+    fprintf(f, "  _ <- openVirtual \"MhsMidi\"\n");
+    fprintf(f, "  mapM_ (\\(t, ty, ch, d1, d2) -> do\n");
+    fprintf(f, "    playEvent (t, ty, ch, d1, d2)\n");
+    fprintf(f, "    sleep 10) events\n");
+    fprintf(f, "  panic\n");
+
+    fclose(f);
+    printf("Saved %d events to %s\n", capture_count, filename);
+    return 0;
+}
+
 /* Callback for reading MIDI file events */
 static void read_mid_callback(void* ctx, const midi_file_event* event) {
     (void)ctx;

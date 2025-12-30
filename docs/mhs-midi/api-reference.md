@@ -465,6 +465,9 @@ midiRecordStop :: IO Int
 midiRecordSave :: String -> IO Bool
 -- Save recorded events to standard MIDI file (.mid)
 
+midiRecordSaveHs :: String -> IO Bool
+-- Save recorded events as Haskell source file (.hs)
+
 midiRecordCount :: IO Int
 -- Get current event count
 
@@ -491,12 +494,13 @@ main = do
     chord (major g4)
 
     _ <- midiRecordStop
-    _ <- midiRecordSave "melody.mid"  -- Standard MIDI file
+    _ <- midiRecordSave "melody.mid"     -- Standard MIDI file
+    _ <- midiRecordSaveHs "melody.hs"    -- Haskell source file
 
     midiClose
 ```
 
-The MIDI file can be opened in any DAW or MIDI player.
+The MIDI file can be opened in any DAW or MIDI player. The Haskell source file contains a `replay` function to reproduce the performance.
 
 #### Reading MIDI Files
 
