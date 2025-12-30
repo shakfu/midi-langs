@@ -34,6 +34,7 @@ Type `help` for command reference, `quit` to exit.
 
 ## Documentation
 
+- [API Reference](api-reference.md) - Complete word and command reference
 - [Tutorial](tutorial.md) - Step-by-step introduction
 - [Syntax Reference](syntax.md) - Complete syntax documentation
 - [Scales](scales.md) - 49 built-in scales and scale operations

@@ -34,7 +34,7 @@ Requires GCC/Clang and CMake 3.16+.
 midi-open c4, e4, g4, (c4 e4 g4), midi-close
 ```
 
-[Full documentation](docs/forth-midi/README.md) | [Tutorial](docs/forth-midi/tutorial.md)
+[Full documentation](docs/forth-midi/README.md) | [API](docs/forth-midi/api-reference.md) | [Tutorial](docs/forth-midi/tutorial.md)
 
 ### lua-midi
 
@@ -149,7 +149,7 @@ tests/              # Test suite
 
 | Language | Docs |
 |----------|------|
-| forth-midi | [README](docs/forth-midi/README.md), [Tutorial](docs/forth-midi/tutorial.md), [Scales](docs/forth-midi/scales.md) |
+| forth-midi | [README](docs/forth-midi/README.md), [API](docs/forth-midi/api-reference.md), [Tutorial](docs/forth-midi/tutorial.md) |
 | lua-midi | [README](docs/lua-midi/README.md), [API](docs/lua-midi/api-reference.md), [Examples](docs/lua-midi/examples.md) |
 | mhs-midi | [README](docs/mhs-midi/README.md), [API](docs/mhs-midi/api-reference.md), [Examples](docs/mhs-midi/examples.md) |
 | pktpy-midi | [README](docs/pktpy-midi/README.md), [API](docs/pktpy-midi/api-reference.md), [Examples](docs/pktpy-midi/examples.md) |
