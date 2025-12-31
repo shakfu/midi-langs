@@ -16,7 +16,7 @@ Ideas for extending MIDI implementations.
 ### Documentation
 
 - [ ] Video tutorials
-- [ ] Example compositions
+- [x] Example compositions - see `examples/` directory
 - [ ] Comparison guide (when to use which)
 - [ ] Troubleshooting guide (common issues and solutions)
 - [ ] Document performance characteristics (startup time, memory usage)
@@ -94,7 +94,7 @@ Ideas for extending MIDI implementations.
 - [ ] Voice naming/listing in `status()`
 - [ ] `yield_ms(n)` helper function for simpler syntax
 - [ ] Exception handling improvements
-- [ ] Fix sequential `run()` calls (second `run()` hangs after first completes)
+- [x] Fix sequential `run()` calls - fixed by adding `uv_async_send` after timer start
 
 ---
 

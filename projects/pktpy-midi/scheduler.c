@@ -389,6 +389,9 @@ static bool pk_spawn(int argc, py_StackRef argv) {
     /* Schedule immediate resume (0ms timer) */
     uv_timer_start(&v->timer, on_timer, 0, 0);
 
+    /* Wake the event loop to notice the new timer */
+    uv_async_send(&sched.wake_async);
+
     py_newint(py_retval(), voice_id);
     return true;
 }

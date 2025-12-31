@@ -4,6 +4,14 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Sequential `run()` calls now work correctly**: lua-midi, pktpy-midi
+  - Fixed bug where second `run()` call would hang after first completed
+  - Root cause: `uv_timer_start` from main thread wasn't noticed by event loop thread
+  - Fix: Added `uv_async_send(&sched.wake_async)` after starting timers in `spawn()`
+  - Added regression tests: lua-midi (Test 52), pktpy-midi (Test 53), s7-midi (Test 44)
+
 ### Added
 
 - **mhs-midi Async Scheduler**: Concurrent voice playback using native Haskell threads
@@ -34,6 +42,13 @@ All notable changes to midi-langs are documented in this file.
   - Comparison tables for threading model, blocking behavior, ease of use
   - Side-by-side code examples showing same musical idea in all languages
   - Guidance on when to use which language for async tasks
+
+- **Example Compositions**: Runnable examples for each language in `examples/`
+  - `melody_forth.4th` - Concise notation, word definitions
+  - `concurrent_lua.lua` - Coroutine-based concurrent voices
+  - `generative_pktpy.py` - Generator patterns with concurrent voices
+  - `functional_s7.scm` - Thunk-based functional composition
+  - `pure_mhs.hs` - Pure functional Music DSL
 
 - **Non-blocking `poll()` for REPL Responsiveness**: lua-midi, pktpy-midi, s7-midi
   - Added `poll()` function to process ready voices without blocking

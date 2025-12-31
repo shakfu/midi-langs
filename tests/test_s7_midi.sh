@@ -403,5 +403,18 @@ result=$($S7MIDI -e "(begin
 echo "$result" | grep -q "#t" || { echo "FAIL: poll should process all voices, got: $result"; exit 1; }
 echo "  PASS"
 
+# Test 44: sequential run() calls work
+echo "Test 44: sequential run() calls..."
+result=$($S7MIDI -e "(begin
+  (define r1 #f)
+  (define r2 #f)
+  (spawn (lambda () (set! r1 #t) #f))
+  (run)
+  (spawn (lambda () (set! r2 #t) #f))
+  (run)
+  (list r1 r2 (voices)))" 2>&1)
+echo "$result" | grep -q "(#t #t 0)" || { echo "FAIL: sequential run() should work, got: $result"; exit 1; }
+echo "  PASS"
+
 echo ""
 echo "All tests passed!"

@@ -330,6 +330,9 @@ static int l_spawn(lua_State *L) {
     /* Schedule immediate resume (0ms timer) */
     uv_timer_start(&v->timer, on_timer, 0, 0);
 
+    /* Wake the event loop to notice the new timer */
+    uv_async_send(&sched.wake_async);
+
     lua_pushinteger(L, voice_id);
     return 1;
 }

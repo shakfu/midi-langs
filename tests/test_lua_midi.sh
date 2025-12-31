@@ -530,5 +530,18 @@ print(v1 and v2)
 [ "$result" = "true" ] || { echo "FAIL: poll should process all voices, got $result"; exit 1; }
 echo "  PASS"
 
+# Test 52: sequential run() calls work
+echo "Test 52: sequential run() calls..."
+result=$($LUAMIDI -e '
+local r1, r2 = false, false
+spawn(function() r1 = true end)
+run()
+spawn(function() r2 = true end)
+run()
+print(r1 and r2, voices())
+')
+[ "$result" = "true	0" ] || { echo "FAIL: sequential run() should work, got $result"; exit 1; }
+echo "  PASS"
+
 echo ""
 echo "All tests passed!"

@@ -788,5 +788,30 @@ $PKTPY "$TMPFILE" 2>&1 | grep -q "ok" || { rm -f "$TMPFILE"; echo "FAIL: poll sh
 rm -f "$TMPFILE"
 echo "  PASS"
 
+# Test 53: sequential run() calls work
+echo "Test 53: sequential run() calls..."
+TMPFILE=$(mktemp)
+cat > "$TMPFILE" << 'EOF'
+import midi
+r1 = False
+r2 = False
+def voice1():
+    global r1
+    r1 = True
+    yield 10
+def voice2():
+    global r2
+    r2 = True
+    yield 10
+midi.spawn(voice1)
+midi.run()
+midi.spawn(voice2)
+midi.run()
+print("ok" if r1 and r2 and midi.voices() == 0 else "FAIL")
+EOF
+$PKTPY "$TMPFILE" 2>&1 | grep -q "ok" || { rm -f "$TMPFILE"; echo "FAIL: sequential run() should work"; exit 1; }
+rm -f "$TMPFILE"
+echo "  PASS"
+
 echo ""
 echo "All tests passed!"
