@@ -248,11 +248,11 @@ void init_dictionary(void) {
 
     /* Sequences */
     add_word("seq-new", op_seq_new, 1);
+    add_word("seq-new!", op_seq_new_store, 1);
     add_word("seq", op_seq_select, 1);
     add_word("seq@", op_seq_current, 1);
-    add_word("seq-note", op_seq_note, 1);
-    add_word("seq-note-ch", op_seq_note_ch, 1);
-    add_word("seq-add", op_seq_add, 1);
+    add_word("seq-start", op_seq_start, 1);
+    add_word("seq-end", op_seq_end, 1);
     add_word("seq-length", op_seq_length, 1);
     add_word("seq-clear", op_seq_clear, 1);
     add_word("seq-play", op_seq_play, 1);
@@ -261,6 +261,14 @@ void init_dictionary(void) {
     add_word("seq-reverse", op_seq_reverse, 1);
     add_word("seq-stretch", op_seq_stretch, 1);
     add_word("seq-gc", op_seq_gc, 1);
+
+    /* Async playback */
+    add_word("seq-play&", op_seq_play_async, 1);
+    add_word("seq-loop&", op_seq_loop_async, 1);
+    add_word("seq-stop", op_seq_stop, 1);
+    add_word("seq-stop-all", op_seq_stop_all, 1);
+    add_word("seq-playing?", op_seq_playing, 1);
+    add_word("seq-active", op_seq_active, 1);
 
     /* Pattern DSL */
     add_word("quarter", op_quarter, 1);

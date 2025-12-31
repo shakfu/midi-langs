@@ -243,6 +243,11 @@ typedef struct ForthContext {
     int seq_capture_chord_count;
     int16_t seq_capture_chord_buffer[8];
     BracketSequence* current_bracket_seq;
+
+    /* Sequence recording mode (seq-start/seq-end) */
+    int seq_recording_mode;      /* 1 if recording to a sequence */
+    int seq_recording_id;        /* Which sequence we're recording to */
+    int seq_recording_time;      /* Current time offset in ticks */
 } ForthContext;
 
 /* Global context instance */
@@ -350,6 +355,11 @@ void forth_context_reset(ForthContext* ctx);
 #define seq_capture_chord_count     (g_ctx.seq_capture_chord_count)
 #define seq_capture_chord_buffer    (g_ctx.seq_capture_chord_buffer)
 #define current_bracket_seq         (g_ctx.current_bracket_seq)
+
+/* Sequence recording mode */
+#define seq_recording_mode          (g_ctx.seq_recording_mode)
+#define seq_recording_id            (g_ctx.seq_recording_id)
+#define seq_recording_time          (g_ctx.seq_recording_time)
 
 #endif /* FORTH_NO_MACROS */
 
@@ -464,11 +474,11 @@ void op_concat(Stack* s);
  * ============================================================================ */
 
 void op_seq_new(Stack* s);
+void op_seq_new_store(Stack* s);
 void op_seq_select(Stack* s);
 void op_seq_current(Stack* s);
-void op_seq_note(Stack* s);
-void op_seq_note_ch(Stack* s);
-void op_seq_add(Stack* s);
+void op_seq_start(Stack* s);
+void op_seq_end(Stack* s);
 void op_seq_length(Stack* s);
 void op_seq_clear(Stack* s);
 void op_seq_play(Stack* s);
@@ -642,6 +652,27 @@ void op_print(Stack* s);
 void op_cr(Stack* s);
 void op_space(Stack* s);
 void op_emit(Stack* s);
+
+/* ============================================================================
+ * Function Declarations - Async Player (async_player.c)
+ * ============================================================================ */
+
+int async_player_init(void);
+void async_player_cleanup(void);
+int async_player_start(int seq_id);
+int async_player_loop(int seq_id);
+int async_player_stop_seq(int seq_id);
+void async_player_stop_all(void);
+void async_player_stop(void);
+int async_player_is_playing(void);
+int async_player_active_count(void);
+
+void op_seq_play_async(Stack* s);
+void op_seq_loop_async(Stack* s);
+void op_seq_stop(Stack* s);
+void op_seq_stop_all(Stack* s);
+void op_seq_playing(Stack* s);
+void op_seq_active(Stack* s);
 
 /* ============================================================================
  * Function Declarations - Readline (readline_comp.c)

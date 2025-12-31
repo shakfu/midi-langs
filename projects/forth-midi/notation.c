@@ -40,6 +40,44 @@ int parse_pitch(const char* token) {
     return music_parse_pitch(token);
 }
 
+/* Helper: convert milliseconds to ticks based on BPM */
+static int ms_to_ticks(int ms) {
+    int bpm = global_bpm > 0 ? global_bpm : 120;
+    return (ms * TICKS_PER_QUARTER * bpm) / 60000;
+}
+
+/* Helper: add note events to recording sequence */
+static void record_note(int pitch, int velocity, int duration, int channel) {
+    if (seq_recording_id < 0 || seq_recording_id >= MAX_SEQUENCES) return;
+
+    Sequence* seq = &sequences[seq_recording_id];
+    if (seq->length >= MAX_SEQ_EVENTS - 2) {
+        printf("Sequence full during recording\n");
+        return;
+    }
+
+    int dur_ticks = ms_to_ticks(duration);
+
+    /* Add note-on */
+    MidiEvent* e = &seq->events[seq->length++];
+    e->time = seq_recording_time;
+    e->type = EVT_NOTE_ON;
+    e->channel = channel - 1;  /* 1-16 -> 0-15 */
+    e->data1 = pitch;
+    e->data2 = velocity;
+
+    /* Add note-off */
+    e = &seq->events[seq->length++];
+    e->time = seq_recording_time + dur_ticks;
+    e->type = EVT_NOTE_OFF;
+    e->channel = channel - 1;
+    e->data1 = pitch;
+    e->data2 = 0;
+
+    /* Advance recording time */
+    seq_recording_time += dur_ticks;
+}
+
 /* Helper: play a single note with given params
  * Applies and resets articulation flags, uses effective params and gate */
 void play_single_note(Stack* s, int pitch) {
@@ -62,6 +100,13 @@ void play_single_note(Stack* s, int pitch) {
         velocity = velocity + 20;
         if (velocity > 127) velocity = 127;
         articulation_accent = 0;
+    }
+
+    /* Check for recording mode */
+    if (seq_recording_mode) {
+        record_note(pitch, velocity, duration, channel);
+        clear_pending_params();
+        return;
     }
 
     if (midi_out == NULL) {
@@ -104,6 +149,42 @@ void play_single_note(Stack* s, int pitch) {
     }
 
     clear_pending_params();
+}
+
+/* Helper: record chord notes to sequence */
+static void record_chord(int* pitches, int count, int velocity, int duration, int channel) {
+    if (seq_recording_id < 0 || seq_recording_id >= MAX_SEQUENCES) return;
+
+    Sequence* seq = &sequences[seq_recording_id];
+    if (seq->length >= MAX_SEQ_EVENTS - count * 2) {
+        printf("Sequence full during chord recording\n");
+        return;
+    }
+
+    int dur_ticks = ms_to_ticks(duration);
+
+    /* Add all note-ons at current time */
+    for (int i = 0; i < count; i++) {
+        MidiEvent* e = &seq->events[seq->length++];
+        e->time = seq_recording_time;
+        e->type = EVT_NOTE_ON;
+        e->channel = channel - 1;
+        e->data1 = pitches[i];
+        e->data2 = velocity;
+    }
+
+    /* Add all note-offs */
+    for (int i = 0; i < count; i++) {
+        MidiEvent* e = &seq->events[seq->length++];
+        e->time = seq_recording_time + dur_ticks;
+        e->type = EVT_NOTE_OFF;
+        e->channel = channel - 1;
+        e->data1 = pitches[i];
+        e->data2 = 0;
+    }
+
+    /* Advance recording time */
+    seq_recording_time += dur_ticks;
 }
 
 /* Helper: play chord notes
@@ -159,6 +240,13 @@ void play_chord_notes(Stack* s) {
     /* Track current pitch (use highest note in chord) */
     if (count > 0) {
         current_pitch = pitches[count - 1];
+    }
+
+    /* Check for recording mode */
+    if (seq_recording_mode) {
+        record_chord(pitches, count, velocity, duration, channel);
+        clear_pending_params();
+        return;
     }
 
     if (midi_out == NULL) {

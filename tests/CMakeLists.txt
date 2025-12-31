@@ -219,11 +219,23 @@ add_test(
     COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_sequences.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_sequences.4th | grep -q ' 0 '"
 )
 
+add_test(
+    NAME forth_midi_golden_async
+    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.4th | grep -q ' 0 '"
+)
+
+add_test(
+    NAME forth_midi_golden_seq_record
+    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_seq_record.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_seq_record.4th | grep -q ' 0 '"
+)
+
 set_tests_properties(
     forth_midi_golden_basic
     forth_midi_golden_notation
     forth_midi_golden_blocks
     forth_midi_golden_generative
     forth_midi_golden_sequences
+    forth_midi_golden_async
+    forth_midi_golden_seq_record
     PROPERTIES LABELS "golden"
 )

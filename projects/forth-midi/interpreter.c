@@ -706,7 +706,7 @@ void op_help(Stack* s) {
     printf("Articulation: c4. (staccato) c4> (accent) c4- (tenuto)\n");
     printf("\n");
     printf("MIDI: midi-open midi-close midi-list panic\n");
-    printf("Sequences: seq-new seq-note seq-play seq-show\n");
+    printf("Sequences: seq-start seq-end seq-play seq-show\n");
     printf("Scales: scale-major scale-minor scale-blues ... scales\n");
     printf("\n");
     printf("Type 'words' to see all available words.\n");

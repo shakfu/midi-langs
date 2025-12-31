@@ -84,6 +84,7 @@ static void interpreter_loop(void) {
 
 /* Cleanup function */
 static void cleanup(void) {
+    async_player_cleanup();
     midi_cleanup_observer();
     recording_clear();
     capture_clear();

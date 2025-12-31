@@ -440,7 +440,7 @@ fi
 TOTAL=$((TOTAL + 1))
 rm -f "$TMPDIR/recorded.4th"
 printf 'midi-open\nrec-midi\n100 dur!\nc4,\ne4,\nstop\nsave-midi %s/recorded.4th\nmidi-close\n' "$TMPDIR" | $MIDI_FORTH > /dev/null 2>&1
-if [ -f "$TMPDIR/recorded.4th" ] && grep -q "seq-note-ch" "$TMPDIR/recorded.4th"; then
+if [ -f "$TMPDIR/recorded.4th" ] && grep -q "seq-start" "$TMPDIR/recorded.4th"; then
     echo -e "${GREEN}PASS${NC}: save-midi creates sequence file"
     PASSED=$((PASSED + 1))
 else

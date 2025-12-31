@@ -1,6 +1,6 @@
 # midi-langs
 
-A collection of mini MIDI-capable languages for generating and transforming MIDI sequences:
+A work-in-progress collection of mini MIDI-capable languages for generating and transforming MIDI sequences:
 
 | Language | Based On | Style |
 |----------|----------|-------|
@@ -11,6 +11,8 @@ A collection of mini MIDI-capable languages for generating and transforming MIDI
 | **s7-midi** | [s7 Scheme](https://ccrma.stanford.edu/software/snd/snd/s7.html) | Lisp with macros |
 
 All use [libremidi](https://github.com/celtera/libremidi) for cross-platform MIDI I/O.
+
+This is an early stage project, so expect instability in the code-base as we iterate over the apis and features of each implementation.
 
 ## Building
 

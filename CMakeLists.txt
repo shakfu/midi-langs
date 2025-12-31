@@ -48,6 +48,11 @@ set(LIBREMIDI_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LIBREMIDI_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(thirdparty/libremidi)
 
+# Build libuv as a subdirectory (for async event loop)
+set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(thirdparty/libuv)
+
 # Build common music theory library
 add_subdirectory(projects/common)
 

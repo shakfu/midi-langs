@@ -143,6 +143,16 @@ void op_save_midi(Stack* s) {
     /* This is a no-op - save-midi is handled specially in the interpreter */
 }
 
+/* Helper: pitch number to note name */
+static const char* pitch_to_name(int pitch) {
+    static char buf[8];
+    static const char* names[] = {"c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"};
+    int octave = (pitch / 12) - 1;
+    int note = pitch % 12;
+    snprintf(buf, sizeof(buf), "%s%d", names[note], octave);
+    return buf;
+}
+
 /* Save captured MIDI to file as Forth sequence commands */
 int capture_save_midi(const char* filename) {
     if (capture_count == 0) {
@@ -161,61 +171,88 @@ int capture_save_midi(const char* filename) {
     fprintf(f, "\\ %d events recorded\n\n", capture_count);
     fprintf(f, "\\ Tempo: %d BPM\n", global_bpm);
     fprintf(f, "%d bpm!\n\n", global_bpm);
-    fprintf(f, "seq-new drop\n\n");
+    fprintf(f, "0 seq-start\n\n");
 
     /* Track note-on events to pair with note-offs */
     int note_on_time[16][128];
+    int note_on_vel[16][128];
     for (int ch = 0; ch < 16; ch++) {
         for (int p = 0; p < 128; p++) {
             note_on_time[ch][p] = -1;
+            note_on_vel[ch][p] = 0;
         }
     }
 
-    int notes_written = 0;
+    /* Build list of complete notes */
+    typedef struct { int time_ms; int pitch; int vel; int dur_ms; int ch; } Note;
+    Note notes[MAX_CAPTURE_EVENTS];
+    int note_count = 0;
 
     for (int i = 0; i < capture_count; i++) {
         CapturedEvent* e = &capture_buffer[i];
 
         if (e->type == 0) {  /* Note-on */
             note_on_time[e->channel][e->data1] = e->time_ms;
+            note_on_vel[e->channel][e->data1] = e->data2;
         } else if (e->type == 1) {  /* Note-off */
             int start_ms = note_on_time[e->channel][e->data1];
-            if (start_ms >= 0) {
-                int dur_ms = e->time_ms - start_ms;
-                int start_ticks = (start_ms * global_bpm * TICKS_PER_QUARTER) / 60000;
-                int dur_ticks = (dur_ms * global_bpm * TICKS_PER_QUARTER) / 60000;
-                if (dur_ticks < 1) dur_ticks = 1;
-
-                /* Find the velocity from the note-on event */
-                int vel = 100;
-                for (int j = 0; j < i; j++) {
-                    if (capture_buffer[j].type == 0 &&
-                        capture_buffer[j].channel == e->channel &&
-                        capture_buffer[j].data1 == e->data1 &&
-                        (int)capture_buffer[j].time_ms == start_ms) {
-                        vel = capture_buffer[j].data2;
-                        break;
-                    }
-                }
-
-                fprintf(f, "%d %d %d %d %d seq-note-ch\n",
-                        start_ticks, e->channel + 1, e->data1, vel, dur_ticks);
-                notes_written++;
-
+            if (start_ms >= 0 && note_count < MAX_CAPTURE_EVENTS) {
+                notes[note_count].time_ms = start_ms;
+                notes[note_count].pitch = e->data1;
+                notes[note_count].vel = note_on_vel[e->channel][e->data1];
+                notes[note_count].dur_ms = e->time_ms - start_ms;
+                notes[note_count].ch = e->channel + 1;
+                note_count++;
                 note_on_time[e->channel][e->data1] = -1;
             }
-        } else if (e->type == 2) {  /* CC */
-            int time_ticks = (e->time_ms * global_bpm * TICKS_PER_QUARTER) / 60000;
-            fprintf(f, "\\ t=%d CC ch=%d cc=%d val=%d\n",
-                    time_ticks, e->channel + 1, e->data1, e->data2);
         }
     }
 
-    fprintf(f, "\n\\ %d notes written\n", notes_written);
-    fprintf(f, "\\ To play: midi-open seq-play midi-close\n");
+    /* Sort notes by time (simple insertion sort) */
+    for (int i = 1; i < note_count; i++) {
+        Note tmp = notes[i];
+        int j = i - 1;
+        while (j >= 0 && notes[j].time_ms > tmp.time_ms) {
+            notes[j + 1] = notes[j];
+            j--;
+        }
+        notes[j + 1] = tmp;
+    }
+
+    /* Output notes using new syntax */
+    int last_vel = -1;
+    int last_dur = -1;
+    int last_ch = -1;
+
+    for (int i = 0; i < note_count; i++) {
+        Note* n = &notes[i];
+        int dur_ms = n->dur_ms;
+        if (dur_ms < 1) dur_ms = 1;
+
+        /* Set parameters if changed */
+        if (n->ch != last_ch) {
+            fprintf(f, "%d ch! ", n->ch);
+            last_ch = n->ch;
+        }
+        if (n->vel != last_vel) {
+            fprintf(f, "%d vel! ", n->vel);
+            last_vel = n->vel;
+        }
+        if (dur_ms != last_dur) {
+            fprintf(f, "%d dur! ", dur_ms);
+            last_dur = dur_ms;
+        }
+
+        /* Output note */
+        fprintf(f, "%s,\n", pitch_to_name(n->pitch));
+    }
+
+    fprintf(f, "\n0 seq-end\n");
+    fprintf(f, "\n\\ %d notes exported\n", note_count);
+    fprintf(f, "\\ To play: midi-open 0 seq seq-play midi-close\n");
 
     fclose(f);
-    printf("Saved %d notes to '%s'\n", notes_written, filename);
+    printf("Saved %d notes to '%s'\n", note_count, filename);
     return 0;
 }
 
