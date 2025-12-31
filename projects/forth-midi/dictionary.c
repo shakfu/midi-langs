@@ -185,6 +185,18 @@ void init_dictionary(void) {
     add_word(">=", op_ge, 1);
     add_word("<>", op_ne, 1);
 
+    /* Loop control */
+    add_word("do", op_do, 1);
+    add_word("loop", op_loop, 1);
+    add_word("+loop", op_plus_loop, 1);
+    add_word("i", op_i, 1);
+    add_word("j", op_j, 1);
+    add_word("begin", op_begin, 1);
+    add_word("until", op_until, 1);
+    add_word("while", op_while, 1);
+    add_word("repeat", op_repeat, 1);
+    add_word("leave", op_leave, 1);
+
     /* Timing */
     add_word("ms", op_sleep, 1);
 

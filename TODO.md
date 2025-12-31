@@ -73,8 +73,8 @@ Ideas for extending MIDI implementations.
 
 ### Control Flow
 
-- [ ] `do ... loop` counted loops
-- [ ] `begin ... until` / `begin ... while ... repeat`
+- [x] `do ... loop` counted loops - with `i`, `j`, `+loop`, `leave`
+- [x] `begin ... until` / `begin ... while ... repeat`
 - [ ] Variables (`variable`, `!`, `@`)
 - [ ] Local variables in word definitions
 
@@ -92,7 +92,7 @@ Ideas for extending MIDI implementations.
 
 - [x] Add pktpy-midi async tests - 20 async tests added (Tests 28-47)
 - [ ] Voice naming/listing in `status()`
-- [ ] `yield_ms(n)` helper function for simpler syntax
+- [x] `midi.ms(n)` / `midi.yield_ms(n)` helper for cleaner generator syntax
 - [ ] Exception handling improvements
 - [x] Fix sequential `run()` calls - fixed by adding `uv_async_send` after timer start
 

@@ -757,6 +757,93 @@ melody                  \ Play melody
 phrase 4 times          \ Play phrase 4 times
 ```
 
+### Counted Loops (DO...LOOP)
+
+Standard Forth counted loops with index access:
+
+| Word | Stack | Description |
+|------|-------|-------------|
+| `do` | `( limit start -- )` | Start counted loop |
+| `loop` | `( -- )` | Increment index by 1, continue if < limit |
+| `+loop` | `( n -- )` | Increment index by n, continue if < limit |
+| `i` | `( -- n )` | Push current loop index |
+| `j` | `( -- n )` | Push outer loop index (nested loops) |
+| `leave` | `( -- )` | Exit loop immediately |
+
+```forth
+\ Basic counted loop
+10 0 do i . loop        \ Prints: 0 1 2 3 4 5 6 7 8 9
+
+\ Using index for music
+5 0 do
+    c4 i 2 * + ,        \ Play C4, D4, E4, F#4, G#4
+loop
+
+\ Skip by 2 with +loop
+10 0 do i . 2 +loop     \ Prints: 0 2 4 6 8
+
+\ Nested loops with i and j
+3 0 do
+    2 0 do
+        i . j .         \ i=inner, j=outer index
+    loop
+loop
+
+\ Early exit with leave
+10 0 do
+    i .
+    i 5 = if leave then
+loop                    \ Prints: 0 1 2 3 4 5
+
+\ Scale up a chord
+5 0 do
+    c4 i 12 * + major   \ C, C+8va, C+2*8va...
+    3 80 250 play-chord
+loop
+```
+
+### Indefinite Loops (BEGIN...UNTIL/WHILE)
+
+Loops that continue until a condition is met:
+
+| Word | Stack | Description |
+|------|-------|-------------|
+| `begin` | `( -- )` | Start indefinite loop |
+| `until` | `( flag -- )` | Exit if flag is true (post-test) |
+| `while` | `( flag -- )` | Continue if flag is true (pre-test) |
+| `repeat` | `( -- )` | Jump back to begin |
+
+```forth
+\ BEGIN...UNTIL (post-test, always runs once)
+0 begin
+    dup .               \ Print current value
+    1 +                 \ Increment
+    dup 5 =             \ Check condition
+until drop              \ Prints: 0 1 2 3 4
+
+\ BEGIN...WHILE...REPEAT (pre-test, may not run)
+0 begin
+    dup 5 <             \ Check condition first
+while
+    dup .               \ Print if condition true
+    1 +                 \ Increment
+repeat drop             \ Prints: 0 1 2 3 4
+
+\ Fade out effect
+127 begin
+    dup vel! c4,        \ Play at current velocity
+    5 -                 \ Decrease velocity
+    dup 0 <             \ Check if below 0
+until drop
+
+\ Random walk until reaching target
+c4 begin
+    dup ,               \ Play current note
+    -2 3 srand-range +  \ Random step
+    dup g4 >            \ Until above G4
+until drop
+```
+
 ### Anonymous Blocks
 
 Use `{ }` for deferred execution:

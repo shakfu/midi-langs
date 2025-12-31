@@ -610,4 +610,11 @@ static const char *PY_PRELUDE_MODULE =
 "def _wait(ms):\n"
 "\n"
 "    yield ms\n"
-"midi.wait = _wait\n";
+"midi.wait = _wait\n"
+"\n"
+"def _ms(n):\n"
+"\n"
+"    return n\n"
+"midi.ms = _ms\n"
+"\n"
+"midi.yield_ms = _ms\n";

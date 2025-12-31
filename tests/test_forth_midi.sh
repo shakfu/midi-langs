@@ -514,6 +514,19 @@ test_contains "seq-gc runs" "seq-gc" "seq-gc:"
 echo ""
 
 # ============================================
+echo "--- Loop Control ---"
+# ============================================
+
+test_contains "do loop basic" "10 0 do i . loop" "0 1 2 3 4 5 6 7 8 9"
+test_contains "do loop sum" "0 5 0 do i + loop ." "10"
+test_contains "+loop skip by 2" "10 0 do i . 2 +loop" "0 2 4 6 8"
+test_contains "nested do loop i j" "3 0 do 2 0 do i . j . loop loop" "0 0 1 0 0 1 1 1 0 2 1 2"
+test_contains "begin until" "0 begin dup . 1 + dup 5 = until drop" "0 1 2 3 4"
+test_contains "begin while repeat" "0 begin dup 5 < while dup . 1 + repeat drop" "0 1 2 3 4"
+test_contains "leave exits loop" "10 0 do i . i 3 = if leave then loop" "0 1 2 3"
+
+echo ""
+
 echo "--- Error Handling ---"
 # ============================================
 

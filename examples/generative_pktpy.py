@@ -12,8 +12,9 @@ pentatonic = [midi.c4, midi.d4, midi.e4, midi.g4, midi.a4]
 def melody():
     """Simple ascending melody"""
     for pitch in pentatonic:
-        for ms in midi.play(out, pitch, midi.mf, midi.sixteenth):
-            yield ms
+        out.note_on(pitch, midi.mf)
+        yield midi.ms(midi.sixteenth)  # Cleaner syntax!
+        out.note_off(pitch)
 
 def bass():
     """Bass notes"""

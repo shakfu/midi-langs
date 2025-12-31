@@ -71,6 +71,15 @@ void forth_context_reset(ForthContext* ctx) {
     ctx->articulation_staccato = 0;
     ctx->articulation_accent = 0;
     ctx->articulation_tenuto = 0;
+
+    /* Reset loop control state */
+    ctx->loop_capture_mode = 0;
+    ctx->loop_nesting = 0;
+    ctx->loop_body[0] = '\0';
+    ctx->loop_body_len = 0;
+    ctx->loop_cond[0] = '\0';
+    ctx->loop_cond_len = 0;
+    ctx->return_stack_top = 0;
 }
 
 /* Initialize context with default values */
@@ -168,4 +177,13 @@ void forth_context_init(ForthContext* ctx) {
     ctx->seq_capture_chord_mode = 0;
     ctx->seq_capture_chord_count = 0;
     ctx->current_bracket_seq = NULL;
+
+    /* Loop control state */
+    ctx->loop_capture_mode = 0;
+    ctx->loop_nesting = 0;
+    ctx->loop_body[0] = '\0';
+    ctx->loop_body_len = 0;
+    ctx->loop_cond[0] = '\0';
+    ctx->loop_cond_len = 0;
+    ctx->return_stack_top = 0;
 }

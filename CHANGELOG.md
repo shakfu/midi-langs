@@ -14,6 +14,22 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **forth-midi Loop Control**: Standard Forth loop constructs for structured iteration
+  - `do ... loop` - Counted loops with index on return stack
+  - `i`, `j` - Access inner and outer loop indices
+  - `+loop` - Increment loop by value from stack (e.g., `2 +loop` for step-2)
+  - `leave` - Exit loop early
+  - `begin ... until` - Loop until flag is true
+  - `begin ... while ... repeat` - Loop while flag is true
+  - Supports nested loops with proper index tracking
+  - 7 new tests for loop control
+
+- **pktpy-midi yield_ms helper**: Cleaner syntax for generator-based voices
+  - `midi.ms(n)` - Return milliseconds value for yielding
+  - `midi.yield_ms(n)` - Alias for midi.ms
+  - Usage: `yield midi.ms(100)` instead of `for ms in midi.wait(100): yield ms`
+  - 2 new tests (Tests 54-55)
+
 - **mhs-midi Async Scheduler**: Concurrent voice playback using native Haskell threads
   - `spawn name action` - Spawn a new voice with a name, runs in its own thread
   - `run` - Block until all spawned voices complete

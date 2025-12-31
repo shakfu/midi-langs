@@ -1071,6 +1071,43 @@ def voice():
     out.close()
 ```
 
+### midi.ms / midi.yield_ms
+
+```python
+midi.ms(n) -> int
+midi.yield_ms(n) -> int  # alias
+```
+
+Return milliseconds value for direct yielding in a voice. This provides cleaner syntax than `midi.wait()` when you just need a simple delay.
+
+- `n` - Milliseconds to wait
+
+```python
+def voice():
+    out = midi.open()
+    out.note_on(midi.c4, midi.mf)
+    yield midi.ms(500)              # Cleaner syntax!
+    out.note_off(midi.c4)
+    yield midi.yield_ms(250)        # Alias works too
+    out.note_on(midi.e4, midi.mf)
+    yield midi.ms(midi.quarter)     # Works with duration constants
+    out.note_off(midi.e4)
+    out.close()
+```
+
+**Comparison with midi.wait**:
+
+```python
+# Using midi.wait (requires for loop due to PocketPy limitation)
+for ms in midi.wait(500):
+    yield ms
+
+# Using midi.ms (simpler, when you don't need the generator pattern)
+yield midi.ms(500)
+```
+
+Use `midi.ms()` for simple delays. Use `midi.wait()` when you need the generator pattern for compatibility with other helper functions.
+
 ---
 
 ## Async Example

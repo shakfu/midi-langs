@@ -4,9 +4,13 @@ This document catalogs features that standard Forth implementations provide but 
 
 ## Executive Summary
 
-forth-midi is a Forth-flavored DSL, not a full Forth. Several missing features would genuinely enhance musical expressiveness (variables, loops, recursion). Others are implementation machinery that would add complexity without clear benefit for the target users (musicians, not language implementers).
+forth-midi is a Forth-flavored DSL, not a full Forth. Several missing features would genuinely enhance musical expressiveness (variables, recursion). Others are implementation machinery that would add complexity without clear benefit for the target users (musicians, not language implementers).
 
-**Recommended additions**: Variables, `DO`/`LOOP`, `BEGIN`/`UNTIL`, recursion support.
+**Recently implemented**:
+- `DO`/`LOOP` with `I`, `J`, `+LOOP`, `LEAVE` - counted loops with index access
+- `BEGIN`/`UNTIL` and `BEGIN`/`WHILE`/`REPEAT` - indefinite loops
+
+**Recommended additions**: Variables, recursion support.
 
 **Not recommended**: Full memory model, `CREATE`/`DOES>`, execution tokens.
 
@@ -157,47 +161,59 @@ However, anonymous blocks (`{ ... }`) already provide deferred execution:
 
 ---
 
-### 7. `DO`/`LOOP` and `BEGIN`/`UNTIL`/`WHILE`/`REPEAT`
+### 7. `DO`/`LOOP` and `BEGIN`/`UNTIL`/`WHILE`/`REPEAT` - IMPLEMENTED
 
-**What it is**: Standard loop constructs.
+**Status**: Fully implemented.
 
-**Standard Forth usage**:
+**Available words**:
 
-```forth
-: scale  8 0 DO  I 60 + ,  LOOP ;           \ Chromatic scale
-: wait-for-note  BEGIN key? UNTIL ;          \ Poll until keypress
-: countdown  10 BEGIN DUP . 1- DUP 0= UNTIL DROP ;
-```
+| Word | Stack | Description |
+|------|-------|-------------|
+| `do` | `( limit start -- )` | Start counted loop |
+| `loop` | `( -- )` | Increment by 1, continue if < limit |
+| `+loop` | `( n -- )` | Increment by n |
+| `i` | `( -- n )` | Current loop index |
+| `j` | `( -- n )` | Outer loop index |
+| `leave` | `( -- )` | Exit loop early |
+| `begin` | `( -- )` | Start indefinite loop |
+| `until` | `( flag -- )` | Exit if true (post-test) |
+| `while` | `( flag -- )` | Continue if true (pre-test) |
+| `repeat` | `( -- )` | Jump back to begin |
 
-**Current forth-midi alternatives**:
-
-- `N times` repeats the previous word N times
-- `{ ... } N *` repeats a block N times
-
-**Gaps**:
-
-- No loop index access (`I`, `J`)
-- No conditional exit (`LEAVE`)
-- No indefinite loops (repeat until condition)
-
-**Use cases**:
+**Examples**:
 
 ```forth
-\ With DO/LOOP:
-: arpeggio  4 0 DO  I 4 * 60 + ,  200 ms  LOOP ;
+\ Chromatic scale using loop index
+8 0 do i 60 + , loop
 
-\ With BEGIN/UNTIL:
-: fade-out  127 BEGIN  DUP vel! c4,  5 - DUP 0< UNTIL DROP ;
+\ Nested loops for chord inversions
+3 0 do
+    4 0 do
+        c4 j 4 * + i 12 * + ,
+    loop
+loop
+
+\ Fade out with indefinite loop
+127 begin
+    dup vel! c4,
+    5 -
+    dup 0 <
+until drop
+
+\ Pre-test loop
+0 begin
+    dup 5 <
+while
+    dup c4 + ,
+    1 +
+repeat drop
 ```
 
-**Recommendation**: Add. High value for generative/algorithmic music. Start with `DO`/`LOOP` (bounded iteration with index), then consider `BEGIN`/`UNTIL` for reactive/conditional patterns.
-
-**Implementation sketch**:
-
-- `DO`: Push limit and index to a loop stack
-- `I`: Push current index
-- `LOOP`: Increment index, branch back if < limit
-- Requires tracking loop entry points (could reuse block mechanism)
+**Implementation notes**:
+- Uses return stack for DO/LOOP index pairs
+- Captures loop body as string, re-interprets each iteration
+- Supports nesting up to 8 levels
+- Safety limit of 10000 iterations for indefinite loops
 
 ---
 
@@ -267,14 +283,14 @@ S" filename.mid" SAVE-MIDI
 
 ## Implementation Priority Matrix
 
-| Feature | Value for Musicians | Implementation Effort | Priority |
-|---------|--------------------|-----------------------|----------|
+| Feature | Value for Musicians | Implementation Effort | Status |
+|---------|--------------------|-----------------------|--------|
+| `DO`/`LOOP` with `I`, `J`, `+LOOP`, `LEAVE` | High | Medium | **Done** |
+| `BEGIN`/`UNTIL`/`WHILE`/`REPEAT` | Medium-High | Medium | **Done** |
 | `VARIABLE`/`CONSTANT` | High | Medium | **1** |
-| `DO`/`LOOP` with `I` | High | Medium | **2** |
-| `BEGIN`/`UNTIL` | Medium-High | Medium | **3** |
-| `RECURSE` | Medium | Low | **4** |
-| `'`/`EXECUTE` | Medium | Medium | 5 |
-| Return stack | Low | High | Skip |
+| `RECURSE` | Medium | Low | **2** |
+| `'`/`EXECUTE` | Medium | Medium | 3 |
+| Return stack (`>R`, `R>`, `R@`) | Low | High | Skip |
 | Raw `@`/`!` | Low | Medium | Skip |
 | `CREATE`/`DOES>` | Low | High | Skip |
 | `IMMEDIATE` | Low | High | Skip |
@@ -288,8 +304,8 @@ Forth's power comes from its ability to extend itself - to define new control st
 
 forth-midi has a narrower, well-defined purpose: expressive MIDI composition. The missing features fall into two categories:
 
-1. **User-facing gaps**: Variables, loops, recursion. These limit what musicians can express. Add them.
+1. **User-facing gaps**: Variables and recursion still remain. The major loop constructs (`DO`/`LOOP`, `BEGIN`/`UNTIL`/`WHILE`/`REPEAT`) have now been implemented, enabling algorithmic and generative music patterns.
 
 2. **Meta-level machinery**: `CREATE`/`DOES>`, `IMMEDIATE`, memory model. These enable language extension but add cognitive overhead. Skip them and implement specific features directly in C when needed.
 
-The goal is a language that feels Forth-like (stack-based, compositional, terse) while remaining approachable for musicians who aren't systems programmers.
+The goal is a language that feels Forth-like (stack-based, compositional, terse) while remaining approachable for musicians who aren't systems programmers. With the addition of proper loop control, forth-midi now supports the structured iteration patterns essential for generative music.

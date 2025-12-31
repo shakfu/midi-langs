@@ -31,6 +31,8 @@
 #define MAX_BLOCKS 32
 #define MAX_IF_NESTING 16
 #define MAX_LOAD_DEPTH 8
+#define MAX_LOOP_NESTING 8
+#define MAX_LOOP_BODY 2048
 
 /* Sequence system constants */
 #define MAX_EVENTS 4096
@@ -248,6 +250,18 @@ typedef struct ForthContext {
     int seq_recording_mode;      /* 1 if recording to a sequence */
     int seq_recording_id;        /* Which sequence we're recording to */
     int seq_recording_time;      /* Current time offset in ticks */
+
+    /* Loop control state */
+    int loop_capture_mode;       /* 1 = capturing do...loop, 2 = begin...until, 3 = begin...while */
+    int loop_nesting;            /* Nesting depth for nested loops */
+    char loop_body[MAX_LOOP_BODY];
+    int loop_body_len;
+    char loop_cond[MAX_LOOP_BODY];  /* For begin...while...repeat: condition part */
+    int loop_cond_len;
+
+    /* Return stack for do...loop (holds limit and index pairs) */
+    int32_t return_stack[MAX_LOOP_NESTING * 2];
+    int return_stack_top;
 } ForthContext;
 
 /* Global context instance */
@@ -360,6 +374,16 @@ void forth_context_reset(ForthContext* ctx);
 #define seq_recording_mode          (g_ctx.seq_recording_mode)
 #define seq_recording_id            (g_ctx.seq_recording_id)
 #define seq_recording_time          (g_ctx.seq_recording_time)
+
+/* Loop control state */
+#define loop_capture_mode           (g_ctx.loop_capture_mode)
+#define loop_nesting                (g_ctx.loop_nesting)
+#define loop_body                   (g_ctx.loop_body)
+#define loop_body_len               (g_ctx.loop_body_len)
+#define loop_cond                   (g_ctx.loop_cond)
+#define loop_cond_len               (g_ctx.loop_cond_len)
+#define return_stack                (g_ctx.return_stack)
+#define return_stack_top            (g_ctx.return_stack_top)
 
 #endif /* FORTH_NO_MACROS */
 
@@ -608,6 +632,18 @@ void op_times(Stack* s);
 void op_star(Stack* s);
 void op_load(Stack* s);
 void op_help(Stack* s);
+
+/* Loop control words */
+void op_do(Stack* s);
+void op_loop(Stack* s);
+void op_plus_loop(Stack* s);
+void op_i(Stack* s);
+void op_j(Stack* s);
+void op_begin(Stack* s);
+void op_until(Stack* s);
+void op_while(Stack* s);
+void op_repeat(Stack* s);
+void op_leave(Stack* s);
 
 /* Parameter system functions */
 int parse_param_assign(const char* token);

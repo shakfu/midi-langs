@@ -691,6 +691,16 @@ midi.play_arp = _play_arp
 
 def _wait(ms):
     '''Wait for given milliseconds asynchronously (generator).
-    Use with: yield from midi.wait(500)'''
+    Use with: for ms in midi.wait(500): yield ms
+    Or simply: yield midi.ms(500)'''
     yield ms
 midi.wait = _wait
+
+def _ms(n):
+    '''Return milliseconds value for yielding in a voice.
+    Cleaner syntax: yield midi.ms(50) instead of: for ms in midi.wait(50): yield ms'''
+    return n
+midi.ms = _ms
+
+# Alias for even cleaner syntax
+midi.yield_ms = _ms

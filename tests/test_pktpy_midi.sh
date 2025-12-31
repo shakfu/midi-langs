@@ -813,5 +813,41 @@ $PKTPY "$TMPFILE" 2>&1 | grep -q "ok" || { rm -f "$TMPFILE"; echo "FAIL: sequent
 rm -f "$TMPFILE"
 echo "  PASS"
 
+# Test 54: midi.ms() helper for cleaner yield syntax
+echo "Test 54: midi.ms() helper..."
+TMPFILE=$(mktemp)
+cat > "$TMPFILE" << 'EOF'
+import midi
+done = False
+def voice():
+    global done
+    yield midi.ms(10)  # Cleaner than: for ms in midi.wait(10): yield ms
+    done = True
+midi.spawn(voice)
+midi.run()
+print("ok" if done else "FAIL")
+EOF
+$PKTPY "$TMPFILE" 2>&1 | grep -q "ok" || { rm -f "$TMPFILE"; echo "FAIL: midi.ms() helper"; exit 1; }
+rm -f "$TMPFILE"
+echo "  PASS"
+
+# Test 55: midi.yield_ms() alias
+echo "Test 55: midi.yield_ms() alias..."
+TMPFILE=$(mktemp)
+cat > "$TMPFILE" << 'EOF'
+import midi
+done = False
+def voice():
+    global done
+    yield midi.yield_ms(10)  # Alias for midi.ms()
+    done = True
+midi.spawn(voice)
+midi.run()
+print("ok" if done else "FAIL")
+EOF
+$PKTPY "$TMPFILE" 2>&1 | grep -q "ok" || { rm -f "$TMPFILE"; echo "FAIL: midi.yield_ms() alias"; exit 1; }
+rm -f "$TMPFILE"
+echo "  PASS"
+
 echo ""
 echo "All tests passed!"

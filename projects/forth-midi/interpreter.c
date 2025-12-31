@@ -713,6 +713,112 @@ void op_help(Stack* s) {
     printf("Type 'quit' to exit.\n");
 }
 
+/* ============================================================================
+ * Loop Control Words
+ * ============================================================================ */
+
+/* Helper: append word to loop body */
+static void append_to_loop_body(const char* word) {
+    int len = strlen(word);
+    if (loop_body_len + len + 2 >= MAX_LOOP_BODY) {
+        printf("Loop body too long\n");
+        return;
+    }
+    if (loop_body_len > 0) {
+        loop_body[loop_body_len++] = ' ';
+    }
+    strcpy(loop_body + loop_body_len, word);
+    loop_body_len += len;
+}
+
+/* Helper: append word to loop condition */
+static void append_to_loop_cond(const char* word) {
+    int len = strlen(word);
+    if (loop_cond_len + len + 2 >= MAX_LOOP_BODY) {
+        printf("Loop condition too long\n");
+        return;
+    }
+    if (loop_cond_len > 0) {
+        loop_cond[loop_cond_len++] = ' ';
+    }
+    strcpy(loop_cond + loop_cond_len, word);
+    loop_cond_len += len;
+}
+
+/* do ( limit start -- ) Start counted loop */
+void op_do(Stack* s) {
+    (void)s;
+    /* Handled specially in interpret() */
+}
+
+/* loop ( -- ) End counted loop, increment by 1 */
+void op_loop(Stack* s) {
+    (void)s;
+    /* Handled specially in interpret() */
+}
+
+/* +loop ( n -- ) End counted loop, increment by n */
+void op_plus_loop(Stack* s) {
+    (void)s;
+    /* Handled specially in interpret() */
+}
+
+/* i ( -- n ) Push current loop index */
+void op_i(Stack* s) {
+    if (return_stack_top < 2) {
+        printf("i: not inside a do...loop\n");
+        return;
+    }
+    /* Return stack has pairs: [limit, index] with index at top */
+    push(&stack, return_stack[return_stack_top - 1]);
+}
+
+/* j ( -- n ) Push outer loop index */
+void op_j(Stack* s) {
+    if (return_stack_top < 4) {
+        printf("j: not inside nested do...loop\n");
+        return;
+    }
+    /* Outer loop's index is at return_stack_top - 3 */
+    push(&stack, return_stack[return_stack_top - 3]);
+}
+
+/* begin ( -- ) Start indefinite loop */
+void op_begin(Stack* s) {
+    (void)s;
+    /* Handled specially in interpret() */
+}
+
+/* until ( flag -- ) End loop if flag is true */
+void op_until(Stack* s) {
+    (void)s;
+    /* Handled specially in interpret() */
+}
+
+/* while ( flag -- ) Continue loop if flag is true */
+void op_while(Stack* s) {
+    (void)s;
+    /* Handled specially in interpret() */
+}
+
+/* repeat ( -- ) Jump back to begin */
+void op_repeat(Stack* s) {
+    (void)s;
+    /* Handled specially in interpret() */
+}
+
+/* leave ( -- ) Exit current do...loop */
+void op_leave(Stack* s) {
+    (void)s;
+    /* Sets index to limit to exit loop on next iteration */
+    if (return_stack_top < 2) {
+        printf("leave: not inside a do...loop\n");
+        return;
+    }
+    /* Set index equal to limit */
+    return_stack[return_stack_top - 1] = return_stack[return_stack_top - 2];
+}
+
 /* Process a single token */
 void process_token(const char* token) {
     Word* word = find_word(token);
@@ -1050,6 +1156,220 @@ void interpret(const char* input) {
 
         if (strcmp(word, "]") == 0) {
             printf("Unexpected ']' outside of sequence\n");
+            continue;
+        }
+
+        /* Handle loop capture mode */
+        if (loop_capture_mode > 0) {
+            /* Mode 1: do...loop - capturing body until 'loop' or '+loop' */
+            if (loop_capture_mode == 1) {
+                if (strcmp(word, "do") == 0) {
+                    loop_nesting++;
+                    append_to_loop_body(word);
+                } else if (strcmp(word, "loop") == 0 || strcmp(word, "+loop") == 0) {
+                    if (loop_nesting > 0) {
+                        loop_nesting--;
+                        append_to_loop_body(word);
+                    } else {
+                        /* End of do...loop - execute it */
+                        loop_body[loop_body_len] = '\0';
+                        int is_plus_loop = (strcmp(word, "+loop") == 0);
+
+                        /* Save body to local buffer before resetting state */
+                        char saved_body[MAX_LOOP_BODY];
+                        strncpy(saved_body, loop_body, MAX_LOOP_BODY - 1);
+                        saved_body[MAX_LOOP_BODY - 1] = '\0';
+
+                        /* Reset capture mode before executing (nested loops use same globals) */
+                        loop_capture_mode = 0;
+                        loop_body_len = 0;
+
+                        /* Get limit and start from return stack */
+                        int32_t limit = return_stack[return_stack_top - 2];
+                        int32_t idx = return_stack[return_stack_top - 1];
+
+                        while (idx < limit) {
+                            return_stack[return_stack_top - 1] = idx;
+                            interpret(saved_body);
+                            /* Check if leave was called */
+                            if (return_stack[return_stack_top - 1] >= limit) break;
+                            if (is_plus_loop) {
+                                if (stack.top < 0) {
+                                    printf("+loop needs increment on stack\n");
+                                    break;
+                                }
+                                idx = return_stack[return_stack_top - 1] + pop(&stack);
+                            } else {
+                                idx = return_stack[return_stack_top - 1] + 1;
+                            }
+                        }
+
+                        /* Clean up return stack */
+                        return_stack_top -= 2;
+                    }
+                } else {
+                    append_to_loop_body(word);
+                }
+                continue;
+            }
+
+            /* Mode 2: begin...until OR begin...while (determines type when we see while/until) */
+            if (loop_capture_mode == 2) {
+                if (strcmp(word, "begin") == 0) {
+                    loop_nesting++;
+                    append_to_loop_body(word);
+                } else if (strcmp(word, "while") == 0 && loop_nesting == 0) {
+                    /* It's begin...while...repeat - save condition, switch to body capture */
+                    loop_body[loop_body_len] = '\0';
+                    strcpy(loop_cond, loop_body);  /* Copy condition */
+                    loop_cond_len = loop_body_len;
+                    loop_body_len = 0;
+                    loop_body[0] = '\0';
+                    loop_capture_mode = 3;  /* Now capturing body until repeat */
+                } else if (strcmp(word, "until") == 0) {
+                    if (loop_nesting > 0) {
+                        loop_nesting--;
+                        append_to_loop_body(word);
+                    } else {
+                        /* End of begin...until - execute it */
+                        loop_body[loop_body_len] = '\0';
+
+                        /* Save body to local buffer before resetting state */
+                        char saved_body[MAX_LOOP_BODY];
+                        strncpy(saved_body, loop_body, MAX_LOOP_BODY - 1);
+                        saved_body[MAX_LOOP_BODY - 1] = '\0';
+
+                        /* Reset capture mode before executing */
+                        loop_capture_mode = 0;
+                        loop_body_len = 0;
+
+                        int max_iter = 10000;  /* Safety limit */
+                        while (max_iter-- > 0) {
+                            interpret(saved_body);
+                            if (stack.top < 0) {
+                                printf("until needs flag on stack\n");
+                                break;
+                            }
+                            if (pop(&stack) != 0) break;  /* Exit when true */
+                        }
+                        if (max_iter <= 0) {
+                            printf("begin...until: exceeded max iterations\n");
+                        }
+                    }
+                } else if (strcmp(word, "repeat") == 0) {
+                    if (loop_nesting > 0) {
+                        loop_nesting--;
+                        append_to_loop_body(word);
+                    } else {
+                        printf("repeat without while\n");
+                        loop_capture_mode = 0;
+                        loop_body_len = 0;
+                    }
+                } else {
+                    append_to_loop_body(word);
+                }
+                continue;
+            }
+
+            /* Mode 3: begin...while body, waiting for 'repeat' */
+            if (loop_capture_mode == 3) {
+                if (strcmp(word, "begin") == 0) {
+                    loop_nesting++;
+                    append_to_loop_body(word);
+                } else if (strcmp(word, "repeat") == 0) {
+                    if (loop_nesting > 0) {
+                        loop_nesting--;
+                        append_to_loop_body(word);
+                    } else {
+                        /* End of begin...while...repeat - execute it */
+                        loop_body[loop_body_len] = '\0';
+
+                        /* Save body and condition to local buffers before resetting state */
+                        char saved_body[MAX_LOOP_BODY];
+                        char saved_cond[MAX_LOOP_BODY];
+                        strncpy(saved_body, loop_body, MAX_LOOP_BODY - 1);
+                        saved_body[MAX_LOOP_BODY - 1] = '\0';
+                        strncpy(saved_cond, loop_cond, MAX_LOOP_BODY - 1);
+                        saved_cond[MAX_LOOP_BODY - 1] = '\0';
+
+                        /* Reset capture mode before executing */
+                        loop_capture_mode = 0;
+                        loop_body_len = 0;
+                        loop_cond_len = 0;
+
+                        int max_iter = 10000;  /* Safety limit */
+                        while (max_iter-- > 0) {
+                            interpret(saved_cond);
+                            if (stack.top < 0) {
+                                printf("while needs flag on stack\n");
+                                break;
+                            }
+                            if (pop(&stack) == 0) break;  /* Exit when false */
+                            interpret(saved_body);
+                        }
+                        if (max_iter <= 0) {
+                            printf("begin...while...repeat: exceeded max iterations\n");
+                        }
+                    }
+                } else {
+                    append_to_loop_body(word);
+                }
+                continue;
+            }
+        }
+
+        /* Handle loop start words */
+        if (strcmp(word, "do") == 0) {
+            if (stack.top < 1) {
+                printf("do needs limit and start on stack\n");
+                continue;
+            }
+            int32_t start = pop(&stack);
+            int32_t limit = pop(&stack);
+
+            /* Push to return stack */
+            if (return_stack_top + 2 > MAX_LOOP_NESTING * 2) {
+                printf("Loop nesting too deep\n");
+                continue;
+            }
+            return_stack[return_stack_top++] = limit;
+            return_stack[return_stack_top++] = start;
+
+            /* Start capturing loop body */
+            loop_capture_mode = 1;
+            loop_nesting = 0;
+            loop_body_len = 0;
+            loop_body[0] = '\0';
+            continue;
+        }
+
+        if (strcmp(word, "begin") == 0) {
+            /* Start capturing until body */
+            loop_capture_mode = 2;
+            loop_nesting = 0;
+            loop_body_len = 0;
+            loop_body[0] = '\0';
+            /* Mode will change to 3 if we see 'while' */
+            continue;
+        }
+
+        if (strcmp(word, "loop") == 0 || strcmp(word, "+loop") == 0) {
+            printf("Unexpected '%s' outside of do...loop\n", word);
+            continue;
+        }
+
+        if (strcmp(word, "until") == 0) {
+            printf("Unexpected 'until' outside of begin...until\n");
+            continue;
+        }
+
+        if (strcmp(word, "while") == 0) {
+            printf("Unexpected 'while' outside of begin...while\n");
+            continue;
+        }
+
+        if (strcmp(word, "repeat") == 0) {
+            printf("Unexpected 'repeat' outside of begin...while...repeat\n");
             continue;
         }
 
