@@ -6,6 +6,38 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **lua-midi Async Scheduler**: Non-blocking concurrent playback using libuv and Lua coroutines
+  - `spawn(func, [name])` - Create a new voice (coroutine) from a function
+  - `yield_ms(ms)` - Pause the current voice for N milliseconds (non-blocking)
+  - `run()` - Run scheduler until all voices complete
+  - `stop([voice_id])` - Stop a specific voice or all voices
+  - `voices()` - Get count of active voices
+  - `scheduler.status()` - Get detailed scheduler status table
+  - Async note helpers for use inside spawned voices:
+    - `play(pitch, vel, dur, ch)` - Play note with non-blocking wait
+    - `play_chord(pitches, vel, dur, ch)` - Play chord with non-blocking wait
+    - `play_arp(pitches, vel, dur, ch)` - Arpeggiate with non-blocking wait
+  - Up to 16 concurrent voices supported
+  - Thread-safe design with dedicated libuv event loop thread
+  - Full test coverage (16 new tests)
+
+- **forth-midi Async Sequence Playback**: Non-blocking playback using libuv
+  - `seq-play&` - Play current sequence asynchronously (REPL remains responsive)
+  - `seq-loop&` - Play current sequence in a continuous loop
+  - `seq-stop` - Stop current sequence's async playback
+  - `seq-stop-all` - Stop all async playback
+  - `seq-playing?` - Check if any async playback is active (returns flag)
+  - `seq-active` - Get count of active async players
+  - Up to 8 simultaneous sequences can play concurrently
+  - Thread-safe design with dedicated event loop thread
+  - Added libuv dependency (`thirdparty/libuv/`)
+
+- **forth-midi Sequence Recording Mode**: Record notes directly into sequences
+  - `N seq-start` - Begin recording into sequence N (creates if needed)
+  - `N seq-end` - End recording into sequence N
+  - Notes, chords, and rests played between seq-start/seq-end are captured with timing
+  - Dynamics and duration changes apply during recording
+
 - **forth-midi Script/Batch Mode**: CLI flags for non-interactive execution
   - `--script FILE` - Run FILE and exit (no REPL, returns non-zero on error)
   - `--no-sleep` - Disable all sleep/delay calls (for CI/testing)

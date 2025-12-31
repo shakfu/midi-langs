@@ -515,3 +515,57 @@ random_walk = midi.random_walk
 drunk_walk = midi.drunk_walk
 weighted_pick = midi.weighted_pick
 chance = midi.chance
+
+-- ============================================================================
+-- Async Scheduler Convenience Functions
+-- ============================================================================
+
+-- Global aliases for scheduler functions
+spawn = scheduler.spawn
+yield_ms = scheduler.yield_ms
+run = scheduler.run
+stop = scheduler.stop
+voices = scheduler.voices
+
+-- Play a note asynchronously (for use inside spawned voices)
+-- Uses yield_ms so other voices can run during the note duration
+function play(pitch, vel, dur, ch)
+  if not midi._out then error('No MIDI port open. Use open() first.') end
+  local m = midi._out
+  local velocity = vel or midi.mf
+  local duration = dur or midi.quarter
+  local channel = ch or 1
+  m:note_on(pitch, velocity, channel)
+  yield_ms(duration)
+  m:note_off(pitch, channel)
+end
+
+-- Play a chord asynchronously (for use inside spawned voices)
+function play_chord(pitches, vel, dur, ch)
+  if not midi._out then error('No MIDI port open. Use open() first.') end
+  local m = midi._out
+  local velocity = vel or midi.mf
+  local duration = dur or midi.quarter
+  local channel = ch or 1
+  for _, pitch in ipairs(pitches) do
+    m:note_on(pitch, velocity, channel)
+  end
+  yield_ms(duration)
+  for _, pitch in ipairs(pitches) do
+    m:note_off(pitch, channel)
+  end
+end
+
+-- Play an arpeggio asynchronously (for use inside spawned voices)
+function play_arp(pitches, vel, dur, ch)
+  if not midi._out then error('No MIDI port open. Use open() first.') end
+  local m = midi._out
+  local velocity = vel or midi.mf
+  local duration = dur or midi.eighth
+  local channel = ch or 1
+  for _, pitch in ipairs(pitches) do
+    m:note_on(pitch, velocity, channel)
+    yield_ms(duration)
+    m:note_off(pitch, channel)
+  end
+end

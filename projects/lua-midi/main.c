@@ -63,6 +63,12 @@ static const char* prelude_functions[] = {
     "major", "minor", "dim", "aug", "dom7", "maj7", "min7",
     "transpose", "octave_up", "octave_down",
     "dotted", "rest", "sleep",
+    /* Scheduler functions */
+    "spawn", "yield_ms", "run", "stop", "voices",
+    "scheduler.spawn", "scheduler.yield_ms", "scheduler.run",
+    "scheduler.stop", "scheduler.status", "scheduler.voices",
+    /* Async note helpers */
+    "play", "play_chord",
     NULL
 };
 
@@ -229,6 +235,10 @@ static void init_readline_completion(void) {
 /* External functions from midi_module.c */
 extern int luaopen_midi(lua_State *L);
 extern void lua_midi_cleanup(void);
+
+/* External functions from scheduler.c */
+extern int luaopen_scheduler(lua_State *L);
+extern void scheduler_cleanup(void);
 
 static void print_usage(const char *prog) {
     fprintf(stderr, "Usage: %s [options] [file.lua]\n", prog);
@@ -440,6 +450,10 @@ int main(int argc, char **argv) {
     /* Open standard libraries */
     luaL_openlibs(L);
 
+    /* Register scheduler module (before midi, since prelude uses it) */
+    luaL_requiref(L, "scheduler", luaopen_scheduler, 1);
+    lua_pop(L, 1);  /* remove module from stack */
+
     /* Register MIDI module */
     luaL_requiref(L, "midi", luaopen_midi, 1);
     lua_pop(L, 1);  /* remove module from stack */
@@ -451,11 +465,13 @@ int main(int argc, char **argv) {
                 /* Execute statement */
                 if (i + 1 >= argc) {
                     fprintf(stderr, "Error: -e requires an expression\n");
+                    scheduler_cleanup();
                     lua_midi_cleanup();
                     lua_close(L);
                     return 1;
                 }
                 if (run_string(L, argv[++i]) != 0) {
+                    scheduler_cleanup();
                     lua_midi_cleanup();
                     lua_close(L);
                     return 1;
@@ -467,6 +483,7 @@ int main(int argc, char **argv) {
             } else {
                 /* Load and run file */
                 if (run_file(L, argv[i]) != 0) {
+                    scheduler_cleanup();
                     lua_midi_cleanup();
                     lua_close(L);
                     return 1;
@@ -479,6 +496,7 @@ int main(int argc, char **argv) {
     }
 
     /* Cleanup */
+    scheduler_cleanup();
     lua_midi_cleanup();
     lua_close(L);
 

@@ -43,11 +43,15 @@ set(LUA_LIB_SOURCES
 add_executable(lua_midi
     main.c
     midi_module.c
+    scheduler.c
     ${LUA_CORE_SOURCES}
     ${LUA_LIB_SOURCES}
 )
 
-target_include_directories(lua_midi PRIVATE ${LUA_DIR})
+target_include_directories(lua_midi PRIVATE
+    ${LUA_DIR}
+    ${CMAKE_SOURCE_DIR}/thirdparty/libuv/include
+)
 
 target_compile_options(lua_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
@@ -58,8 +62,8 @@ if(READLINE_LIB)
     target_link_libraries(lua_midi PRIVATE ${READLINE_LIB})
 endif()
 
-# Lua requires math library
-target_link_libraries(lua_midi PRIVATE music_theory midi_file m)
+# Lua requires math library, libuv for async scheduler
+target_link_libraries(lua_midi PRIVATE music_theory midi_file uv_a m)
 
 # Platform-specific dependencies
 if(APPLE)

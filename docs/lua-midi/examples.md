@@ -699,3 +699,217 @@ MidiOut(virtual, "luaMIDI")
 > midi.bpm(60)
 1000
 ```
+
+---
+
+## Async Scheduler Examples
+
+The async scheduler enables concurrent playback using Lua coroutines.
+
+### Basic Two Voices
+
+```lua
+open()
+
+spawn(function()
+    for i = 1, 4 do
+        play(c4, mf, quarter)
+        play(e4, mf, quarter)
+    end
+end, "melody")
+
+spawn(function()
+    for i = 1, 4 do
+        play(c2, f, half)
+    end
+end, "bass")
+
+run()
+close()
+```
+
+### Polyrhythm (3 against 4)
+
+```lua
+open()
+midi.set_tempo(100)
+
+-- Total duration: 2 seconds (4 quarters at 120 BPM = 2000ms)
+local cycle_ms = 2000
+
+spawn(function()
+    -- 4 evenly spaced notes
+    local dur = cycle_ms / 4
+    for i = 1, 4 do
+        play(c4, mf, dur - 10)
+        yield_ms(10)
+    end
+end, "fours")
+
+spawn(function()
+    -- 3 evenly spaced notes
+    local dur = cycle_ms / 3
+    for i = 1, 3 do
+        play(g4, f, dur - 10)
+        yield_ms(10)
+    end
+end, "threes")
+
+run()
+close()
+```
+
+### Canon (Round)
+
+```lua
+open()
+midi.set_tempo(120)
+
+local melody = {c4, d4, e4, f4, g4, f4, e4, d4}
+
+-- First voice starts immediately
+spawn(function()
+    for _, p in ipairs(melody) do
+        play(p, mf, quarter)
+    end
+end, "voice1")
+
+-- Second voice enters after 2 beats
+spawn(function()
+    yield_ms(quarter * 2)  -- Wait 2 beats
+    for _, p in ipairs(melody) do
+        play(p + 12, mp, quarter)  -- Up an octave, softer
+    end
+end, "voice2")
+
+run()
+close()
+```
+
+### Generative Texture
+
+```lua
+open()
+midi.set_tempo(90)
+
+local pentatonic = scale(c4, "pentatonic")
+
+-- Random high notes
+spawn(function()
+    for i = 1, 16 do
+        local p = pentatonic[math.random(#pentatonic)] + 12
+        play(p, math.random(40, 80), sixteenth)
+    end
+end, "high")
+
+-- Random low notes (slower)
+spawn(function()
+    for i = 1, 8 do
+        local p = pentatonic[math.random(#pentatonic)] - 12
+        play(p, math.random(60, 100), eighth)
+    end
+end, "low")
+
+-- Sustained drone
+spawn(function()
+    play(c2, f, whole)
+    play(c2, f, whole)
+end, "drone")
+
+run()
+close()
+```
+
+### Euclidean Rhythm
+
+```lua
+open()
+midi.set_tempo(120)
+
+-- Play a euclidean rhythm: 5 hits distributed over 8 steps
+local pattern = euclidean(5, 8)
+
+spawn(function()
+    for rep = 1, 4 do  -- 4 repetitions
+        for _, hit in ipairs(pattern) do
+            if hit then
+                play(c4, f, sixteenth * 0.8)
+            end
+            yield_ms(sixteenth)
+        end
+    end
+end, "kick")
+
+spawn(function()
+    -- Off-beat hi-hat
+    for rep = 1, 4 do
+        for i = 1, 8 do
+            yield_ms(sixteenth / 2)
+            play(fs5, pp, sixteenth * 0.3)
+            yield_ms(sixteenth / 2)
+        end
+    end
+end, "hihat")
+
+run()
+close()
+```
+
+### Interactive Voice Control
+
+```lua
+open()
+
+-- Start an infinite loop voice
+local loop_id = spawn(function()
+    while true do
+        for _, p in ipairs(scale(c4, "blues")) do
+            play(p, mf, sixteenth)
+        end
+    end
+end, "loop")
+
+-- Stopper voice - stops the loop after 3 seconds
+spawn(function()
+    yield_ms(3000)
+    print("Stopping loop...")
+    stop(loop_id)
+end, "stopper")
+
+run()
+close()
+```
+
+### Multi-Channel Ensemble
+
+```lua
+open()
+midi.set_tempo(100)
+
+-- Channel 1: Lead melody
+spawn(function()
+    local melody = {g4, a4, b4, c5, d5, c5, b4, a4, g4}
+    for _, p in ipairs(melody) do
+        play(p, mf, quarter, 1)
+    end
+end, "lead")
+
+-- Channel 2: Harmony (thirds below)
+spawn(function()
+    local harmony = {e4, f4, g4, a4, b4, a4, g4, f4, e4}
+    for _, p in ipairs(harmony) do
+        play(p, mp, quarter, 2)
+    end
+end, "harmony")
+
+-- Channel 3: Bass
+spawn(function()
+    local bass = {c3, g2, a2, e2, c3}
+    for _, p in ipairs(bass) do
+        play(p, f, half, 3)
+    end
+end, "bass")
+
+run()
+close()
+```

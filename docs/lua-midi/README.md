@@ -8,6 +8,7 @@ A Lua-based MIDI language using [Lua 5.5](https://www.lua.org/), providing a fam
 - Concise syntax with global pitch/duration/dynamic constants
 - Object-oriented MIDI port interface
 - Musical abstractions: pitches, durations, velocities, chords
+- **Async scheduler** for concurrent voices using Lua coroutines and libuv
 - **55 built-in scales** (modes, pentatonics, blues, exotic, Arabic Maqamat, Indian Ragas)
 - **10 microtonal scales** with quarter-tone support via pitch bend
 - Scale functions: build scales, get degrees, quantize pitches
@@ -138,6 +139,10 @@ major, minor, dim, aug, dom7, maj7, min7
 scale(c4, "major")       -- Build C major scale
 degree(c4, "dorian", 5)  -- Get 5th degree of C dorian
 quantize(66, c4, "major") -- Snap pitch to C major
+
+-- Async scheduler
+spawn, yield_ms, run, stop, voices
+play, play_chord, play_arp  -- Non-blocking note helpers
 
 -- Utilities
 transpose, octave_up, octave_down, dotted, rest, sleep

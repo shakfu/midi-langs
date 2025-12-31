@@ -791,3 +791,277 @@ Event types (in the `type` field):
 - `0xB0` = Control Change
 - `0xC0` = Program Change
 - `0xE0` = Pitch Bend
+
+---
+
+## Async Scheduler
+
+The async scheduler enables concurrent playback of multiple musical voices using Lua coroutines and libuv timers. Each voice runs independently with its own timing, allowing polyrhythms, counterpoint, and complex arrangements.
+
+### spawn
+
+```lua
+spawn(func, [name]) -> voice_id
+```
+
+Create a new voice (coroutine) from a function. The function will run concurrently with other voices when `run()` is called.
+
+- `func` - Function to execute as a voice
+- `name` - Optional name for debugging (default: "")
+- Returns: Integer voice ID
+
+```lua
+spawn(function()
+    play(c4, mf, quarter)
+    play(e4, mf, quarter)
+    play(g4, mf, quarter)
+end, "melody")
+
+spawn(function()
+    for i = 1, 4 do
+        play(c3, f, half)
+    end
+end, "bass")
+
+run()  -- Both voices play concurrently
+```
+
+### yield_ms
+
+```lua
+yield_ms(ms)
+```
+
+Pause the current voice for the specified number of milliseconds. Other voices continue running during this time. Must be called from within a spawned voice.
+
+```lua
+spawn(function()
+    play(c4)
+    yield_ms(1000)  -- Wait 1 second
+    play(e4)
+end)
+```
+
+### run
+
+```lua
+run()
+```
+
+Run the scheduler until all voices complete. This is a blocking call that processes voice resumes.
+
+```lua
+spawn(function() play(c4) end)
+spawn(function() play(e4) end)
+run()  -- Blocks until both voices finish
+```
+
+### stop
+
+```lua
+stop([voice_id]) -> boolean
+```
+
+Stop a specific voice by ID, or stop all voices if no ID is given.
+
+```lua
+local id = spawn(function()
+    while true do
+        play(c4, mf, quarter)
+    end
+end)
+
+-- Later...
+stop(id)    -- Stop specific voice
+stop()      -- Stop all voices
+```
+
+### voices
+
+```lua
+voices() -> integer
+```
+
+Get the count of currently active voices.
+
+```lua
+spawn(function() yield_ms(1000) end)
+spawn(function() yield_ms(2000) end)
+print(voices())  -- => 2
+```
+
+### scheduler.status
+
+```lua
+scheduler.status() -> table
+```
+
+Get detailed scheduler status information.
+
+```lua
+local s = scheduler.status()
+print(s.running)   -- boolean: is run() active?
+print(s.active)    -- number: active voice count
+for _, v in ipairs(s.voices) do
+    print(v.id, v.name, v.waiting)
+end
+```
+
+---
+
+## Async Note Helpers
+
+These functions are designed for use inside spawned voices. They play notes using non-blocking waits, allowing other voices to run during note durations.
+
+### play
+
+```lua
+play(pitch, [velocity], [duration], [channel])
+```
+
+Play a single note asynchronously. Uses `yield_ms` internally so other voices can run.
+
+```lua
+spawn(function()
+    play(c4)                    -- Defaults
+    play(c4, mf)                -- With velocity
+    play(c4, mf, quarter)       -- With duration
+    play(c4, mf, quarter, 2)    -- On channel 2
+end)
+run()
+```
+
+### play_chord
+
+```lua
+play_chord(pitches, [velocity], [duration], [channel])
+```
+
+Play multiple notes simultaneously, then wait asynchronously.
+
+```lua
+spawn(function()
+    play_chord(major(c4), mf, half)
+    play_chord(major(f3), mf, half)
+    play_chord(major(g3), mf, half)
+    play_chord(major(c4), f, whole)
+end)
+run()
+```
+
+### play_arp
+
+```lua
+play_arp(pitches, [velocity], [duration], [channel])
+```
+
+Play notes sequentially (arpeggiated) with async timing.
+
+```lua
+spawn(function()
+    play_arp(major(c4), mf, sixteenth)
+    play_arp(minor(a3), mf, sixteenth)
+end)
+run()
+```
+
+---
+
+## Async Examples
+
+### Two-Voice Counterpoint
+
+```lua
+open()
+
+spawn(function()
+    -- Upper voice: melody
+    for _, p in ipairs({c5, d5, e5, f5, g5, f5, e5, d5, c5}) do
+        play(p, mf, quarter)
+    end
+end, "melody")
+
+spawn(function()
+    -- Lower voice: bass line
+    play(c3, f, half)
+    play(g3, f, half)
+    play(a3, f, half)
+    play(f3, f, half)
+    play(c3, f, whole)
+end, "bass")
+
+run()
+close()
+```
+
+### Polyrhythm (3 against 4)
+
+```lua
+open()
+midi.set_tempo(120)
+
+spawn(function()
+    -- Voice 1: 4 notes per cycle
+    for i = 1, 4 do
+        play(c4, mf, quarter)
+    end
+end)
+
+spawn(function()
+    -- Voice 2: 3 notes per cycle (dotted rhythm)
+    local triplet = math.floor(quarter * 4 / 3)
+    for i = 1, 3 do
+        play(g4, mf, triplet)
+    end
+end)
+
+run()
+close()
+```
+
+### Generative Voices
+
+```lua
+open()
+
+-- Random melody voice
+spawn(function()
+    local scale_pitches = scale(c4, "pentatonic")
+    for i = 1, 16 do
+        local p = scale_pitches[math.random(#scale_pitches)]
+        play(p, math.random(60, 100), sixteenth)
+    end
+end, "random_melody")
+
+-- Steady bass drone
+spawn(function()
+    for i = 1, 4 do
+        play(c2, f, whole)
+    end
+end, "drone")
+
+run()
+close()
+```
+
+### Stop Voice Early
+
+```lua
+open()
+
+local melody_id = spawn(function()
+    while true do
+        for _, p in ipairs(scale(c4, "major")) do
+            play(p, mf, eighth)
+        end
+    end
+end, "infinite_melody")
+
+spawn(function()
+    yield_ms(2000)  -- Let melody play for 2 seconds
+    stop(melody_id) -- Then stop it
+end, "stopper")
+
+run()
+close()
+```
