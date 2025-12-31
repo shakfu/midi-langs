@@ -22,6 +22,19 @@ All notable changes to midi-langs are documented in this file.
   - Re-exported from `MusicPerform` module for convenience
   - Full test coverage (6 async tests)
 
+- **pktpy-midi Async Tests**: 20 new tests for async scheduler (Tests 28-47)
+  - Function existence tests: spawn, run, stop, voices, status
+  - Functional tests: spawn/run, voice_id return, multiple voices
+  - Control tests: stop specific voice, stop all voices
+  - Helper tests: midi.play, midi.play_chord, midi.wait generators
+  - Edge case tests: run with no voices, voices count after complete
+
+- **Async Models Documentation**: Cross-language comparison guide
+  - New `docs/async-models.md` documenting all five async implementations
+  - Comparison tables for threading model, blocking behavior, ease of use
+  - Side-by-side code examples showing same musical idea in all languages
+  - Guidance on when to use which language for async tasks
+
 - **s7-midi Async Scheduler**: Non-blocking concurrent playback using libuv and thunk-based cooperative multitasking
   - `(spawn thunk [name])` - Create a new voice from a procedure
   - `(run)` - Run scheduler until all voices complete

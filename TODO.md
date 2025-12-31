@@ -35,8 +35,8 @@ Ideas for extending MIDI implementations.
 
 ### Unify/document async patterns
 
-- [ ] Create cross-language async examples
-- [ ] Document the different async models
+- [x] Create cross-language async examples - see `docs/async-models.md`
+- [x] Document the different async models - see `docs/async-models.md`
 
 
 ---
@@ -90,10 +90,11 @@ Ideas for extending MIDI implementations.
 
 ### Improve pktpy-midi async
 
-- [ ] Add pktpy-midi async tests - the async scheduler works but has no automated tests yet. Could add tests similar to lua-midi's 16 async tests.
+- [x] Add pktpy-midi async tests - 20 async tests added (Tests 28-47)
 - [ ] Voice naming/listing in `status()`
 - [ ] `yield_ms(n)` helper function for simpler syntax
 - [ ] Exception handling improvements
+- [ ] Fix sequential `run()` calls (second `run()` hangs after first completes)
 
 ---
 
@@ -101,18 +102,20 @@ Ideas for extending MIDI implementations.
 
 ### Music Module Enhancements
 
-- [ ] `reverse :: Music -> Music` - play backwards
-- [ ] `invert :: Pitch -> Music -> Music` - melodic inversion around pivot
-- [ ] `retrograde :: Music -> Music` - reverse pitch order, keep rhythm
+- [x] `retrograde :: Music -> Music` - reverse pitch order, keep rhythm
+- [x] `invert :: Pitch -> Music -> Music` - melodic inversion around pivot
 - [ ] `augment :: Rational -> Music -> Music` - fractional tempo scaling
 - [ ] `diminish :: Rational -> Music -> Music`
 - [ ] `cut :: Duration -> Music -> Music` - truncate to duration
 - [ ] `remove :: Duration -> Music -> Music` - skip initial duration
 
-### Parallel Sequences
+### Async Scheduler (Completed)
 
-- [ ] True concurrent playback using threads
-- [ ] `forkMusic :: Music -> IO ThreadId`
+- [x] True concurrent playback using native Haskell threads (`forkIO`)
+- [x] `spawn :: String -> IO () -> IO VoiceId` - spawn named voice
+- [x] `run :: IO ()` - wait for all voices
+- [x] `stop`, `stopAll`, `voices`, `status` - scheduler control
+- [x] `asyncNote`, `asyncChord`, `asyncPerform` - async helpers
 - [ ] Synchronized start for multiple voices
 
 ### Timing Abstractions
@@ -133,7 +136,7 @@ Ideas for extending MIDI implementations.
 
 - [ ] `toMidiFile :: Music -> ByteString` - export to MIDI file
 - [ ] `toEvents :: Music -> [(Time, MidiEvent)]` - timed event list
-- [ ] `duration :: Music -> Duration` - compute total duration (pure)
+- [x] `duration :: Music -> Duration` - compute total duration (pure)
 - [ ] `pitches :: Music -> [Pitch]` - extract all pitches (pure)
 
 ### MIDI Input
