@@ -2,11 +2,12 @@ add_executable(pktpy_midi
     main.c
     midi_module.c
     scheduler.c
-    pocketpy.c
+    ${CMAKE_SOURCE_DIR}/thirdparty/pocketpy/pocketpy.c
 )
 
 target_include_directories(pktpy_midi PRIVATE
     ${CMAKE_SOURCE_DIR}/thirdparty/libuv/include
+    ${CMAKE_SOURCE_DIR}/thirdparty/pocketpy
 )
 
 target_compile_options(pktpy_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)

@@ -64,7 +64,7 @@ void alda_node_free(AldaNode* node) {
             for (size_t i = 0; i < node->data.part_decl.name_count; i++) {
                 free(node->data.part_decl.names[i]);
             }
-            free(node->data.part_decl.names);
+            free((void*)node->data.part_decl.names);
             free(node->data.part_decl.alias);
             break;
 

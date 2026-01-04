@@ -283,10 +283,17 @@ static char* read_file(const char* path) {
     }
     fseek(file, 0, SEEK_END);
     long size = ftell(file);
+    if (size < 0) {
+        fclose(file);
+        printf("Error: cannot determine file size\n");
+        return NULL;
+    }
     fseek(file, 0, SEEK_SET);
-    char* buffer = PK_MALLOC(size + 1);
-    size = fread(buffer, 1, size, file);
-    buffer[size] = 0;
+    char* buffer = PK_MALLOC((size_t)size + 1);
+    size_t read = fread(buffer, 1, (size_t)size, file);
+    if (read > (size_t)size) read = (size_t)size;
+    buffer[read] = 0;
+    fclose(file);
     return buffer;
 }
 

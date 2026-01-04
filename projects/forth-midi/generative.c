@@ -646,12 +646,12 @@ void op_weighted_pick(Stack* s) {
         int32_t result = seq->elements[0].value;
 
         for (int i = 0; i < pairs; i++) {
-            SeqElement* wt = &seq->elements[i * 2 + 1];
+            SeqElement* wt = &seq->elements[(size_t)i * 2 + 1];
             if (wt->type == SEQ_ELEM_NUMBER || wt->type == SEQ_ELEM_PITCH) {
                 cumulative += wt->value;
             }
             if (r <= cumulative) {
-                result = seq->elements[i * 2].value;
+                result = seq->elements[(size_t)i * 2].value;
                 break;
             }
         }

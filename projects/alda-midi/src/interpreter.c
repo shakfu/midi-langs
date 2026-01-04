@@ -47,7 +47,7 @@ static const int NOTE_OFFSETS[] = {
 
 int alda_calculate_pitch(char letter, const char* accidentals, int octave) {
     /* Validate letter */
-    char c = tolower((unsigned char)letter);
+    int c = tolower((unsigned char)letter);
     if (c < 'a' || c > 'g') {
         return -1;
     }
@@ -623,10 +623,15 @@ int alda_interpret_file(AldaContext* ctx, const char* filename) {
     /* Get file size */
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
+    if (size < 0) {
+        fclose(f);
+        fprintf(stderr, "Error: Cannot determine file size for '%s'\n", filename);
+        return -1;
+    }
     fseek(f, 0, SEEK_SET);
 
     /* Allocate buffer */
-    char* source = malloc(size + 1);
+    char* source = malloc((size_t)size + 1);
     if (!source) {
         fclose(f);
         fprintf(stderr, "Error: Out of memory\n");
@@ -634,7 +639,8 @@ int alda_interpret_file(AldaContext* ctx, const char* filename) {
     }
 
     /* Read file */
-    size_t read = fread(source, 1, size, f);
+    size_t read = fread(source, 1, (size_t)size, f);
+    if (read > (size_t)size) read = (size_t)size;
     source[read] = '\0';
     fclose(f);
 

@@ -6,6 +6,8 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **scripts/ctidy.py**: Run clang-tidy on all relevant projects
+
 - **tests**: README example tests in `tests/examples/`
   - `demo_alda.alda` - Alda quick example
   - `demo_forth.4th` - Forth quick example
@@ -16,6 +18,21 @@ All notable changes to midi-langs are documented in this file.
 
 ### Fixed
 
+- **alda-midi**: Fixed clang-tidy warnings in interpreter, scanner, parser, and AST modules
+  - `interpreter.c`: Added `ftell` error check to prevent `malloc(0)` on error
+  - `interpreter.c`: Added defensive bounds check for `fread` return value
+  - `interpreter.c`: Fixed narrowing conversion from `tolower()` (`int` to `char`)
+  - `scanner.c`: Added missing `default` case to switch statement
+  - `ast.c`, `parser.c`: Added explicit `(void*)` casts for `free(char**)`
+- **forth-midi**: Fixed clang-tidy warnings in generative, interpreter, and recording modules
+  - `generative.c`: Fixed implicit widening of multiplication result used as pointer offset
+  - `interpreter.c`: Added missing `default` cases to switch statements
+  - `interpreter.c`: Removed dead store to `last_pitch` and unused `result` variable
+  - `recording.c`: Added missing `default` case to switch statement
+- **lua-midi**: Added missing `default` cases to switch statements in `midi_module.c`
+- **s7-midi**: Added missing `default` cases to switch statements in `midi_module.c`
+- **pktpy-midi**: Fixed file reading bug in `main.c` (`ftell` error check, bounds check for `fread`)
+- **pktpy-midi**: Added missing `default` case to switch statement in `midi_module.c`
 - **mhs-midi**: Fixed `mhs-midi compile/run` to link music_theory and midi_file libraries
 - **docs**: Updated README.md "Common Features" section to clarify alda-midi doesn't use music_theory.c
 

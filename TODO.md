@@ -2,11 +2,6 @@
 
 Ideas for extending MIDI implementations.
 
-## New Implementation Ideas
-
-- [ ] Implement a python module which implements a variation of the [alda](https://github.com/alda-lang/alda) language.
-
-
 ## All Implementations
 
 ### Polyphony and Sequencing cocurrent patterns
@@ -21,7 +16,7 @@ Ideas for extending MIDI implementations.
 
 - [ ] Video tutorials
 - [x] Example compositions - see `examples/` directory
-- [ ] Comparison guide (when to use which)
+- [x] Comparison guide (when to use which)
 - [ ] Troubleshooting guide (common issues and solutions)
 - [ ] Document performance characteristics (startup time, memory usage)
 

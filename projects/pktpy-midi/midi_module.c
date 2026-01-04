@@ -1141,6 +1141,8 @@ static bool midi_write_mid(int argc, py_StackRef argv) {
             case 2:  // cc
                 midi_file_writer_cc(writer, tick, 0, channel, e->data1, e->data2);
                 break;
+            default:
+                break;
         }
     }
 

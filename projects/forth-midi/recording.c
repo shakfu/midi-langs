@@ -345,6 +345,7 @@ static void read_mid_callback(void* ctx, const midi_file_event* event) {
         case 0xC0: type_name = "program"; break;
         case 0xD0: type_name = "ch-pressure"; break;
         case 0xE0: type_name = "pitch-bend"; break;
+        default: break;
     }
 
     printf("  t=%5d ch=%2d %-10s %3d %3d\n",

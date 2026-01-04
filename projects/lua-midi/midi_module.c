@@ -1028,6 +1028,8 @@ static int l_write_mid(lua_State *L) {
             case 2:  /* cc */
                 midi_file_writer_cc(writer, tick, 0, channel, e->data1, e->data2);
                 break;
+            default:
+                break;
         }
     }
 
@@ -1080,6 +1082,7 @@ static void read_mid_callback(void* ctx, const midi_file_event* event) {
         case 0xC0: type_name = "program"; break;
         case 0xD0: type_name = "aftertouch"; break;
         case 0xE0: type_name = "pitch_bend"; break;
+        default: break;
     }
     lua_pushstring(L, type_name);
     lua_setfield(L, -2, "type");

@@ -209,6 +209,8 @@ static void apply_param(int param_type, int value, int scope, int cc_number) {
                     midi_send_cc(cc_number, value, default_channel);
                 }
                 break;
+            default:
+                break;
         }
     }
 }
@@ -370,7 +372,7 @@ void execute_bracket_sequence(BracketSequence* seq) {
     int dur = effective_duration();
     int ch = effective_channel();
     int gate = effective_gate();
-    int last_pitch = current_pitch;
+    int last_pitch;
 
     for (int i = 0; i < seq->count; i++) {
         SeqElement* elem = &seq->elements[i];
@@ -444,6 +446,8 @@ void execute_bracket_sequence(BracketSequence* seq) {
             case SEQ_ELEM_NUMBER:
                 /* Numbers are skipped when playing - they're for generative ops */
                 /* Could push to stack if needed: push(&stack, elem->value); */
+                break;
+            default:
                 break;
         }
     }
@@ -1056,9 +1060,8 @@ void interpret(const char* input) {
     int i = 0;
     int awaiting_name = 0;
     int awaiting_filename = 0;
-    int result;
 
-    while ((result = next_token(input, &i, word)) > 0) {
+    while (next_token(input, &i, word) > 0) {
 
         /* Handle compile mode */
         if (awaiting_name) {

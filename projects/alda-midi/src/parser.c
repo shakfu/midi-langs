@@ -487,10 +487,10 @@ static AldaNode* parse_part_declaration(AldaParser* p) {
             AldaToken* tok = advance(p);
             if (name_count >= name_capacity) {
                 name_capacity *= 2;
-                char** new_names = (char**)realloc(names, name_capacity * sizeof(char*));
+                char** new_names = (char**)realloc((void*)names, name_capacity * sizeof(char*));
                 if (!new_names) {
                     for (size_t i = 0; i < name_count; i++) free(names[i]);
-                    free(names);
+                    free((void*)names);
                     return NULL;
                 }
                 names = new_names;

@@ -399,6 +399,7 @@ static AldaToken scan_normal_token(AldaScanner* s) {
         case ']': return make_token(s, ALDA_TOK_BRACKET_CLOSE);
         case '(': s->sexp_depth++; return make_token(s, ALDA_TOK_LEFT_PAREN);
         case ')': s->sexp_depth--; return make_token(s, ALDA_TOK_RIGHT_PAREN);
+        default: break;
     }
 
     /* Rest letter: 'r' followed by non-letter (digits, whitespace, etc.) */
