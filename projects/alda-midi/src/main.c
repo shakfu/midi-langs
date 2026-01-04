@@ -8,6 +8,7 @@
 #include "alda/midi_backend.h"
 #include "alda/scheduler.h"
 #include "alda/interpreter.h"
+#include "alda/async.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,6 +49,7 @@ static void print_repl_help(void) {
     printf("  help              Show this help\n");
     printf("  quit, exit        Exit the REPL\n");
     printf("  list              List MIDI ports\n");
+    printf("  stop              Stop current playback\n");
     printf("  panic             All notes off\n");
     printf("\n");
     printf("Alda Syntax Examples:\n");
@@ -107,7 +109,15 @@ static void repl_loop(AldaContext* ctx) {
             continue;
         }
 
+        if (strcmp(input, "stop") == 0) {
+            alda_async_stop();
+            printf("Playback stopped\n");
+            free(input);
+            continue;
+        }
+
         if (strcmp(input, "panic") == 0) {
+            alda_async_stop();
             alda_midi_all_notes_off(ctx);
             printf("All notes off\n");
             free(input);
@@ -126,12 +136,12 @@ static void repl_loop(AldaContext* ctx) {
             continue;
         }
 
-        /* Play events if any were scheduled */
+        /* Play events asynchronously if any were scheduled */
         if (ctx->event_count > 0) {
             if (ctx->verbose_mode) {
                 printf("Playing %d events...\n", ctx->event_count);
             }
-            alda_events_play(ctx);
+            alda_events_play_async(ctx);
         }
 
         free(input);
@@ -292,6 +302,7 @@ int main(int argc, char* argv[]) {
     }
 
     /* Cleanup */
+    alda_async_cleanup();
     alda_midi_cleanup(&ctx);
     alda_context_cleanup(&ctx);
 

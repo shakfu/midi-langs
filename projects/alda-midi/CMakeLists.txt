@@ -24,6 +24,7 @@ set(ALDA_INTERPRETER_SOURCES
     src/scheduler.c
     src/interpreter.c
     src/attributes.c
+    src/async.c
 )
 
 # Header files
@@ -39,6 +40,7 @@ set(ALDA_HEADERS
     include/alda/midi_backend.h
     include/alda/scheduler.h
     include/alda/interpreter.h
+    include/alda/async.h
 )
 
 # Create the core library (parser + interpreter)
@@ -55,8 +57,8 @@ target_include_directories(alda-core
         $<INSTALL_INTERFACE:include>
 )
 
-# Link libremidi
-target_link_libraries(alda-core PUBLIC libremidi)
+# Link libremidi and libuv
+target_link_libraries(alda-core PUBLIC libremidi uv_a)
 
 # Platform-specific dependencies
 if(APPLE)

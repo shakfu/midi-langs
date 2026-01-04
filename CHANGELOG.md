@@ -32,7 +32,8 @@ All notable changes to midi-langs are documented in this file.
   - Event scheduler with tick-based timing (480 ticks per quarter)
   - File playback: `./build/alda_midi song.alda`
   - Interactive REPL with readline support:
-    - Commands: `help`, `quit`/`exit`, `list`, `panic`
+    - Non-blocking playback using libuv (REPL remains responsive)
+    - Commands: `help`, `quit`/`exit`, `list`, `stop`, `panic`
     - State persistence across inputs
     - Command history with up/down arrows
   - CLI options:
