@@ -4,6 +4,8 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.6]
+
 ### Added
 
 - **scripts/ctidy.py**: Run clang-tidy on all relevant projects
