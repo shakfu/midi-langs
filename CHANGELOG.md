@@ -66,6 +66,22 @@ All notable changes to midi-langs are documented in this file.
 
 ### Fixed
 
+- **pktpy-midi**: `yield from` now works correctly with async scheduler
+  - PocketPy 2.1.6's `yield from` implementation properly delegates to sub-generators
+  - Users can now write idiomatic `yield from midi.play(...)` instead of explicit `for` loops
+  - Updated documentation and examples to use `yield from` syntax
+
+- **pktpy-midi**: Tempo now affects all durations in the C layer
+  - Added `global_tempo_bpm` and `scale_duration_for_tempo()` in C layer
+  - `midi.set_tempo(bpm)` now updates both Python constants AND C-layer tempo
+  - All durations passed to `MidiOut.note()` and `MidiOut.chord()` are scaled by `120/current_bpm`
+  - At 60 BPM, all durations double; at 240 BPM, they halve
+
+- **pktpy-midi**: MidiOut destructor now sends All Notes Off
+  - `MidiOut_dtor` sends CC 123 on all 16 channels before freeing the handle
+  - Prevents hanging notes when MidiOut objects are garbage collected
+  - Matches behavior of `__exit__` context manager
+
 - **Sequential `run()` calls now work correctly**: lua-midi, pktpy-midi
   - Fixed bug where second `run()` call would hang after first completed
   - Root cause: `uv_timer_start` from main thread wasn't noticed by event loop thread
@@ -194,8 +210,8 @@ All notable changes to midi-langs are documented in this file.
     - `midi.wait(ms)` - Wait for ms (generator)
   - Up to 16 concurrent voices supported
   - Thread-safe design with dedicated libuv event loop thread
-  - Note: PocketPy's `yield from` has issues; use `for ms in ...: yield ms` pattern instead
-  - See [yield-from.md](docs/pktpy-midi/yield-from.md) for details on the PocketPy limitation
+  - `yield from` works correctly in PocketPy 2.1.6 for idiomatic generator delegation
+  - See [yield-from.md](docs/pktpy-midi/yield-from.md) for usage examples
 
 - **lua-midi Async Scheduler**: Non-blocking concurrent playback using libuv and Lua coroutines
   - `spawn(func, [name])` - Create a new voice (coroutine) from a function

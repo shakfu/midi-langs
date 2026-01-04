@@ -41,6 +41,22 @@ static int capture_active = 0;
 static struct timespec capture_start_time;
 static int capture_bpm = 120;
 
+// Global tempo state for duration scaling
+// Default 120 BPM - durations are specified assuming 120 BPM
+static int global_tempo_bpm = 120;
+#define BASE_TEMPO_BPM 120
+
+// Scale duration based on current tempo
+// At 120 BPM: no scaling (scale = 1.0)
+// At 60 BPM:  durations double (scale = 2.0)
+// At 240 BPM: durations halve (scale = 0.5)
+static inline int scale_duration_for_tempo(int duration_ms) {
+    if (global_tempo_bpm == BASE_TEMPO_BPM || duration_ms <= 0) {
+        return duration_ms;
+    }
+    return (int)((int64_t)duration_ms * BASE_TEMPO_BPM / global_tempo_bpm);
+}
+
 // Get current time in ms since capture start
 static uint32_t capture_get_time_ms(void) {
     struct timespec now;
@@ -401,10 +417,15 @@ static MidiOutData* MidiOut_get(py_Ref self) {
     return py_touserdata(self);
 }
 
-// MidiOut destructor
+// MidiOut destructor - sends all-notes-off before freeing to prevent hanging notes
 static void MidiOut_dtor(void* ud) {
     MidiOutData* data = (MidiOutData*)ud;
     if (data->handle != NULL) {
+        // Send all notes off on all channels before closing
+        for (int ch = 0; ch < 16; ch++) {
+            uint8_t msg[3] = { 0xB0 | ch, 123, 0 };  // CC 123 = All Notes Off
+            libremidi_midi_out_send_message(data->handle, msg, 3);
+        }
         libremidi_midi_out_free(data->handle);
         data->handle = NULL;
     }
@@ -574,9 +595,10 @@ static bool MidiOut_note(int argc, py_StackRef argv) {
     libremidi_midi_out_send_message(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
 
-    // Wait
+    // Wait (scaled by tempo)
     if (duration > 0) {
-        usleep(duration * 1000);
+        int scaled = scale_duration_for_tempo(duration);
+        usleep(scaled * 1000);
     }
 
     // Note off
@@ -688,9 +710,10 @@ static bool MidiOut_chord(int argc, py_StackRef argv) {
         capture_add_event(0, channel - 1, pitches[i], velocity);
     }
 
-    // Wait
+    // Wait (scaled by tempo)
     if (duration > 0) {
-        usleep(duration * 1000);
+        int scaled = scale_duration_for_tempo(duration);
+        usleep(scaled * 1000);
     }
 
     // Send all note-offs
@@ -931,6 +954,29 @@ static bool MidiOut__repr__(int argc, py_StackRef argv) {
     } else {
         py_newstr(py_retval(), "<MidiOut closed>");
     }
+    return true;
+}
+
+// ============================================================================
+// Tempo functions (for C-layer duration scaling)
+// ============================================================================
+
+// midi._set_c_tempo(bpm) - Set tempo for C-layer duration scaling
+static bool midi_set_c_tempo(int argc, py_StackRef argv) {
+    PY_CHECK_ARGC(1);
+    PY_CHECK_ARG_TYPE(0, tp_int);
+    int bpm = (int)py_toint(py_arg(0));
+    if (bpm < 1) bpm = 1;
+    if (bpm > 999) bpm = 999;
+    global_tempo_bpm = bpm;
+    py_newnone(py_retval());
+    return true;
+}
+
+// midi._get_c_tempo() - Get current C-layer tempo
+static bool midi_get_c_tempo(int argc, py_StackRef argv) {
+    PY_CHECK_ARGC(0);
+    py_newint(py_retval(), global_tempo_bpm);
     return true;
 }
 
@@ -1241,6 +1287,10 @@ void pk_midi_module_init(void) {
     py_bindfunc(mod, "scale_degree", midi_scale_degree);
     py_bindfunc(mod, "in_scale", midi_in_scale);
     py_bindfunc(mod, "quantize_to_scale", midi_quantize_to_scale);
+
+    // Tempo functions (internal, called from prelude.py)
+    py_bindfunc(mod, "_set_c_tempo", midi_set_c_tempo);
+    py_bindfunc(mod, "_get_c_tempo", midi_get_c_tempo);
 
     // Recording functions
     py_bindfunc(mod, "record_midi", midi_record_midi);

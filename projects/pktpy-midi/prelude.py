@@ -33,8 +33,14 @@ midi.dotted = _dotted
 midi._bpm = 120
 
 def _set_tempo(bpm):
-    '''Set tempo in BPM and update duration constants'''
+    '''Set tempo in BPM and update duration constants.
+
+    This updates both the Python duration constants AND the C-layer
+    tempo scaling, so all durations (including raw millisecond values)
+    are scaled appropriately.
+    '''
     midi._bpm = bpm
+    midi._set_c_tempo(bpm)  # Update C layer for duration scaling
     beat_ms = 60000 // bpm
     midi.quarter = beat_ms
     midi.half = beat_ms * 2

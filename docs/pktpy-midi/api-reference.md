@@ -199,7 +199,9 @@ m.all_notes_off(1)    # Channel 1 only
 m.close()
 ```
 
-Close the MIDI port. Automatically called when using context manager.
+Close the MIDI port. Sends All Notes Off on all channels before closing to prevent hanging notes.
+
+Note: All Notes Off is also sent automatically when a MidiOut object is garbage collected, so notes won't hang even if you forget to call close().
 
 ### MidiOut.is_open
 
@@ -291,12 +293,19 @@ midi.dotted(midi.half)     # 1500
 midi.set_tempo(bpm: int)
 ```
 
-Set tempo and update all duration constants.
+Set tempo in BPM. This affects:
+- Duration constants (`midi.quarter`, `midi.half`, etc.)
+- All durations passed to `MidiOut.note()` and `MidiOut.chord()`
+
+Durations are scaled relative to 120 BPM (the default). At 60 BPM, all durations double; at 240 BPM, they halve.
 
 ```python
-midi.set_tempo(120)  # 120 BPM (default)
-midi.set_tempo(60)   # 60 BPM - durations double
+midi.set_tempo(120)  # 120 BPM (default) - no scaling
+midi.set_tempo(60)   # 60 BPM - all durations double
 print(midi.quarter)  # 1000 at 60 BPM
+
+# Even raw millisecond values are scaled:
+out.note(60, 80, 500)  # At 60 BPM, plays for 1000ms (500 * 120/60)
 ```
 
 ### midi.get_tempo

@@ -32,6 +32,7 @@ static const char *PY_PRELUDE_MODULE =
 "def _set_tempo(bpm):\n"
 "\n"
 "    midi._bpm = bpm\n"
+"    midi._set_c_tempo(bpm)\n"
 "    beat_ms = 60000 // bpm\n"
 "    midi.quarter = beat_ms\n"
 "    midi.half = beat_ms * 2\n"
