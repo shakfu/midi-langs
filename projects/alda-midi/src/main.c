@@ -34,7 +34,10 @@ static void print_usage(const char* prog) {
     printf("  -o, --output NAME Use MIDI port matching NAME\n");
     printf("  --virtual NAME    Create virtual MIDI port with NAME\n");
     printf("  --no-sleep        Disable timing delays (for testing)\n");
-    printf("  -c, --concurrent  Enable concurrent playback mode\n");
+    printf("  -s, --sequential  Use sequential playback mode (wait for each input)\n");
+    printf("\n");
+    printf("By default, connects to the first available MIDI port (or creates a virtual\n");
+    printf("port if none exist) and uses concurrent mode for polyphonic playback.\n");
     printf("\n");
     printf("Examples:\n");
     printf("  %s                        Start interactive REPL\n", prog);
@@ -52,8 +55,8 @@ static void print_repl_help(void) {
     printf("  list              List MIDI ports\n");
     printf("  stop              Stop current playback\n");
     printf("  panic             All notes off\n");
-    printf("  concurrent        Enable concurrent mode (polyphony)\n");
-    printf("  sequential        Disable concurrent mode (default)\n");
+    printf("  sequential        Enable sequential mode (wait for each input)\n");
+    printf("  concurrent        Enable concurrent mode (default, polyphony)\n");
     printf("\n");
     printf("Alda Syntax Examples:\n");
     printf("  piano:            Select piano instrument\n");
@@ -75,8 +78,8 @@ static void repl_loop(AldaContext* ctx) {
     char* input;
 
     printf("Alda MIDI (type 'help' for commands, 'quit' to exit)\n");
-    if (alda_async_get_concurrent()) {
-        printf("Mode: concurrent (polyphony enabled)\n");
+    if (!alda_async_get_concurrent()) {
+        printf("Mode: sequential\n");
     }
 
     while (1) {
@@ -132,14 +135,14 @@ static void repl_loop(AldaContext* ctx) {
 
         if (strcmp(input, "concurrent") == 0) {
             alda_async_set_concurrent(1);
-            printf("Concurrent mode enabled (up to 8 simultaneous playbacks)\n");
+            printf("Concurrent mode enabled (polyphony)\n");
             free(input);
             continue;
         }
 
         if (strcmp(input, "sequential") == 0) {
             alda_async_set_concurrent(0);
-            printf("Sequential mode enabled (default)\n");
+            printf("Sequential mode enabled (wait for each input)\n");
             free(input);
             continue;
         }
@@ -179,7 +182,7 @@ int main(int argc, char* argv[]) {
     const char* port_name = NULL;
     const char* virtual_name = NULL;
     int no_sleep = 0;
-    int concurrent = 0;
+    int sequential = 0;
     const char* input_file = NULL;
 
     /* Long options */
@@ -191,14 +194,14 @@ int main(int argc, char* argv[]) {
         {"output",     required_argument, 0, 'o'},
         {"virtual",    required_argument, 0, 'V'},
         {"no-sleep",   no_argument,       0, 'S'},
-        {"concurrent", no_argument,       0, 'c'},
+        {"sequential", no_argument,       0, 's'},
         {0, 0, 0, 0}
     };
 
     /* Parse options */
     int opt;
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "hvlcp:o:", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hvlsp:o:", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'h':
                 print_usage(argv[0]);
@@ -228,8 +231,8 @@ int main(int argc, char* argv[]) {
                 no_sleep = 1;
                 break;
 
-            case 'c':
-                concurrent = 1;
+            case 's':
+                sequential = 1;
                 break;
 
             default:
@@ -282,12 +285,9 @@ int main(int argc, char* argv[]) {
             midi_opened = 1;
         }
     } else {
-        /* Default: create virtual port */
-        if (alda_midi_open_virtual(&ctx, "AldaMIDI") == 0) {
+        /* Default: auto-select first available port, or create virtual */
+        if (alda_midi_open_auto(&ctx, "AldaMIDI") == 0) {
             midi_opened = 1;
-            if (verbose) {
-                printf("Created virtual MIDI output: AldaMIDI\n");
-            }
         }
     }
 
@@ -295,12 +295,12 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Warning: Failed to open MIDI output\n");
     }
 
-    /* Apply concurrent mode if requested */
-    if (concurrent) {
+    /* Concurrent mode is the default; disable if sequential requested */
+    if (!sequential) {
         alda_async_set_concurrent(1);
-        if (verbose) {
-            printf("Concurrent playback mode enabled\n");
-        }
+    }
+    if (verbose) {
+        printf("Playback mode: %s\n", sequential ? "sequential" : "concurrent");
     }
 
     int result = 0;

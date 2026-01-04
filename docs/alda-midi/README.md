@@ -10,7 +10,8 @@ A C implementation of the [Alda](https://alda.io/) music language with MIDI outp
 - Attributes: tempo, volume, dynamics, quantization, panning
 - Voices for polyphony (V1:, V2:, V0:)
 - Auto MIDI channel assignment (1-16)
-- Non-blocking REPL with concurrent playback mode
+- Non-blocking REPL with concurrent playback (default)
+- Auto-connects to first available MIDI port
 - File playback and interactive REPL modes
 - Virtual and hardware MIDI port support
 
@@ -41,8 +42,8 @@ alda> c/e/g
 ### Interactive REPL
 
 ```bash
-./build/alda_midi           # Start REPL
-./build/alda_midi -c        # Start in concurrent mode (polyphony)
+./build/alda_midi           # Start REPL (concurrent mode, auto port)
+./build/alda_midi -s        # Start in sequential mode
 ```
 
 Type `help` for commands, `quit` or Ctrl-D to exit.
@@ -65,7 +66,9 @@ Type `help` for commands, `quit` or Ctrl-D to exit.
 | `-o, --output NAME` | Use port matching name |
 | `--virtual NAME` | Create virtual port with name |
 | `--no-sleep` | Disable timing (for testing) |
-| `-c, --concurrent` | Enable concurrent playback mode |
+| `-s, --sequential` | Use sequential playback mode |
+
+By default, alda-midi connects to the first available MIDI port (or creates a virtual port if none exist) and uses concurrent mode for polyphonic playback.
 
 ## REPL Commands
 
@@ -76,8 +79,8 @@ Type `help` for commands, `quit` or Ctrl-D to exit.
 | `list` | List MIDI ports |
 | `stop` | Stop current playback |
 | `panic` | All notes off |
-| `concurrent` | Enable concurrent mode |
-| `sequential` | Disable concurrent mode (default) |
+| `sequential` | Enable sequential mode (wait for each input) |
+| `concurrent` | Enable concurrent mode (default, polyphony) |
 
 ## Example Programs
 
@@ -126,13 +129,11 @@ piano:
   V0: c1/e/g
 ```
 
-## Concurrent Mode
+## Playback Modes
 
-In concurrent mode (`-c` flag or `concurrent` command), each REPL input plays immediately without waiting for previous playback to finish. This allows polyphonic layering:
+### Concurrent Mode (Default)
 
-```bash
-./build/alda_midi -c
-```
+Each REPL input plays immediately without waiting for previous playback to finish. This allows polyphonic layering:
 
 ```
 alda> piano: c1 d e f g a b > c
@@ -141,6 +142,16 @@ alda> cello: c1 g c g               # Adds bass layer
 ```
 
 Each instrument is assigned a different MIDI channel automatically, enabling true polyphony when connected to a GM-compatible synthesizer.
+
+### Sequential Mode
+
+Use `-s` or the `sequential` command to wait for each input to finish before accepting the next:
+
+```bash
+./build/alda_midi -s
+```
+
+This is useful for debugging or when you want to hear each part in isolation.
 
 ## Alda Language Quick Reference
 

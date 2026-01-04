@@ -44,9 +44,25 @@ All notable changes to midi-langs are documented in this file.
     - `-o, --output NAME` - Use port matching name
     - `--virtual NAME` - Create virtual port
     - `--no-sleep` - Disable timing delays (for testing)
-    - `-c, --concurrent` - Enable concurrent playback mode
-  - Default virtual MIDI port: "AldaMIDI"
+    - `-s, --sequential` - Use sequential playback mode
+  - Auto-connects to first available MIDI port (falls back to virtual "AldaMIDI" if none)
+  - Concurrent playback mode enabled by default for natural polyphony
   - Test suite with integration and quick tests
+- **scripts/fluidsynth-gm.py**: Helper script to start FluidSynth with GM SoundFont
+  - Platform-specific driver auto-detection (coreaudio/coremidi, pulseaudio/alsa_seq, dsound/winmidi)
+  - Environment variables: `ALDA_SF2_DIR`, `ALDA_SF2_DEFAULT`
+  - Options: `--list`, `-g/--gain`, `-a/--audio-driver`, `-m/--midi-driver`
+
+### Changed
+
+- **alda-midi**: Concurrent mode is now the default
+  - Multiple parts entered in REPL play simultaneously (polyphony)
+  - Use `-s, --sequential` or `sequential` command for sequential mode
+  - Sequential mode waits for each input to finish before accepting next
+- **alda-midi**: Auto-port selection
+  - Automatically connects to first available MIDI port
+  - Falls back to virtual port "AldaMIDI" only if no hardware ports exist
+  - FluidSynth now works out of the box without `--port`
 
 ### Fixed
 

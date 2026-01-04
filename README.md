@@ -31,7 +31,7 @@ Requires GCC/Clang and CMake 3.16+.
 
 ```bash
 ./build/alda_midi           # Start REPL
-./build/alda_midi -c        # Start REPL in concurrent mode (polyphony)
+./build/alda_midi -s        # Start REPL in sequential mode
 ./build/alda_midi song.alda # Play a file
 ```
 
@@ -46,7 +46,7 @@ violin:
   V0: c1
 ```
 
-In concurrent mode (`-c` or `concurrent` command), multiple parts entered separately play simultaneously on different MIDI channels.
+By default, alda-midi uses concurrent mode where multiple parts play simultaneously on different MIDI channels. Use `-s` for sequential mode.
 
 [Full documentation](docs/alda-midi/README.md) | [Language Reference](docs/alda-midi/language-reference.md)
 

@@ -267,6 +267,20 @@ int alda_midi_open_by_name(AldaContext* ctx, const char* name) {
     return alda_midi_open_virtual(ctx, name);
 }
 
+int alda_midi_open_auto(AldaContext* ctx, const char* virtual_name) {
+    if (!ctx) return -1;
+
+    alda_midi_init_observer(ctx);
+
+    /* If hardware ports available, open the first one */
+    if (ctx->out_port_count > 0) {
+        return alda_midi_open_port(ctx, 0);
+    }
+
+    /* No hardware ports - create virtual port */
+    return alda_midi_open_virtual(ctx, virtual_name);
+}
+
 void alda_midi_close(AldaContext* ctx) {
     if (!ctx) return;
 

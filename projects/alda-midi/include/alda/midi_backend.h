@@ -63,6 +63,14 @@ int alda_midi_open_virtual(AldaContext* ctx, const char* name);
 int alda_midi_open_by_name(AldaContext* ctx, const char* name);
 
 /**
+ * @brief Auto-select MIDI output: first available port, or virtual if none.
+ * @param ctx Alda context.
+ * @param virtual_name Name for virtual port if no hardware ports found.
+ * @return 0 on success, -1 on error.
+ */
+int alda_midi_open_auto(AldaContext* ctx, const char* virtual_name);
+
+/**
  * @brief Close the current MIDI output.
  * @param ctx Alda context.
  */
