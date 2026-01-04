@@ -3,7 +3,8 @@
  * @brief Asynchronous event playback for Alda interpreter.
  *
  * This module enables non-blocking playback using libuv, allowing the REPL
- * to remain responsive while music plays.
+ * to remain responsive while music plays. Supports concurrent mode for
+ * polyphonic playback of multiple parts entered separately.
  */
 
 #include "alda/async.h"
@@ -14,7 +15,34 @@
 #include <stdio.h>
 
 /* ============================================================================
- * Async Playback State
+ * Constants
+ * ============================================================================ */
+
+#define MAX_ASYNC_SLOTS 8
+
+/* ============================================================================
+ * Playback Slot - One per concurrent playback
+ * ============================================================================ */
+
+typedef struct {
+    int active;                     /* Is this slot in use? */
+
+    /* Event data (copy of scheduled events) */
+    AldaScheduledEvent* events;
+    int event_count;
+    int event_index;
+    int tempo;
+
+    /* Stop request */
+    int stop_requested;
+
+    /* libuv handles */
+    uv_timer_t timer;
+    uv_async_t stop_async;
+} AsyncSlot;
+
+/* ============================================================================
+ * Async Playback System
  * ============================================================================ */
 
 typedef struct {
@@ -24,26 +52,19 @@ typedef struct {
     uv_async_t wake_async;
     uv_mutex_t mutex;
 
-    /* Playback state */
+    /* System state */
     int running;
     int shutdown_requested;
-    int playing;
 
-    /* Event timer */
-    uv_timer_t timer;
-
-    /* Event data (copy of scheduled events) */
-    AldaScheduledEvent* events;
-    int event_count;
-    int event_index;
-    int tempo;
+    /* Playback slots */
+    AsyncSlot slots[MAX_ASYNC_SLOTS];
+    int active_count;
 
     /* MIDI output handle (borrowed from context) */
     libremidi_midi_out_handle* midi_out;
 
-    /* Stop request */
-    uv_async_t stop_async;
-    int stop_requested;
+    /* Concurrent mode flag */
+    int concurrent_mode;
 
 } AsyncPlaybackSystem;
 
@@ -54,7 +75,8 @@ static AsyncPlaybackSystem async_sys = {0};
  * ============================================================================ */
 
 static void on_timer(uv_timer_t* handle);
-static void schedule_next_event(void);
+static void schedule_next_event(AsyncSlot* slot);
+static AsyncSlot* find_free_slot(void);
 
 /* ============================================================================
  * Timer Callback - Fires for each MIDI event
@@ -104,49 +126,52 @@ static void send_event(AldaScheduledEvent* evt) {
 }
 
 static void on_timer(uv_timer_t* handle) {
-    (void)handle;
+    AsyncSlot* slot = (AsyncSlot*)handle->data;
 
-    if (async_sys.stop_requested || async_sys.event_index >= async_sys.event_count) {
-        /* Done playing */
+    if (slot->stop_requested || slot->event_index >= slot->event_count) {
+        /* Done playing - mark slot as inactive */
         uv_mutex_lock(&async_sys.mutex);
-        async_sys.playing = 0;
+        slot->active = 0;
+        async_sys.active_count--;
         uv_mutex_unlock(&async_sys.mutex);
         return;
     }
 
     /* Send current event */
-    AldaScheduledEvent* evt = &async_sys.events[async_sys.event_index];
+    AldaScheduledEvent* evt = &slot->events[slot->event_index];
     send_event(evt);
 
-    async_sys.event_index++;
-    schedule_next_event();
+    slot->event_index++;
+    schedule_next_event(slot);
 }
 
-static void schedule_next_event(void) {
-    if (async_sys.stop_requested) {
+static void schedule_next_event(AsyncSlot* slot) {
+    if (slot->stop_requested) {
         uv_mutex_lock(&async_sys.mutex);
-        async_sys.playing = 0;
+        slot->active = 0;
+        async_sys.active_count--;
         uv_mutex_unlock(&async_sys.mutex);
         return;
     }
 
-    if (async_sys.event_index >= async_sys.event_count) {
+    if (slot->event_index >= slot->event_count) {
         /* Done playing */
         uv_mutex_lock(&async_sys.mutex);
-        async_sys.playing = 0;
+        slot->active = 0;
+        async_sys.active_count--;
         uv_mutex_unlock(&async_sys.mutex);
         return;
     }
 
-    AldaScheduledEvent* curr = &async_sys.events[async_sys.event_index];
-    int prev_tick = (async_sys.event_index > 0) ?
-                    async_sys.events[async_sys.event_index - 1].tick : 0;
+    AldaScheduledEvent* curr = &slot->events[slot->event_index];
+    int prev_tick = (slot->event_index > 0) ?
+                    slot->events[slot->event_index - 1].tick : 0;
 
     int delta_ticks = curr->tick - prev_tick;
-    int ms = alda_ticks_to_ms(delta_ticks, async_sys.tempo);
+    int ms = alda_ticks_to_ms(delta_ticks, slot->tempo);
     if (ms < 0) ms = 0;
 
-    uv_timer_start(&async_sys.timer, on_timer, ms, 0);
+    uv_timer_start(&slot->timer, on_timer, ms, 0);
 }
 
 /* ============================================================================
@@ -154,12 +179,16 @@ static void schedule_next_event(void) {
  * ============================================================================ */
 
 static void on_stop_signal(uv_async_t* handle) {
-    (void)handle;
-    async_sys.stop_requested = 1;
-    uv_timer_stop(&async_sys.timer);
-    uv_mutex_lock(&async_sys.mutex);
-    async_sys.playing = 0;
-    uv_mutex_unlock(&async_sys.mutex);
+    AsyncSlot* slot = (AsyncSlot*)handle->data;
+    slot->stop_requested = 1;
+    uv_timer_stop(&slot->timer);
+
+    if (slot->active) {
+        uv_mutex_lock(&async_sys.mutex);
+        slot->active = 0;
+        async_sys.active_count--;
+        uv_mutex_unlock(&async_sys.mutex);
+    }
 }
 
 /* ============================================================================
@@ -193,6 +222,19 @@ static void async_thread_fn(void* arg) {
 }
 
 /* ============================================================================
+ * Helper Functions
+ * ============================================================================ */
+
+static AsyncSlot* find_free_slot(void) {
+    for (int i = 0; i < MAX_ASYNC_SLOTS; i++) {
+        if (!async_sys.slots[i].active) {
+            return &async_sys.slots[i];
+        }
+    }
+    return NULL;
+}
+
+/* ============================================================================
  * Public API
  * ============================================================================ */
 
@@ -217,16 +259,24 @@ int alda_async_init(void) {
     /* Initialize wake async handle */
     uv_async_init(async_sys.loop, &async_sys.wake_async, on_wake);
 
-    /* Initialize timer */
-    uv_timer_init(async_sys.loop, &async_sys.timer);
+    /* Initialize all slots */
+    for (int i = 0; i < MAX_ASYNC_SLOTS; i++) {
+        AsyncSlot* slot = &async_sys.slots[i];
+        slot->active = 0;
+        slot->events = NULL;
 
-    /* Initialize stop async handle */
-    uv_async_init(async_sys.loop, &async_sys.stop_async, on_stop_signal);
+        uv_timer_init(async_sys.loop, &slot->timer);
+        slot->timer.data = slot;
+
+        uv_async_init(async_sys.loop, &slot->stop_async, on_stop_signal);
+        slot->stop_async.data = slot;
+    }
 
     /* Start the event loop thread */
     async_sys.running = 1;
     async_sys.shutdown_requested = 0;
-    async_sys.playing = 0;
+    async_sys.active_count = 0;
+    async_sys.concurrent_mode = 0;  /* Default: sequential */
 
     if (uv_thread_create(&async_sys.thread, async_thread_fn, NULL) != 0) {
         async_sys.running = 0;
@@ -242,7 +292,7 @@ int alda_async_init(void) {
 void alda_async_cleanup(void) {
     if (!async_sys.loop) return;
 
-    /* Stop any playback */
+    /* Stop all playback */
     alda_async_stop();
 
     /* Signal shutdown */
@@ -254,19 +304,21 @@ void alda_async_cleanup(void) {
         uv_thread_join(&async_sys.thread);
     }
 
-    /* Close handles */
-    uv_close((uv_handle_t*)&async_sys.timer, NULL);
-    uv_close((uv_handle_t*)&async_sys.stop_async, NULL);
+    /* Close all handles */
+    for (int i = 0; i < MAX_ASYNC_SLOTS; i++) {
+        AsyncSlot* slot = &async_sys.slots[i];
+        uv_close((uv_handle_t*)&slot->timer, NULL);
+        uv_close((uv_handle_t*)&slot->stop_async, NULL);
+
+        if (slot->events) {
+            free(slot->events);
+            slot->events = NULL;
+        }
+    }
     uv_close((uv_handle_t*)&async_sys.wake_async, NULL);
 
     /* Run loop to process close callbacks */
     uv_run(async_sys.loop, UV_RUN_DEFAULT);
-
-    /* Free event copy */
-    if (async_sys.events) {
-        free(async_sys.events);
-        async_sys.events = NULL;
-    }
 
     uv_mutex_destroy(&async_sys.mutex);
     uv_loop_close(async_sys.loop);
@@ -294,45 +346,56 @@ int alda_events_play_async(AldaContext* ctx) {
         }
     }
 
-    /* Wait for any previous playback to complete */
-    while (alda_async_is_playing()) {
-        uv_sleep(10);
+    /* In sequential mode, wait for previous playback to complete */
+    if (!async_sys.concurrent_mode) {
+        while (alda_async_is_playing()) {
+            uv_sleep(10);
+        }
+    }
+
+    /* Find a free slot */
+    uv_mutex_lock(&async_sys.mutex);
+
+    AsyncSlot* slot = find_free_slot();
+    if (!slot) {
+        uv_mutex_unlock(&async_sys.mutex);
+        fprintf(stderr, "No free playback slots (max %d concurrent)\n", MAX_ASYNC_SLOTS);
+        return -1;
     }
 
     /* Sort events */
     alda_events_sort(ctx);
 
-    /* Copy events */
-    uv_mutex_lock(&async_sys.mutex);
-
-    if (async_sys.events) {
-        free(async_sys.events);
+    /* Copy events to slot */
+    if (slot->events) {
+        free(slot->events);
     }
 
-    async_sys.events = malloc(ctx->event_count * sizeof(AldaScheduledEvent));
-    if (!async_sys.events) {
+    slot->events = malloc(ctx->event_count * sizeof(AldaScheduledEvent));
+    if (!slot->events) {
         uv_mutex_unlock(&async_sys.mutex);
         fprintf(stderr, "Failed to allocate event buffer\n");
         return -1;
     }
 
-    memcpy(async_sys.events, ctx->events, ctx->event_count * sizeof(AldaScheduledEvent));
-    async_sys.event_count = ctx->event_count;
-    async_sys.event_index = 0;
-    async_sys.tempo = ctx->global_tempo > 0 ? ctx->global_tempo : ALDA_DEFAULT_TEMPO;
+    memcpy(slot->events, ctx->events, ctx->event_count * sizeof(AldaScheduledEvent));
+    slot->event_count = ctx->event_count;
+    slot->event_index = 0;
+    slot->tempo = ctx->global_tempo > 0 ? ctx->global_tempo : ALDA_DEFAULT_TEMPO;
+    slot->stop_requested = 0;
+    slot->active = 1;
+    async_sys.active_count++;
     async_sys.midi_out = ctx->midi_out;
-    async_sys.stop_requested = 0;
-    async_sys.playing = 1;
 
     uv_mutex_unlock(&async_sys.mutex);
 
     /* Schedule first event */
     int first_ms = 0;
-    if (async_sys.event_count > 0 && async_sys.events[0].tick > 0) {
-        first_ms = alda_ticks_to_ms(async_sys.events[0].tick, async_sys.tempo);
+    if (slot->event_count > 0 && slot->events[0].tick > 0) {
+        first_ms = alda_ticks_to_ms(slot->events[0].tick, slot->tempo);
     }
 
-    uv_timer_start(&async_sys.timer, on_timer, first_ms, 0);
+    uv_timer_start(&slot->timer, on_timer, first_ms, 0);
 
     /* Wake the event loop thread */
     uv_async_send(&async_sys.wake_async);
@@ -343,18 +406,33 @@ int alda_events_play_async(AldaContext* ctx) {
 void alda_async_stop(void) {
     if (!async_sys.loop) return;
 
-    async_sys.stop_requested = 1;
-    uv_async_send(&async_sys.stop_async);
+    /* Stop all active slots */
+    for (int i = 0; i < MAX_ASYNC_SLOTS; i++) {
+        if (async_sys.slots[i].active) {
+            async_sys.slots[i].stop_requested = 1;
+            uv_async_send(&async_sys.slots[i].stop_async);
+        }
+    }
 }
 
 int alda_async_is_playing(void) {
     if (!async_sys.loop) return 0;
 
     uv_mutex_lock(&async_sys.mutex);
-    int playing = async_sys.playing;
+    int count = async_sys.active_count;
     uv_mutex_unlock(&async_sys.mutex);
 
-    return playing;
+    return count > 0;
+}
+
+int alda_async_active_count(void) {
+    if (!async_sys.loop) return 0;
+
+    uv_mutex_lock(&async_sys.mutex);
+    int count = async_sys.active_count;
+    uv_mutex_unlock(&async_sys.mutex);
+
+    return count;
 }
 
 int alda_async_wait(int timeout_ms) {
@@ -373,4 +451,25 @@ int alda_async_wait(int timeout_ms) {
     }
 
     return 0;
+}
+
+void alda_async_set_concurrent(int enabled) {
+    /* Initialize if needed */
+    if (!async_sys.loop) {
+        alda_async_init();
+    }
+
+    uv_mutex_lock(&async_sys.mutex);
+    async_sys.concurrent_mode = enabled ? 1 : 0;
+    uv_mutex_unlock(&async_sys.mutex);
+}
+
+int alda_async_get_concurrent(void) {
+    if (!async_sys.loop) return 0;
+
+    uv_mutex_lock(&async_sys.mutex);
+    int mode = async_sys.concurrent_mode;
+    uv_mutex_unlock(&async_sys.mutex);
+
+    return mode;
 }

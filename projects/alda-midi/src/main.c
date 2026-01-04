@@ -34,6 +34,7 @@ static void print_usage(const char* prog) {
     printf("  -o, --output NAME Use MIDI port matching NAME\n");
     printf("  --virtual NAME    Create virtual MIDI port with NAME\n");
     printf("  --no-sleep        Disable timing delays (for testing)\n");
+    printf("  -c, --concurrent  Enable concurrent playback mode\n");
     printf("\n");
     printf("Examples:\n");
     printf("  %s                        Start interactive REPL\n", prog);
@@ -51,6 +52,8 @@ static void print_repl_help(void) {
     printf("  list              List MIDI ports\n");
     printf("  stop              Stop current playback\n");
     printf("  panic             All notes off\n");
+    printf("  concurrent        Enable concurrent mode (polyphony)\n");
+    printf("  sequential        Disable concurrent mode (default)\n");
     printf("\n");
     printf("Alda Syntax Examples:\n");
     printf("  piano:            Select piano instrument\n");
@@ -72,6 +75,9 @@ static void repl_loop(AldaContext* ctx) {
     char* input;
 
     printf("Alda MIDI (type 'help' for commands, 'quit' to exit)\n");
+    if (alda_async_get_concurrent()) {
+        printf("Mode: concurrent (polyphony enabled)\n");
+    }
 
     while (1) {
         input = readline("alda> ");
@@ -124,6 +130,20 @@ static void repl_loop(AldaContext* ctx) {
             continue;
         }
 
+        if (strcmp(input, "concurrent") == 0) {
+            alda_async_set_concurrent(1);
+            printf("Concurrent mode enabled (up to 8 simultaneous playbacks)\n");
+            free(input);
+            continue;
+        }
+
+        if (strcmp(input, "sequential") == 0) {
+            alda_async_set_concurrent(0);
+            printf("Sequential mode enabled (default)\n");
+            free(input);
+            continue;
+        }
+
         /* Clear previous events (keep parts and state) */
         alda_events_clear(ctx);
 
@@ -159,24 +179,26 @@ int main(int argc, char* argv[]) {
     const char* port_name = NULL;
     const char* virtual_name = NULL;
     int no_sleep = 0;
+    int concurrent = 0;
     const char* input_file = NULL;
 
     /* Long options */
     static struct option long_options[] = {
-        {"help",     no_argument,       0, 'h'},
-        {"verbose",  no_argument,       0, 'v'},
-        {"list",     no_argument,       0, 'l'},
-        {"port",     required_argument, 0, 'p'},
-        {"output",   required_argument, 0, 'o'},
-        {"virtual",  required_argument, 0, 'V'},
-        {"no-sleep", no_argument,       0, 'S'},
+        {"help",       no_argument,       0, 'h'},
+        {"verbose",    no_argument,       0, 'v'},
+        {"list",       no_argument,       0, 'l'},
+        {"port",       required_argument, 0, 'p'},
+        {"output",     required_argument, 0, 'o'},
+        {"virtual",    required_argument, 0, 'V'},
+        {"no-sleep",   no_argument,       0, 'S'},
+        {"concurrent", no_argument,       0, 'c'},
         {0, 0, 0, 0}
     };
 
     /* Parse options */
     int opt;
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "hvlp:o:", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hvlcp:o:", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'h':
                 print_usage(argv[0]);
@@ -204,6 +226,10 @@ int main(int argc, char* argv[]) {
 
             case 'S':
                 no_sleep = 1;
+                break;
+
+            case 'c':
+                concurrent = 1;
                 break;
 
             default:
@@ -267,6 +293,14 @@ int main(int argc, char* argv[]) {
 
     if (!midi_opened) {
         fprintf(stderr, "Warning: Failed to open MIDI output\n");
+    }
+
+    /* Apply concurrent mode if requested */
+    if (concurrent) {
+        alda_async_set_concurrent(1);
+        if (verbose) {
+            printf("Concurrent playback mode enabled\n");
+        }
     }
 
     int result = 0;

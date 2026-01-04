@@ -33,7 +33,8 @@ All notable changes to midi-langs are documented in this file.
   - File playback: `./build/alda_midi song.alda`
   - Interactive REPL with readline support:
     - Non-blocking playback using libuv (REPL remains responsive)
-    - Commands: `help`, `quit`/`exit`, `list`, `stop`, `panic`
+    - Concurrent mode for polyphonic playback of separately-entered parts
+    - Commands: `help`, `quit`/`exit`, `list`, `stop`, `panic`, `concurrent`, `sequential`
     - State persistence across inputs
     - Command history with up/down arrows
   - CLI options:
@@ -43,6 +44,7 @@ All notable changes to midi-langs are documented in this file.
     - `-o, --output NAME` - Use port matching name
     - `--virtual NAME` - Create virtual port
     - `--no-sleep` - Disable timing delays (for testing)
+    - `-c, --concurrent` - Enable concurrent playback mode
   - Default virtual MIDI port: "AldaMIDI"
   - Test suite with integration and quick tests
 

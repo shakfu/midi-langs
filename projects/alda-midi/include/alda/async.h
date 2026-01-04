@@ -65,6 +65,29 @@ int alda_async_is_playing(void);
  */
 int alda_async_wait(int timeout_ms);
 
+/**
+ * @brief Get count of active playback slots.
+ * @return Number of slots currently playing.
+ */
+int alda_async_active_count(void);
+
+/**
+ * @brief Enable or disable concurrent playback mode.
+ *
+ * In concurrent mode, new playback starts immediately without waiting
+ * for previous playback to complete. This allows polyphonic playback
+ * of multiple parts entered separately in the REPL.
+ *
+ * @param enabled Non-zero to enable concurrent mode.
+ */
+void alda_async_set_concurrent(int enabled);
+
+/**
+ * @brief Check if concurrent mode is enabled.
+ * @return Non-zero if concurrent mode is active.
+ */
+int alda_async_get_concurrent(void);
+
 #ifdef __cplusplus
 }
 #endif
