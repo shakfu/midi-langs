@@ -4,16 +4,47 @@ This guide helps you choose the right MIDI language implementation for your need
 
 ## Quick Comparison
 
-| Feature | forth-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
-|---------|------------|----------|---------|------------|----------|
-| **Language** | Forth-like | Lua 5.5 | Scheme (s7) | Python (PocketPy) | Haskell (MicroHs) |
-| **Paradigm** | Stack-based | Imperative | Functional/Lisp | Object-oriented | Pure functional |
-| **Binary size** | ~200KB | ~400KB | ~350KB | ~500KB | ~1.5MB |
-| **Startup time** | Instant | Instant | Instant | Instant | ~0.5s |
-| **Learning curve** | Medium | Easy | Medium | Easy | Hard |
-| **Notation** | Concise DSL | Method calls | S-expressions | Method calls | DSL + combinators |
+| Feature | alda-midi | forth-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
+|---------|-----------|------------|----------|---------|------------|----------|
+| **Language** | Alda | Forth-like | Lua 5.5 | Scheme (s7) | Python (PocketPy) | Haskell (MicroHs) |
+| **Paradigm** | Declarative | Stack-based | Imperative | Functional/Lisp | Object-oriented | Pure functional |
+| **Binary size** | ~300KB | ~200KB | ~400KB | ~350KB | ~500KB | ~1.5MB |
+| **Startup time** | Instant | Instant | Instant | Instant | Instant | ~0.5s |
+| **Learning curve** | Easy | Medium | Easy | Medium | Easy | Hard |
+| **Notation** | Music notation | Concise DSL | Method calls | S-expressions | Method calls | DSL + combinators |
 
 ## Language Profiles
+
+### alda-midi
+
+**Best for:** Traditional music notation, quick sketching, musicians
+
+```alda
+piano:
+(tempo 120)
+c4 d e f | g2 g | a4 a a a | g2 r
+
+violin:
+o3 c1~1
+```
+
+**Strengths:**
+- Familiar music notation (`c4` = C quarter note, `g2` = G half note)
+- Part-based composition (piano:, violin:, etc.)
+- 128 GM instruments with natural names
+- Voices for polyphony within parts (V1:, V2:)
+- Concurrent mode for layering parts in REPL
+- Always non-blocking - REPL stays responsive
+- Ties (`~`), dotted notes (`.`), chords (`c/e/g`)
+
+**Weaknesses:**
+- Less programmable than other languages
+- No general-purpose programming features
+- Limited to Alda language constructs
+
+**Choose if:** You think in traditional music notation, want to sketch ideas quickly, or are a musician first and programmer second.
+
+---
 
 ### forth-midi
 
@@ -171,6 +202,7 @@ main = do
 
 | Language | Example | Notes |
 |----------|---------|-------|
+| alda-midi | `c4` `c#4` `db4` | Duration suffix (4=quarter) |
 | forth-midi | `c4,` `C#4,` `Db4,` | Comma triggers, case-insensitive |
 | lua-midi | `midi.c4` or `midi.note("C4")` | Constants or string parsing |
 | s7-midi | `c4` `cs4` | Scheme symbols |
@@ -181,6 +213,7 @@ main = do
 
 | Language | Major Triad | Dominant 7th |
 |----------|-------------|--------------|
+| alda-midi | `c/e/g` | `c/e/g/b-` |
 | forth-midi | `(c4 e4 g4),` | `(c4 e4 g4 bb4),` |
 | lua-midi | `midi.major(c4)` | `midi.dom7(c4)` |
 | s7-midi | `(major c4)` | `(dom7 c4)` |
@@ -191,6 +224,7 @@ main = do
 
 | Language | Play 4 times |
 |----------|--------------|
+| alda-midi | `c4 c c c` or `[c4 c]*2` (limited) |
 | forth-midi | `melody 4 times` or `{ c4, } 4 *` |
 | lua-midi | `for i=1,4 do m:note(c4,mf,quarter) end` |
 | s7-midi | `(times 4 (lambda () (midi-note m c4 mf quarter)))` |
@@ -201,6 +235,7 @@ main = do
 
 | Language | 50% chance | Random selection |
 |----------|------------|------------------|
+| alda-midi | N/A | N/A |
 | forth-midi | `c4 50%,` | `c4\|e4\|g4,` |
 | lua-midi | `if math.random() < 0.5 then ... end` | `midi.pick({c4,e4,g4})` |
 | s7-midi | `(chance 50 ...)` | `(pick (list c4 e4 g4))` |
@@ -213,6 +248,7 @@ All implementations support MIDI event recording:
 
 | Language | Start | Stop | Save |
 |----------|-------|------|------|
+| alda-midi | N/A | N/A | N/A (file-based) |
 | forth-midi | `rec-midi` | `stop` | `save-midi file.4th` |
 | lua-midi | `record_midi()` | `record_stop()` | `save_midi("file.lua")` |
 | s7-midi | `(record-midi)` | `(record-stop)` | `(save-midi "file.scm")` |

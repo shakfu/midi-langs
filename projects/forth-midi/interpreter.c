@@ -191,8 +191,8 @@ static void apply_param(int param_type, int value, int scope, int cc_number) {
             case PARAM_GATE:     default_gate = value; break;
             case PARAM_BPM:
                 global_bpm = value;
-                /* Update duration constants proportionally (120 BPM base) */
-                default_duration = 60000 / value / 2;  /* quarter note */
+                /* Update duration constant: quarter note = 60000ms / BPM */
+                default_duration = 60000 / value;  /* quarter note in ms */
                 break;
             case PARAM_PROGRAM:
                 if (midi_out) {

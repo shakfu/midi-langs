@@ -4,6 +4,8 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.5]
+
 ### Added
 
 - **alda-midi**: New Alda music language interpreter with MIDI output
@@ -144,6 +146,20 @@ All notable changes to midi-langs are documented in this file.
   - Second call sends note-off and returns `#f`
   - Async voices no longer leave notes hanging
 
+- **forth-midi**: `bpm:=` now calculates correct quarter note duration
+  - Fixed tempo math from `60000 / value / 2` to `60000 / value`
+  - At 120 BPM, quarter note is now 500ms as documented (was 250ms)
+
+- **forth-midi**: Recorded sequences now respect gate/articulation
+  - Added `gate` parameter to `record_note` and `record_chord`
+  - Note-off fires at `dur * gate / 100`, matching live playback
+  - Staccato passages are now exported correctly instead of as legato
+
+- **forth-midi**: `play-chord` stack order fixed and uses channel/gate
+  - Changed pop order to match documented `( p1...pN N vel dur -- )`
+  - Now uses `effective_channel()` instead of hard-coded channel 1
+  - Now respects gate setting for articulation consistency
+
 - **Sequential `run()` calls now work correctly**: lua-midi, pktpy-midi
   - Fixed bug where second `run()` call would hang after first completed
   - Root cause: `uv_timer_start` from main thread wasn't noticed by event loop thread
@@ -154,6 +170,12 @@ All notable changes to midi-langs are documented in this file.
   - Fix: Use `py_newtuple()` return value to access tuple slots directly via array indexing
 
 ### Added
+
+- **forth-midi**: Implemented documented sequence API words
+  - `seq-note` ( time pitch vel dur -- ) - Add note at time using default channel
+  - `seq-note-ch` ( time ch pitch vel dur -- ) - Add note with specific channel
+  - `seq-add` ( packed-note time -- ) - Add packed note at time
+  - Documentation in `docs/forth-midi/sequences.md` now matches implementation
 
 - **forth-midi Loop Control**: Standard Forth loop constructs for structured iteration
   - `do ... loop` - Counted loops with index on return stack

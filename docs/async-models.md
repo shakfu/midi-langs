@@ -1,18 +1,60 @@
 # Async Models Across Languages
 
-This document compares the concurrent playback implementations across all five midi-langs interpreters.
+This document compares the concurrent playback implementations across all six midi-langs interpreters.
 
 ## Overview
 
-All five languages now support concurrent voice playback, but each uses a different underlying model suited to the language's strengths:
+All six languages now support concurrent voice playback, but each uses a different underlying model suited to the language's strengths:
 
 | Language | Model | Threading | Blocking | Non-blocking |
 |----------|-------|-----------|----------|--------------|
+| **alda-midi** | libuv event loop | Background thread | N/A | Always async |
 | **forth-midi** | libuv event loop | Background thread | N/A | `seq-play&` (always async) |
 | **lua-midi** | libuv + Lua coroutines | Background thread | `run()` | `poll()` |
 | **pktpy-midi** | libuv + Python generators | Background thread | `run()` | `poll()` |
 | **s7-midi** | libuv + Scheme thunks | Main thread | `(run)` | `(poll)` |
 | **mhs-midi** | Native Haskell threads | Multiple threads | `run` | N/A |
+
+## alda-midi
+
+**Model**: Event scheduler with libuv background thread
+
+Alda-midi uses a tick-based event scheduler with a background libuv thread. All playback is non-blocking - the REPL stays responsive while music plays. Supports concurrent mode for polyphonic playback of parts entered separately.
+
+```alda
+piano:
+c4 e g c5     # Melody
+
+violin:
+c2~2          # Sustained bass
+```
+
+**Concurrent mode** (default):
+```
+> piano: c4 e g
+> violin: c2~2    # Plays simultaneously with piano
+```
+
+**Sequential mode**:
+```
+> sequential
+> piano: c4 e g   # Waits for this to finish
+> violin: c2~2    # Then plays this
+```
+
+**REPL commands**:
+- `concurrent` - Enable concurrent playback (multiple parts play together)
+- `sequential` - Enable sequential playback (wait for each input)
+- `stop` - Stop all playback immediately
+- `panic` - All notes off on all channels
+
+**Key characteristics**:
+- Always non-blocking: REPL stays responsive during playback
+- Tick-based timing (480 ticks per quarter note)
+- Concurrent mode enables polyphonic playback across REPL inputs
+- Voices within a part (V1:, V2:) play simultaneously
+- Up to 8 concurrent playback slots
+- Auto-connects to first available MIDI port
 
 ## forth-midi
 
@@ -191,27 +233,38 @@ main = do
 
 | Simplest | Medium | Most Complex |
 |----------|--------|--------------|
-| mhs-midi (normal IO) | lua-midi (yield_ms) | s7-midi (thunks) |
-| forth-midi (seq-play&) | pktpy-midi (generators) | |
+| alda-midi (music notation) | lua-midi (yield_ms) | s7-midi (thunks) |
+| mhs-midi (normal IO) | pktpy-midi (generators) | |
+| forth-midi (seq-play&) | | |
 
 ### Performance
 
 | Most Efficient | Medium | Least Efficient |
 |----------------|--------|-----------------|
-| mhs-midi (native threads) | forth-midi (libuv) | s7-midi (main thread) |
+| mhs-midi (native threads) | alda-midi (libuv) | s7-midi (main thread) |
+| | forth-midi (libuv) | |
 | | lua-midi/pktpy-midi | |
 
 ### REPL Responsiveness
 
 | Always Non-blocking | Non-blocking via `poll()` | Blocking only |
 |---------------------|---------------------------|---------------|
-| forth-midi | lua-midi | mhs-midi |
-| | pktpy-midi | |
+| alda-midi | lua-midi | mhs-midi |
+| forth-midi | pktpy-midi | |
 | | s7-midi | |
 
 ## Cross-Language Example
 
-Here's the same musical idea in all five languages:
+Here's the same musical idea in all six languages:
+
+### alda-midi
+```alda
+piano:
+(volume 80) c4 e g c5
+
+violin:
+(volume 100) c2~2
+```
 
 ### forth-midi
 ```forth
@@ -278,6 +331,7 @@ main = do
 
 ## When to Use Which
 
+- **alda-midi**: Best for traditional music notation, quick sketching of musical ideas
 - **forth-midi**: Best for live coding and interactive exploration (REPL stays responsive)
 - **lua-midi**: Best for scripted compositions with clear timing control
 - **pktpy-midi**: Best for Python programmers, generator-based patterns

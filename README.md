@@ -1,23 +1,23 @@
-# midi-langs
+# midi-langs - a polyglot toolkit for MIDI creation
 
-A work-in-progress collection of mini MIDI-capable languages for generating and transforming MIDI sequences:
+A collection of minimalist yet powerful language implementations designed to generate, manipulate, and transform MIDI sequences in distinct stylistic and functional paradigms.
 
-| Language | Based On | Style |
+Each implementation leverages [libremidi](https://github.com/celtera/libremidi) for seamless cross-platform MIDI I/O:
+
+| Implementation | Language| Style & Approach |
 |----------|----------|-------|
-| **alda-midi** | [Alda](https://alda.io/) | Music-first notation |
-| **forth-midi** | Custom Forth | Concise stack-based notation |
-| **lua-midi** | [Lua 5.5](https://www.lua.org/) | Scripting with tables/closures |
-| **mhs-midi** | [MicroHs](https://github.com/augustss/MicroHs) | Minimal functional Haskell |
-| **pktpy-midi** | [PocketPy](https://pocketpy.dev) | Pythonic with context managers |
-| **s7-midi** | [s7 Scheme](https://ccrma.stanford.edu/software/snd/snd/s7.html) | Lisp with macros |
+| **alda-midi** | [Alda](https://alda.io/) | Music-first notation--compose with elegant, human-readable syntax. |
+| **forth-midi** | Custom Forth | Concise stack-based programming for minimalist control over MIDI events. |
+| **lua-midi** | [Lua 5.5](https://www.lua.org/) | Lightweight scripting with tables, closures, and event-driven workflows. |
+| **mhs-midi** | [MicroHs](https://github.com/augustss/MicroHs) | Pure functional Haskell for compositions, algorithmic patterns, and type-safe transformations. |
+| **pktpy-midi** | [PocketPy](https://pocketpy.dev) | Pythonic abstraction with context managers and expressive APIs. |
+| **s7-midi** | [s7 Scheme](https://ccrma.stanford.edu/software/snd/snd/s7.html) | Macros + Lisp for meta-programming and dynamic MIDI patterns. |
 
-All use [libremidi](https://github.com/celtera/libremidi) for cross-platform MIDI I/O.
-
-This is an early stage project, so expect instability in the code-base as we iterate over the apis and features of each implementation.
+Note: This is an evolving project—-expect API iterations as implementations mature.
 
 ## Building
 
-```bash
+```sh
 make              # Build everything
 make test         # Run all tests (33 tests)
 make clean        # Remove build directory
@@ -29,7 +29,7 @@ Requires GCC/Clang and CMake 3.16+.
 
 ### alda-midi
 
-```bash
+```sh
 ./build/alda_midi           # Start REPL
 ./build/alda_midi -s        # Start REPL in sequential mode
 ./build/alda_midi song.alda # Play a file
@@ -52,7 +52,7 @@ By default, alda-midi uses concurrent mode where multiple parts play simultaneou
 
 ### forth-midi
 
-```bash
+```sh
 ./build/forth_midi
 ```
 
@@ -64,7 +64,7 @@ midi-open c4, e4, g4, (c4 e4 g4), midi-close
 
 ### lua-midi
 
-```bash
+```sh
 ./build/lua_midi
 ```
 
@@ -79,7 +79,7 @@ close()
 
 ### mhs-midi
 
-```bash
+```sh
 ./scripts/mhs-midi-repl
 ```
 
@@ -95,7 +95,7 @@ close
 
 ### pktpy-midi
 
-```bash
+```sh
 ./build/pktpy_midi
 ```
 
@@ -111,7 +111,7 @@ with midi.open() as m:
 
 ### s7-midi
 
-```bash
+```sh
 ./build/s7_midi
 ```
 
@@ -140,7 +140,7 @@ All languages share functionality from a common C library (`projects/common/musi
 
 Interpreted languages have prelude files in their native syntax:
 
-```
+```sh
 projects/s7-midi/prelude.scm    -> Scheme constants and helpers
 projects/lua-midi/prelude.lua   -> Lua constants and helpers
 projects/pktpy-midi/prelude.py  -> Python constants and helpers
@@ -148,13 +148,13 @@ projects/pktpy-midi/prelude.py  -> Python constants and helpers
 
 These are converted to C headers at build time via `scripts/prelude2c.py`.
 
-```bash
+```sh
 make preludes     # Regenerate all prelude headers
 ```
 
 ## Architecture
 
-```
+```sh
 projects/
   alda-midi/        # Alda interpreter (~3000 lines C)
   common/           # Shared music theory library
@@ -180,12 +180,15 @@ All languages output MIDI via virtual ports. To hear sound, connect to a General
 
 Use the included helper script:
 
-```bash
+```sh
 # Set up SoundFont directory (one-time)
 export ALDA_SF2_DIR=~/Music/sf2
 
 # Start FluidSynth (in one terminal)
 python scripts/fluidsynth-gm.py
+
+# alternatively you can directly specify the soundfont
+python scripts/fluidsynth-gm.py ~/Music/sf2/FluidR3_GM.sf2
 
 # Run any midi-langs interpreter (in another terminal)
 ./build/alda_midi

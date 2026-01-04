@@ -46,8 +46,9 @@ static int ms_to_ticks(int ms) {
     return (ms * TICKS_PER_QUARTER * bpm) / 60000;
 }
 
-/* Helper: add note events to recording sequence */
-static void record_note(int pitch, int velocity, int duration, int channel) {
+/* Helper: add note events to recording sequence
+ * gate: percentage of duration for note-on (1-100) */
+static void record_note(int pitch, int velocity, int duration, int channel, int gate) {
     if (seq_recording_id < 0 || seq_recording_id >= MAX_SEQUENCES) return;
 
     Sequence* seq = &sequences[seq_recording_id];
@@ -57,6 +58,7 @@ static void record_note(int pitch, int velocity, int duration, int channel) {
     }
 
     int dur_ticks = ms_to_ticks(duration);
+    int gate_ticks = dur_ticks * gate / 100;  /* Note-off after gate portion */
 
     /* Add note-on */
     MidiEvent* e = &seq->events[seq->length++];
@@ -66,15 +68,15 @@ static void record_note(int pitch, int velocity, int duration, int channel) {
     e->data1 = pitch;
     e->data2 = velocity;
 
-    /* Add note-off */
+    /* Add note-off (at gate time, not full duration) */
     e = &seq->events[seq->length++];
-    e->time = seq_recording_time + dur_ticks;
+    e->time = seq_recording_time + gate_ticks;
     e->type = EVT_NOTE_OFF;
     e->channel = channel - 1;
     e->data1 = pitch;
     e->data2 = 0;
 
-    /* Advance recording time */
+    /* Advance recording time by full duration (including silent gap) */
     seq_recording_time += dur_ticks;
 }
 
@@ -104,7 +106,7 @@ void play_single_note(Stack* s, int pitch) {
 
     /* Check for recording mode */
     if (seq_recording_mode) {
-        record_note(pitch, velocity, duration, channel);
+        record_note(pitch, velocity, duration, channel, gate);
         clear_pending_params();
         return;
     }
@@ -151,8 +153,9 @@ void play_single_note(Stack* s, int pitch) {
     clear_pending_params();
 }
 
-/* Helper: record chord notes to sequence */
-static void record_chord(int* pitches, int count, int velocity, int duration, int channel) {
+/* Helper: record chord notes to sequence
+ * gate: percentage of duration for note-on (1-100) */
+static void record_chord(int* pitches, int count, int velocity, int duration, int channel, int gate) {
     if (seq_recording_id < 0 || seq_recording_id >= MAX_SEQUENCES) return;
 
     Sequence* seq = &sequences[seq_recording_id];
@@ -162,6 +165,7 @@ static void record_chord(int* pitches, int count, int velocity, int duration, in
     }
 
     int dur_ticks = ms_to_ticks(duration);
+    int gate_ticks = dur_ticks * gate / 100;  /* Note-off after gate portion */
 
     /* Add all note-ons at current time */
     for (int i = 0; i < count; i++) {
@@ -173,17 +177,17 @@ static void record_chord(int* pitches, int count, int velocity, int duration, in
         e->data2 = velocity;
     }
 
-    /* Add all note-offs */
+    /* Add all note-offs (at gate time, not full duration) */
     for (int i = 0; i < count; i++) {
         MidiEvent* e = &seq->events[seq->length++];
-        e->time = seq_recording_time + dur_ticks;
+        e->time = seq_recording_time + gate_ticks;
         e->type = EVT_NOTE_OFF;
         e->channel = channel - 1;
         e->data1 = pitches[i];
         e->data2 = 0;
     }
 
-    /* Advance recording time */
+    /* Advance recording time by full duration (including silent gap) */
     seq_recording_time += dur_ticks;
 }
 
@@ -244,7 +248,7 @@ void play_chord_notes(Stack* s) {
 
     /* Check for recording mode */
     if (seq_recording_mode) {
-        record_chord(pitches, count, velocity, duration, channel);
+        record_chord(pitches, count, velocity, duration, channel, gate);
         clear_pending_params();
         return;
     }

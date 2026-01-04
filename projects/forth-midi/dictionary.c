@@ -281,6 +281,9 @@ void init_dictionary(void) {
     add_word("seq-end", op_seq_end, 1);
     add_word("seq-length", op_seq_length, 1);
     add_word("seq-clear", op_seq_clear, 1);
+    add_word("seq-note", op_seq_note, 1);
+    add_word("seq-note-ch", op_seq_note_ch, 1);
+    add_word("seq-add", op_seq_add, 1);
     add_word("seq-play", op_seq_play, 1);
     add_word("seq-transpose", op_seq_transpose, 1);
     add_word("seq-show", op_seq_show, 1);

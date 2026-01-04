@@ -70,11 +70,13 @@ void op_chord_min7(Stack* s) {
     push(&stack, root + 10);
 }
 
-/* play-chord ( p1 p2 p3 vel dur n -- ) play n notes as chord */
+/* play-chord ( p1...pN N vel dur -- ) play N notes as chord
+ * Uses effective channel and gate for consistent behavior */
 void op_play_chord(Stack* s) {
-    int32_t n = pop(&stack);
+    (void)s;
     int32_t dur = pop(&stack);
     int32_t vel = pop(&stack);
+    int32_t n = pop(&stack);
 
     if (n < 1 || n > 8) {
         printf("Chord size must be 1-8\n");
@@ -91,21 +93,31 @@ void op_play_chord(Stack* s) {
         return;
     }
 
+    int channel = effective_channel();
+    int gate = effective_gate();
     int ms = (dur * 60000) / (TICKS_PER_QUARTER * global_bpm);
+    int gate_time = ms * gate / 100;
 
     /* All notes on */
     for (int i = 0; i < n; i++) {
-        midi_send_note_on(pitches[i], vel, 1);
-        capture_add_event(0, 0, pitches[i], vel);
+        midi_send_note_on(pitches[i], vel, channel);
+        capture_add_event(0, channel - 1, pitches[i], vel);
     }
 
-    midi_sleep_ms(ms);
+    midi_sleep_ms(gate_time);
 
     /* All notes off */
     for (int i = 0; i < n; i++) {
-        midi_send_note_off(pitches[i], 1);
-        capture_add_event(1, 0, pitches[i], 0);
+        midi_send_note_off(pitches[i], channel);
+        capture_add_event(1, channel - 1, pitches[i], 0);
     }
+
+    /* Wait for remaining duration (silence) */
+    if (gate < 100) {
+        midi_sleep_ms(ms - gate_time);
+    }
+
+    clear_pending_params();
 }
 
 /* chord>seq ( p1 p2 ... pn vel dur time n -- ) add chord to sequence */

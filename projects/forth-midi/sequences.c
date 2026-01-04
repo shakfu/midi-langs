@@ -141,6 +141,94 @@ void op_seq_clear(Stack* s) {
     sequences[current_seq].length = 0;
 }
 
+/* seq-note ( time pitch vel dur -- ) Add note at time using default channel */
+void op_seq_note(Stack* s) {
+    (void)s;
+    int32_t dur = pop(&stack);
+    int32_t vel = pop(&stack);
+    int32_t pitch = pop(&stack);
+    int32_t time = pop(&stack);
+
+    if (current_seq < 0) {
+        printf("No sequence selected\n");
+        return;
+    }
+
+    Sequence* seq = &sequences[current_seq];
+    if (seq->length >= MAX_SEQ_EVENTS - 2) {
+        printf("Sequence full\n");
+        return;
+    }
+
+    int ch = default_channel - 1;  /* 1-16 -> 0-15 */
+
+    /* Add note-on */
+    add_event(time, EVT_NOTE_ON, ch, pitch, vel);
+
+    /* Add note-off */
+    add_event(time + dur, EVT_NOTE_OFF, ch, pitch, 0);
+}
+
+/* seq-note-ch ( time ch pitch vel dur -- ) Add note with specific channel */
+void op_seq_note_ch(Stack* s) {
+    (void)s;
+    int32_t dur = pop(&stack);
+    int32_t vel = pop(&stack);
+    int32_t pitch = pop(&stack);
+    int32_t ch = pop(&stack);
+    int32_t time = pop(&stack);
+
+    if (current_seq < 0) {
+        printf("No sequence selected\n");
+        return;
+    }
+
+    Sequence* seq = &sequences[current_seq];
+    if (seq->length >= MAX_SEQ_EVENTS - 2) {
+        printf("Sequence full\n");
+        return;
+    }
+
+    int channel = ch - 1;  /* 1-16 -> 0-15 */
+    if (channel < 0 || channel > 15) channel = 0;
+
+    /* Add note-on */
+    add_event(time, EVT_NOTE_ON, channel, pitch, vel);
+
+    /* Add note-off */
+    add_event(time + dur, EVT_NOTE_OFF, channel, pitch, 0);
+}
+
+/* seq-add ( packed-note time -- ) Add packed note at time */
+void op_seq_add(Stack* s) {
+    (void)s;
+    int32_t time = pop(&stack);
+    int32_t packed = pop(&stack);
+
+    if (current_seq < 0) {
+        printf("No sequence selected\n");
+        return;
+    }
+
+    Sequence* seq = &sequences[current_seq];
+    if (seq->length >= MAX_SEQ_EVENTS - 2) {
+        printf("Sequence full\n");
+        return;
+    }
+
+    /* Unpack note: pitch=bits 0-6, vel=bits 7-13, ch=bits 14-17, dur=bits 18-31 */
+    int pitch = packed & 0x7F;
+    int vel = (packed >> 7) & 0x7F;
+    int ch = (packed >> 14) & 0x0F;
+    int dur = (packed >> 18) & 0x3FFF;
+
+    /* Add note-on */
+    add_event(time, EVT_NOTE_ON, ch, pitch, vel);
+
+    /* Add note-off */
+    add_event(time + dur, EVT_NOTE_OFF, ch, pitch, 0);
+}
+
 /* seq-play ( -- ) Play current sequence */
 void op_seq_play(Stack* s) {
     (void)stack;
