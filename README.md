@@ -233,7 +233,18 @@ midi.run()
 
 ## Common Features
 
-All languages share functionality from a common C library (`projects/common/music_theory.c`):
+Most implementations share functionality from a common C library (`projects/common/music_theory.c`):
+
+| Implementation | Uses music_theory.c |
+|----------------|---------------------|
+| forth-midi | Yes |
+| lua-midi | Yes |
+| mhs-midi | Yes |
+| pktpy-midi | Yes |
+| s7-midi | Yes |
+| alda-midi | No (uses own parser/interpreter) |
+
+The shared library provides:
 
 - **Pitch parsing**: Note names like "C4", "C#4", "Db5" to MIDI numbers
 - **55 scales**: Major, minor, modes, pentatonic, blues, world scales, maqamat, ragas
