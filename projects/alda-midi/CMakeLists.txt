@@ -82,7 +82,9 @@ endif()
 
 # Main executable
 add_executable(alda_midi src/main.c)
-target_link_libraries(alda_midi PRIVATE alda-core)
+target_link_libraries(alda_midi PRIVATE alda-core readline)
+
+add_strip_command(alda_midi)
 
 # Installation rules
 install(TARGETS alda-core alda_midi

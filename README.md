@@ -4,6 +4,7 @@ A work-in-progress collection of mini MIDI-capable languages for generating and 
 
 | Language | Based On | Style |
 |----------|----------|-------|
+| **alda-midi** | [Alda](https://alda.io/) | Music-first notation |
 | **forth-midi** | Custom Forth | Concise stack-based notation |
 | **lua-midi** | [Lua 5.5](https://www.lua.org/) | Scripting with tables/closures |
 | **mhs-midi** | [MicroHs](https://github.com/augustss/MicroHs) | Minimal functional Haskell |
@@ -18,13 +19,32 @@ This is an early stage project, so expect instability in the code-base as we ite
 
 ```bash
 make              # Build everything
-make test         # Run all tests (21 tests)
+make test         # Run all tests (33 tests)
 make clean        # Remove build directory
 ```
 
 Requires GCC/Clang and CMake 3.16+.
 
 ## Quick Examples
+
+### alda-midi
+
+```bash
+./build/alda_midi
+```
+
+```alda
+piano:
+  (tempo 120)
+  o4 c4 d e f g a b > c2
+
+violin:
+  V1: c4 d e f
+  V2: e4 f g a
+  V0: c1
+```
+
+[Full documentation](docs/alda-midi/README.md) | [API Reference](docs/alda-midi/language-reference.md)
 
 ### forth-midi
 
@@ -132,6 +152,7 @@ make preludes     # Regenerate all prelude headers
 
 ```
 projects/
+  alda-midi/        # Alda interpreter (~3000 lines C)
   common/           # Shared music theory library
   forth-midi/       # Forth interpreter (~2700 lines C)
   lua-midi/         # Lua 5.5 + MIDI bindings
@@ -151,6 +172,7 @@ tests/              # Test suite
 
 | Language | Docs |
 |----------|------|
+| alda-midi | [README](docs/alda-midi/README.md), [Language](docs/alda-midi/language-reference.md), [Examples](docs/alda-midi/examples.md) |
 | forth-midi | [README](docs/forth-midi/README.md), [API](docs/forth-midi/api-reference.md), [Tutorial](docs/forth-midi/tutorial.md) |
 | lua-midi | [README](docs/lua-midi/README.md), [API](docs/lua-midi/api-reference.md), [Examples](docs/lua-midi/examples.md) |
 | mhs-midi | [README](docs/mhs-midi/README.md), [API](docs/mhs-midi/api-reference.md), [Examples](docs/mhs-midi/examples.md) |

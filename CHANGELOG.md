@@ -4,6 +4,47 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **alda-midi**: New Alda music language interpreter with MIDI output
+  - `projects/alda-midi/` - Complete project structure
+  - Full Alda language parser (38 tokens, 28 AST node types, ~2,500 LOC)
+  - Core features:
+    - Part declarations: `piano:`, `violin:`, `trumpet/trombone:`
+    - Notes with durations: `c4` (quarter), `d8` (eighth), `e2` (half)
+    - Chords: `c/e/g` (simultaneous notes)
+    - Rests: `r4` (quarter rest)
+    - Octave control: `o4`, `>` (up), `<` (down)
+    - Ties: `c4~4` (tied notes)
+    - Dotted notes: `c4.`, `c4..`
+  - Attributes (S-expressions):
+    - `(tempo 120)` - Set tempo in BPM
+    - `(volume 80)` - Set volume 0-100
+    - `(quant 90)` - Set quantization (articulation)
+    - `(panning 50)` - Set pan position
+    - Dynamics: `(ppp)`, `(pp)`, `(p)`, `(mp)`, `(mf)`, `(f)`, `(ff)`, `(fff)`
+  - Voices for polyphony:
+    - `V1:` - Voice 1 (independent timing)
+    - `V2:` - Voice 2
+    - `V0:` - Merge voices (continue at max tick)
+  - GM instrument support (128 instruments with 400+ name aliases)
+  - Auto channel assignment (1-16, skips channel 10 for non-percussion)
+  - Event scheduler with tick-based timing (480 ticks per quarter)
+  - File playback: `./build/alda_midi song.alda`
+  - Interactive REPL with readline support:
+    - Commands: `help`, `quit`/`exit`, `list`, `panic`
+    - State persistence across inputs
+    - Command history with up/down arrows
+  - CLI options:
+    - `-v, --verbose` - Verbose output
+    - `-l, --list` - List MIDI ports
+    - `-p, --port N` - Use hardware port by index
+    - `-o, --output NAME` - Use port matching name
+    - `--virtual NAME` - Create virtual port
+    - `--no-sleep` - Disable timing delays (for testing)
+  - Default virtual MIDI port: "AldaMIDI"
+  - Test suite with integration and quick tests
+
 ### Fixed
 
 - **Sequential `run()` calls now work correctly**: lua-midi, pktpy-midi

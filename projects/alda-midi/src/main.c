@@ -1,6 +1,6 @@
 /**
  * @file main.c
- * @brief Alda-MIDI main executable - CLI and file playback.
+ * @brief Alda-MIDI main executable - CLI, file playback, and REPL.
  */
 
 #include "alda/alda.h"
@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 /* ============================================================================
  * Usage and Help
@@ -21,6 +23,7 @@ static void print_usage(const char* prog) {
     printf("Usage: %s [options] [file.alda]\n", prog);
     printf("\n");
     printf("Alda music language interpreter with MIDI output.\n");
+    printf("If no file is provided, starts an interactive REPL.\n");
     printf("\n");
     printf("Options:\n");
     printf("  -h, --help        Show this help message\n");
@@ -32,11 +35,107 @@ static void print_usage(const char* prog) {
     printf("  --no-sleep        Disable timing delays (for testing)\n");
     printf("\n");
     printf("Examples:\n");
+    printf("  %s                        Start interactive REPL\n", prog);
     printf("  %s song.alda              Play an Alda file\n", prog);
     printf("  %s -l                     List MIDI ports\n", prog);
     printf("  %s -p 0 song.alda         Play using port 0\n", prog);
-    printf("  %s --virtual myMIDI song.alda  Create virtual port 'Alda'\n", prog);
+    printf("  %s --virtual AldaMIDI song.alda  Create virtual port\n", prog);
     printf("\n");
+}
+
+static void print_repl_help(void) {
+    printf("Alda REPL Commands:\n");
+    printf("  help              Show this help\n");
+    printf("  quit, exit        Exit the REPL\n");
+    printf("  list              List MIDI ports\n");
+    printf("  panic             All notes off\n");
+    printf("\n");
+    printf("Alda Syntax Examples:\n");
+    printf("  piano:            Select piano instrument\n");
+    printf("  c d e f g         Play notes C D E F G\n");
+    printf("  c4 d8 e8 f4       Quarter, eighths, quarter\n");
+    printf("  c/e/g             Play C major chord\n");
+    printf("  (tempo 140)       Set tempo to 140 BPM\n");
+    printf("  (mf)              Set dynamics to mezzo-forte\n");
+    printf("  o5 c d e          Octave 5, then notes\n");
+    printf("  > c < c           Octave up, C, octave down, C\n");
+    printf("\n");
+}
+
+/* ============================================================================
+ * REPL
+ * ============================================================================ */
+
+static void repl_loop(AldaContext* ctx) {
+    char* input;
+
+    printf("Alda MIDI (type 'help' for commands, 'quit' to exit)\n");
+
+    while (1) {
+        input = readline("alda> ");
+
+        if (input == NULL) {
+            /* EOF (Ctrl-D) */
+            printf("\n");
+            break;
+        }
+
+        /* Skip empty lines */
+        if (input[0] == '\0') {
+            free(input);
+            continue;
+        }
+
+        /* Add to history */
+        add_history(input);
+
+        /* Handle special commands */
+        if (strcmp(input, "quit") == 0 || strcmp(input, "exit") == 0) {
+            free(input);
+            break;
+        }
+
+        if (strcmp(input, "help") == 0) {
+            print_repl_help();
+            free(input);
+            continue;
+        }
+
+        if (strcmp(input, "list") == 0) {
+            alda_midi_list_ports(ctx);
+            free(input);
+            continue;
+        }
+
+        if (strcmp(input, "panic") == 0) {
+            alda_midi_all_notes_off(ctx);
+            printf("All notes off\n");
+            free(input);
+            continue;
+        }
+
+        /* Clear previous events (keep parts and state) */
+        alda_events_clear(ctx);
+
+        /* Parse and interpret the input */
+        int result = alda_interpret_string(ctx, input, "<repl>");
+
+        if (result < 0) {
+            /* Error already printed by interpret_string */
+            free(input);
+            continue;
+        }
+
+        /* Play events if any were scheduled */
+        if (ctx->event_count > 0) {
+            if (ctx->verbose_mode) {
+                printf("Playing %d events...\n", ctx->event_count);
+            }
+            alda_events_play(ctx);
+        }
+
+        free(input);
+    }
 }
 
 /* ============================================================================
@@ -160,38 +259,36 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Warning: Failed to open MIDI output\n");
     }
 
-    /* Check if we have an input file */
-    if (!input_file) {
-        fprintf(stderr, "Error: No input file specified\n");
-        print_usage(argv[0]);
-        alda_midi_cleanup(&ctx);
-        alda_context_cleanup(&ctx);
-        return 1;
-    }
+    int result = 0;
 
-    /* Interpret the file */
-    if (verbose) {
-        printf("Playing: %s\n", input_file);
-    }
+    if (input_file) {
+        /* File mode: interpret and play the file */
+        if (verbose) {
+            printf("Playing: %s\n", input_file);
+        }
 
-    int result = alda_interpret_file(&ctx, input_file);
+        result = alda_interpret_file(&ctx, input_file);
 
-    if (result < 0) {
-        fprintf(stderr, "Error: Failed to interpret file\n");
-        alda_midi_cleanup(&ctx);
-        alda_context_cleanup(&ctx);
-        return 1;
-    }
+        if (result < 0) {
+            fprintf(stderr, "Error: Failed to interpret file\n");
+            alda_midi_cleanup(&ctx);
+            alda_context_cleanup(&ctx);
+            return 1;
+        }
 
-    /* Play the scheduled events */
-    if (verbose) {
-        printf("Scheduled %d events\n", ctx.event_count);
-    }
+        /* Play the scheduled events */
+        if (verbose) {
+            printf("Scheduled %d events\n", ctx.event_count);
+        }
 
-    result = alda_events_play(&ctx);
+        result = alda_events_play(&ctx);
 
-    if (result < 0) {
-        fprintf(stderr, "Error: Failed to play events\n");
+        if (result < 0) {
+            fprintf(stderr, "Error: Failed to play events\n");
+        }
+    } else {
+        /* REPL mode: interactive input */
+        repl_loop(&ctx);
     }
 
     /* Cleanup */
