@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <getopt.h>
 
 #ifdef USE_READLINE
 #include <readline/readline.h>
@@ -9,6 +10,48 @@
 #endif
 
 #include "pocketpy.h"
+
+/* Version info */
+#define PKTPY_MIDI_VERSION "0.1.5"
+
+/* ============================================================================
+ * CLI help and version
+ * ============================================================================ */
+
+static void print_version(void) {
+    printf("pktpy_midi %s (pocketpy %s)\n", PKTPY_MIDI_VERSION, PK_VERSION);
+}
+
+static void print_help(const char* prog) {
+    printf("Usage: %s [options] [file.py]\n", prog);
+    printf("\n");
+    printf("PocketPy interpreter with MIDI support.\n");
+    printf("\n");
+    printf("Options:\n");
+    printf("  -e EXPR        Execute Python statement\n");
+    printf("  -l, --list     List available MIDI output ports\n");
+    printf("  --profile      Enable profiler (file mode only)\n");
+    printf("  --debug        Enable debugger (file mode only)\n");
+    printf("  -v, --version  Show version information\n");
+    printf("  -h, --help     Show this help message\n");
+    printf("\n");
+    printf("Without arguments, starts an interactive REPL.\n");
+    printf("\n");
+    printf("Examples:\n");
+    printf("  %s                    # Start REPL\n", prog);
+    printf("  %s script.py          # Run a Python file\n", prog);
+    printf("  %s -e \"print(1+2)\"    # Execute expression\n", prog);
+    printf("  %s -l                 # List MIDI ports\n", prog);
+}
+
+static struct option long_options[] = {
+    {"help",    no_argument,       0, 'h'},
+    {"version", no_argument,       0, 'v'},
+    {"list",    no_argument,       0, 'l'},
+    {"profile", no_argument,       0, 'P'},
+    {"debug",   no_argument,       0, 'D'},
+    {0, 0, 0, 0}
+};
 
 #ifdef USE_READLINE
 /* ============================================================================
@@ -257,32 +300,72 @@ int main(int argc, char** argv) {
 
     bool profile = false;
     bool debug = false;
+    bool list_ports = false;
     const char* filename = NULL;
+    const char* eval_expr = NULL;
 
-    for(int i = 1; i < argc; i++) {
-        if(strcmp(argv[i], "--profile") == 0) {
-            profile = true;
-            continue;
+    int opt;
+    int option_index = 0;
+    while ((opt = getopt_long(argc, argv, "hvle:", long_options, &option_index)) != -1) {
+        switch (opt) {
+            case 'h':
+                print_help(argv[0]);
+                return 0;
+            case 'v':
+                print_version();
+                return 0;
+            case 'l':
+                list_ports = true;
+                break;
+            case 'e':
+                eval_expr = optarg;
+                break;
+            case 'P':
+                profile = true;
+                break;
+            case 'D':
+                debug = true;
+                break;
+            default:
+                print_help(argv[0]);
+                return 1;
         }
-        if(strcmp(argv[i], "--debug") == 0) {
-            debug = true;
-            continue;
-        }
-        if(filename == NULL) {
-            filename = argv[i];
-            continue;
-        }
-        printf("Usage: pocketpy [--profile] [--debug] filename\n");
     }
 
-    if(debug && profile) {
-        printf("Error: --debug and --profile cannot be used together.\n");
+    /* Remaining argument is filename */
+    if (optind < argc) {
+        filename = argv[optind];
+    }
+
+    if (debug && profile) {
+        fprintf(stderr, "Error: --debug and --profile cannot be used together.\n");
         return 1;
     }
 
     py_initialize();
     pk_midi_module_init();
     py_sys_setargv(argc, argv);
+
+    /* Handle --list */
+    if (list_ports) {
+        py_exec("import midi\nfor i, name in midi.list_ports(): print(f'{i}: {name}')", "<list>", EXEC_MODE, NULL);
+        pk_midi_module_cleanup();
+        py_finalize();
+        return 0;
+    }
+
+    /* Handle -e expression */
+    if (eval_expr) {
+        py_StackRef p0 = py_peek(0);
+        if (!py_exec(eval_expr, "<expr>", EXEC_MODE, NULL)) {
+            py_printexc();
+            py_clearexc(p0);
+        }
+        int code = py_checkexc() ? 1 : 0;
+        pk_midi_module_cleanup();
+        py_finalize();
+        return code;
+    }
 
     if(filename == NULL) {
         if(profile) printf("Warning: --profile is ignored in REPL mode.\n");

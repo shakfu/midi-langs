@@ -53,11 +53,31 @@ By default, alda-midi uses concurrent mode where multiple parts play simultaneou
 ### forth-midi
 
 ```sh
-./build/forth_midi
+% ./build/forth_midi --help
+Usage: ./build/forth_midi [options] [file.4th ...]
+Options:
+  --script FILE   Run FILE in batch mode (no REPL, exit on error)
+  --no-sleep      Disable all sleep/delay calls (for testing)
+  --help          Show this help
+
+Without --script, files are loaded then REPL starts.
 ```
 
 ```forth
-midi-open c4, e4, g4, (c4 e4 g4), midi-close
+midi-open
+\ Concise notation with probability and articulation
+mf c4, e4. g4> c5-,          \ staccato, accent, tenuto
+c4|e4|g4, 75%,               \ random selection, 75% chance
+(c4 e4 g4),                  \ chord
+
+\ Generative pattern with anonymous block
+{ c4, d4, e4, } 4 *          \ repeat block 4 times
+
+\ Async sequence playback
+seq-new 0 seq-start
+  c4, e4, g4,
+0 seq-end
+seq-play&                    \ non-blocking playback
 ```
 
 [Full documentation](docs/forth-midi/README.md) | [API](docs/forth-midi/api-reference.md) | [Tutorial](docs/forth-midi/tutorial.md)
@@ -65,13 +85,30 @@ midi-open c4, e4, g4, (c4 e4 g4), midi-close
 ### lua-midi
 
 ```sh
-./build/lua_midi
+% ./build/lua_midi --help
+Usage: ./build/lua_midi [options] [file.lua]
+Options:
+  -e EXPR    Execute Lua statement
+  --version  Show version
+  --help     Show this help
+
+Without arguments, starts an interactive REPL.
 ```
 
 ```lua
 open()
-n(c4); n(e4); n(g4)
-ch(major(c4))
+-- Concurrent voices with coroutines
+spawn(function()
+    for _, p in ipairs(scale(c4, "pentatonic")) do
+        play(p, mf, eighth)
+    end
+end, "melody")
+
+spawn(function()
+    ch(major(c3), ff, whole)  -- sustained chord
+end, "harmony")
+
+run()  -- wait for all voices
 close()
 ```
 
@@ -80,15 +117,46 @@ close()
 ### mhs-midi
 
 ```sh
-./scripts/mhs-midi-repl
+% ./scripts/mhs-midi --help
+usage: mhs-midi [-h] {repl,compile,run} ...
+
+Commands:
+  repl              Start interactive REPL (default)
+  compile FILE.hs   Compile to standalone executable
+  run FILE.hs       Compile and immediately run
 ```
 
+**Interactive REPL:**
+```sh
+./scripts/mhs-midi              # Start REPL
+./scripts/mhs-midi repl         # Same, explicit
+```
+
+**Write and compile a program:**
 ```haskell
-import MidiRepl
-open
-mapM_ n [c4, e4, g4]
-ch [c4, e4, g4]
-close
+-- demo.hs
+import MusicPerform
+
+main = do
+    midiOpenVirtual "demo"
+    -- Pure functional Music DSL with combinators
+    let melody = line [c4, e4, g4, c5] mf eighth
+        bass   = note c3 ff whole
+        piece  = melody ||| bass  -- parallel composition
+
+    perform piece
+
+    -- Concurrent voices with native threads
+    spawn "arp" $ perform (arpUp (major c4) mp sixteenth)
+    spawn "pad" $ perform (chord [c3, g3, e4] pp whole)
+    run
+    midiClose
+```
+
+```sh
+./scripts/mhs-midi compile demo.hs        # Creates ./demo
+./scripts/mhs-midi compile demo.hs -o out # Creates ./out
+./scripts/mhs-midi run demo.hs            # Compile and run
 ```
 
 [Full documentation](docs/mhs-midi/README.md) | [API Reference](docs/mhs-midi/api-reference.md)
@@ -96,15 +164,41 @@ close
 ### pktpy-midi
 
 ```sh
-./build/pktpy_midi
+% ./build/pktpy_midi --help
+Usage: ./build/pktpy_midi [options] [file.py]
+
+PocketPy interpreter with MIDI support.
+
+Options:
+  -e EXPR        Execute Python statement
+  -l, --list     List available MIDI output ports
+  --profile      Enable profiler (file mode only)
+  --debug        Enable debugger (file mode only)
+  -v, --version  Show version information
+  -h, --help     Show this help message
+
+Without arguments, starts an interactive REPL.
 ```
+
+A pktpy-midi file is a regular python3 file which can import the custom `midi` module (and other [pocketpy](https://pocketpy.dev) modules):
 
 ```python
 import midi
-with midi.open() as m:
-    for p in ["C4", "E4", "G4"]:
-        m.note(p)
-    m.chord(midi.major("C4"))
+
+# Generator-based async voices
+def arpeggio():
+    with midi.open() as m:
+        for p in midi.scale(midi.c4, "dorian"):
+            yield from midi.play(m, p, midi.mf, midi.eighth)
+
+def drone():
+    with midi.open() as m:
+        yield from midi.play(m, midi.c2, midi.pp, midi.whole * 4)
+
+# Concurrent playback
+midi.spawn(arpeggio, "arp")
+midi.spawn(drone, "drone")
+midi.run()
 ```
 
 [Full documentation](docs/pktpy-midi/README.md) | [API Reference](docs/pktpy-midi/api-reference.md)
@@ -117,8 +211,21 @@ with midi.open() as m:
 
 ```scheme
 (open)
-(n c4) (n e4) (n g4)
-(ch (major c4))
+;; Functional transformations
+(define melody (scale c4 'dorian))
+(define bass (invert melody c4))  ; melodic inversion
+
+;; Thunk-based concurrent voices
+(spawn (make-melody-voice melody mf eighth) "melody")
+(spawn (make-melody-voice bass ff quarter) "bass")
+
+;; Euclidean rhythm generator
+(spawn (lambda ()
+  (euclidean 3 8  ; 3 hits over 8 steps
+    (lambda () (n c2 ff sixteenth))))
+  "rhythm")
+
+(run)
 (close)
 ```
 

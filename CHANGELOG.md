@@ -4,6 +4,15 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **pktpy-midi**: Added proper CLI with getopt_long
+  - `-e EXPR` - Execute Python statement
+  - `-l, --list` - List available MIDI output ports
+  - `-v, --version` - Show version information
+  - `-h, --help` - Show help message
+  - Existing `--profile` and `--debug` options preserved
+
 ## [0.1.5]
 
 ### Added

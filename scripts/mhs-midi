@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""
+mhs-midi - MicroHs MIDI development tool
+
+Commands:
+    repl              Start interactive REPL with MIDI support (default)
+    compile FILE.hs   Compile Haskell file to standalone executable
+    run FILE.hs       Compile and immediately run
+
+Examples:
+    mhs-midi                          # Start REPL
+    mhs-midi repl                     # Start REPL (explicit)
+    mhs-midi compile demo.hs          # Compile to ./demo
+    mhs-midi compile demo.hs -o out   # Compile to ./out
+    mhs-midi run demo.hs              # Compile and run
+"""
+
+import argparse
+import os
+import platform
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def get_project_paths():
+    """Get all required project paths."""
+    script_dir = Path(__file__).resolve().parent
+    project_dir = script_dir.parent
+
+    return {
+        'project': project_dir,
+        'mhs_dir': project_dir / 'thirdparty' / 'MicroHs',
+        'mhs_compiler': project_dir / 'thirdparty' / 'MicroHs' / 'bin' / 'mhs',
+        'mhs_runtime': project_dir / 'thirdparty' / 'MicroHs' / 'src' / 'runtime',
+        'midi_lib': project_dir / 'projects' / 'mhs-midi' / 'lib',
+        'midi_src': project_dir / 'projects' / 'mhs-midi',
+        'mhs_midi': project_dir / 'build' / 'mhs-midi',
+        'build_dir': project_dir / 'build',
+        'libremidi': project_dir / 'build' / 'thirdparty' / 'libremidi' / 'liblibremidi.a',
+        'libremidi_include': project_dir / 'thirdparty' / 'libremidi' / 'include',
+    }
+
+
+def check_build(paths, need_compiler=False):
+    """Check that required build artifacts exist."""
+    if not paths['mhs_midi'].exists():
+        print("Error: mhs-midi not found. Run 'make' first.", file=sys.stderr)
+        sys.exit(1)
+
+    if need_compiler:
+        if not paths['mhs_compiler'].exists():
+            print("Error: MicroHs compiler not found. Run 'make' first.", file=sys.stderr)
+            sys.exit(1)
+        if not paths['build_dir'].exists():
+            print("Error: Build directory not found. Run 'make' first.", file=sys.stderr)
+            sys.exit(1)
+        if not paths['libremidi'].exists():
+            print("Error: libremidi not found. Run 'make' first.", file=sys.stderr)
+            sys.exit(1)
+
+
+def cmd_repl(args, paths):
+    """Start the interactive REPL."""
+    check_build(paths)
+
+    env = os.environ.copy()
+    env['MHSDIR'] = str(paths['mhs_dir'])
+
+    cmd = [
+        str(paths['mhs_midi']),
+        '-C',
+        f"-i{paths['midi_lib']}",
+    ]
+    cmd.extend(args.mhs_args)
+
+    os.execve(str(paths['mhs_midi']), cmd, env)
+
+
+def cmd_compile(args, paths):
+    """Compile a Haskell file to a standalone executable."""
+    check_build(paths, need_compiler=True)
+
+    input_file = Path(args.file).resolve()
+    if not input_file.exists():
+        print(f"Error: File not found: {args.file}", file=sys.stderr)
+        sys.exit(1)
+
+    module_name = input_file.stem
+    input_dir = input_file.parent
+    output_name = args.output if args.output else module_name
+
+    # Step 1: Compile Haskell to C
+    with tempfile.NamedTemporaryFile(suffix='.c', delete=False) as tmp:
+        c_file = tmp.name
+
+    try:
+        print(f"Compiling {args.file}...")
+
+        env = os.environ.copy()
+        env['MHSDIR'] = str(paths['mhs_dir'])
+
+        mhs_cmd = [
+            str(paths['mhs_compiler']),
+            f"-i{paths['midi_lib']}",
+            f"-i{input_dir}",
+            module_name,
+            '-C',
+            f"-o{c_file}",
+        ]
+
+        result = subprocess.run(mhs_cmd, env=env)
+        if result.returncode != 0:
+            print("Error: MicroHs compilation failed", file=sys.stderr)
+            sys.exit(1)
+
+        if args.verbose:
+            print(f"Generated C code: {c_file}")
+
+        # Step 2: Compile C to executable
+        if platform.system() == 'Darwin':
+            platform_libs = ['-framework', 'CoreMIDI', '-framework', 'CoreFoundation', '-framework', 'CoreAudio']
+        else:
+            platform_libs = ['-lasound']
+
+        if args.verbose:
+            print("Linking executable...")
+
+        cc_cmd = [
+            'cc', '-O2',
+            f"-I{paths['mhs_runtime']}",
+            f"-I{paths['mhs_runtime'] / 'unix'}",
+            f"-I{paths['midi_src']}",
+            f"-I{paths['libremidi_include']}",
+            c_file,
+            str(paths['mhs_runtime'] / 'eval.c'),
+            str(paths['mhs_runtime'] / 'main.c'),
+            str(paths['midi_src'] / 'midi_ffi.c'),
+            str(paths['libremidi']),
+            '-lm',
+            '-lstdc++',
+            *platform_libs,
+            '-o', output_name,
+        ]
+
+        result = subprocess.run(cc_cmd)
+        if result.returncode != 0:
+            print("Error: C compilation failed", file=sys.stderr)
+            sys.exit(1)
+
+        print(f"Created: {output_name}")
+        if not args.quiet:
+            print(f"Run with: ./{output_name}")
+
+        return output_name
+
+    finally:
+        # Cleanup
+        if os.path.exists(c_file):
+            os.remove(c_file)
+
+
+def cmd_run(args, paths):
+    """Compile and immediately run a Haskell file."""
+    # Compile first
+    args.quiet = True
+    output_name = cmd_compile(args, paths)
+
+    # Then run
+    print(f"Running {output_name}...")
+    print()
+
+    result = subprocess.run([f"./{output_name}"])
+
+    # Optionally clean up the executable
+    if args.cleanup:
+        os.remove(output_name)
+
+    sys.exit(result.returncode)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='MicroHs MIDI development tool',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__
+    )
+
+    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+
+    # repl subcommand
+    repl_parser = subparsers.add_parser('repl', help='Start interactive REPL (default)')
+    repl_parser.add_argument('mhs_args', nargs='*', help='Additional arguments for mhs-midi')
+
+    # compile subcommand
+    compile_parser = subparsers.add_parser('compile', help='Compile Haskell file to executable')
+    compile_parser.add_argument('file', help='Haskell source file (.hs)')
+    compile_parser.add_argument('-o', '--output', help='Output executable name')
+    compile_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    compile_parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
+
+    # run subcommand
+    run_parser = subparsers.add_parser('run', help='Compile and run Haskell file')
+    run_parser.add_argument('file', help='Haskell source file (.hs)')
+    run_parser.add_argument('-o', '--output', help='Output executable name')
+    run_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    run_parser.add_argument('-q', '--quiet', action='store_true', help='Minimal output')
+    run_parser.add_argument('--cleanup', action='store_true', help='Remove executable after running')
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    # Get paths
+    paths = get_project_paths()
+
+    # Default to repl if no command given
+    if args.command is None:
+        args.command = 'repl'
+        args.mhs_args = []
+
+    # Dispatch to command handler
+    if args.command == 'repl':
+        cmd_repl(args, paths)
+    elif args.command == 'compile':
+        cmd_compile(args, paths)
+    elif args.command == 'run':
+        cmd_run(args, paths)
+
+
+if __name__ == '__main__':
+    main()

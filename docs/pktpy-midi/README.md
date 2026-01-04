@@ -46,18 +46,33 @@ with midi.open() as m:
     m.chord(midi.major("C4"), midi.mf, midi.quarter)
 ```
 
-## Usage Modes
-
-### Interactive REPL
+## Command Line Interface
 
 ```bash
-./build/pktpy_midi
+./build/pktpy_midi --help
 ```
 
-### Run Python File
+```
+Usage: ./build/pktpy_midi [options] [file.py]
+
+Options:
+  -e EXPR        Execute Python statement
+  -l, --list     List available MIDI output ports
+  --profile      Enable profiler (file mode only)
+  --debug        Enable debugger (file mode only)
+  -v, --version  Show version information
+  -h, --help     Show this help message
+
+Without arguments, starts an interactive REPL.
+```
+
+### Examples
 
 ```bash
-./build/pktpy_midi script.py
+./build/pktpy_midi                     # Start REPL
+./build/pktpy_midi script.py           # Run a Python file
+./build/pktpy_midi -e "print(1+2)"     # Execute expression
+./build/pktpy_midi -l                  # List MIDI ports
 ```
 
 ## Example Program
