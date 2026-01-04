@@ -1,0 +1,19 @@
+# Cram expressions - fitting notes into a duration
+piano:
+  (tempo 100)
+  o4
+
+  # Normal quarter notes
+  c4 d e f |
+
+  # Triplets - 3 notes in the space of 1 beat
+  {c d e}4 {d e f}4 {e f g}4 {f g a}4 |
+
+  # Quintuplet - 5 notes in the space of 1 beat
+  {c d e f g}4 {d e f g a}4 {e f g a b}4 {f g a b > c}4 |
+
+  # 6 notes in a half note
+  {c d e f g a}2 {g a b > c d e}2 |
+
+  # Nested cram
+  {c {d e} f g}2 a2

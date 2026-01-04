@@ -1,0 +1,13 @@
+# Repeat patterns
+piano:
+  (tempo 140)
+  o4
+
+  # Repeat a single note
+  c8*4 d*4 e*4 f*4 |
+
+  # Repeat a sequence
+  [c8 d e]*4 |
+
+  # Repeat with octave changes
+  [c4 e g > c <]*2

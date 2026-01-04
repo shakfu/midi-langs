@@ -1,0 +1,15 @@
+# Using markers for synchronization
+(tempo! 100)
+
+piano:
+  o4
+  c4 d e f | g a b > c |
+  %verse
+  d4 e f g | a b > c d |
+  c4 < b a g | f e d c
+
+violin:
+  r1 | r1
+  @verse
+  f4 g a b | > c d e f |
+  e4 d c < b | a g f e

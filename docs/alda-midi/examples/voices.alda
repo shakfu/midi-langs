@@ -1,0 +1,12 @@
+# Polyphonic example using voices
+piano:
+  (tempo 80)
+  o4
+
+  V1: c1 | d | e | f
+  V2: e1 | f | g | a
+  V3: g1 | a | b | > c
+  V0:
+
+  # All voices end together
+  < c1/e/g

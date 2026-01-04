@@ -1,0 +1,30 @@
+# Jazz-style example with swing feel
+(tempo! 140)
+
+# Walking bass line
+acoustic-bass:
+  o2 (mf)
+  c4 e g a | b- a g e |
+  f4 a > c d | < b- a g f |
+  c4 e g a | b- a g e |
+  f4 a g f | c1
+
+# Piano comping
+piano:
+  o3 (mp)
+  r4 c/e/g/b- r c/e/g/b- |
+  r4 < b-/>d/f/a- r < b-/>d/f/a- |
+  r4 < f/a/>c/e- r < f/a/>c/e- |
+  r4 < b-/>d/f/a- r < b-/>d/f/a- |
+  r4 c/e/g/b- r c/e/g/b- |
+  r4 < b-/>d/f/a- r < b-/>d/f/a- |
+  r4 < f/a/>c/e- r < g/b/>d/f |
+  < c1/e/g/b-
+
+# Melody (trumpet or sax)
+trumpet:
+  o4 (mf)
+  r2 e4 g | b-4 a g e |
+  f4 a > c2 ~ | c4 < b- a g |
+  r2 e4 g | b-4 a g e |
+  f4 a g f | e1

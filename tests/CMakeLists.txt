@@ -239,3 +239,32 @@ set_tests_properties(
     forth_midi_golden_seq_record
     PROPERTIES LABELS "golden"
 )
+
+# alda_midi tests
+add_test(
+    NAME alda_midi_test_suite
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_alda_midi.sh $<TARGET_FILE:alda_midi>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(alda_midi_test_suite PROPERTIES
+    TIMEOUT 60
+    LABELS "integration"
+)
+
+# Quick alda_midi tests
+add_test(
+    NAME alda_midi_smoke
+    COMMAND sh -c "$<TARGET_FILE:alda_midi> --help | grep -q 'Alda'"
+)
+
+add_test(
+    NAME alda_midi_basic
+    COMMAND $<TARGET_FILE:alda_midi> --no-sleep ${CMAKE_CURRENT_SOURCE_DIR}/alda/basic.alda
+)
+
+set_tests_properties(
+    alda_midi_smoke
+    alda_midi_basic
+    PROPERTIES LABELS "quick"
+)

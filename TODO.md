@@ -2,6 +2,10 @@
 
 Ideas for extending MIDI implementations.
 
+## New Implementation Ideas
+
+- [ ] Implement a python module which implements a variation of the [alda](https://github.com/alda-lang/alda) language.
+
 
 ## All Implementations
 

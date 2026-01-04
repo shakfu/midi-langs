@@ -1,0 +1,30 @@
+# Bach Prelude in C Major (simplified opening)
+# BWV 846 from The Well-Tempered Clavier
+
+piano:
+  (tempo 72)
+  o3
+
+  # Measure 1 - C major
+  {c e g > c e}2 {< c e g > c e}2 |
+
+  # Measure 2 - Dm7
+  {< c d a > d f}2 {< c d a > d f}2 |
+
+  # Measure 3 - G7
+  {< b d g > d f}2 {< b d g > d f}2 |
+
+  # Measure 4 - C major
+  {< c e g > c e}2 {< c e g > c e}2 |
+
+  # Measure 5 - Am
+  {< c e a > e a}2 {< c e a > e a}2 |
+
+  # Measure 6 - D7
+  {< c d f+ a > d}2 {< c d f+ a > d}2 |
+
+  # Measure 7 - G major
+  {< b d g > d g}2 {< b d g > d g}2 |
+
+  # Measure 8 - C major (end)
+  c1/e/g/>c

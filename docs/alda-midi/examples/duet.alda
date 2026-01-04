@@ -1,0 +1,14 @@
+# Simple duet for violin and cello
+(tempo! 100)
+
+violin:
+  o4
+  (mf)
+  g4 a b > c | d2 e | d4 c < b a | g1 |
+  g4 a b > c | d2 e | f4 e d c | < b1
+
+cello:
+  o2
+  (mf)
+  g2 d | g2 c | d2 g | g1 |
+  g2 d | g2 c | d2 d | g1

@@ -1,0 +1,5 @@
+# Basic Alda test file
+
+piano:
+  (tempo 120)
+  o4 c4 d e f g a b > c2

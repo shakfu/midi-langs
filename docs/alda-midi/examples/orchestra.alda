@@ -1,0 +1,40 @@
+# Simple orchestral arrangement
+(tempo! 90)
+
+# Strings play the melody
+violin:
+  o4 (mf)
+  g2 a | b2 > c | d2 c | < b1 |
+  g2 a | b2 > c | d4 e d c | < b1
+
+viola:
+  o3 (mp)
+  d2 f | g2 a | b2 a | g1 |
+  d2 f | g2 a | b4 > c < b a | g1
+
+cello:
+  o2 (mp)
+  g2 d | g2 e | g2 f | g1 |
+  g2 d | g2 e | g2 d | g1
+
+# Winds provide harmony
+flute:
+  o5 (p)
+  r1 | r | d2 e | d1 |
+  r1 | r | f4 g f e | d1
+
+oboe:
+  o4 (p)
+  b2 > c | d2 e | f2 e | d1 |
+  b2 > c | d2 e | f4 g f e | d1
+
+# Brass enters for the final phrase
+french-horn:
+  o3 (p)
+  r1 | r1 | r1 | r1 |
+  (mf) g2 a | b2 > c | d2. < b4 | g1
+
+trumpet:
+  o4 (p)
+  r1 | r1 | r1 | r1 |
+  r1 | r1 | (mf) g4 a g f | g1

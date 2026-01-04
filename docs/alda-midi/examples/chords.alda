@@ -1,0 +1,14 @@
+# Chord progression - I-V-vi-IV in C major
+piano:
+  (tempo 80)
+  o3
+  # C major
+  c1/e/g |
+  # G major
+  g/b/>d |
+  # A minor
+  <a/>c/e |
+  # F major
+  <f/a/>c |
+  # Resolve to C
+  <c/e/g

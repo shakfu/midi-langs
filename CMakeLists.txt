@@ -62,6 +62,7 @@ add_subdirectory(projects/mhs-midi)
 add_subdirectory(projects/pktpy-midi)
 add_subdirectory(projects/s7-midi)
 add_subdirectory(projects/lua-midi)
+add_subdirectory(projects/alda-midi)
 
 # Enable testing
 enable_testing()
