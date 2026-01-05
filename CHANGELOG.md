@@ -4,6 +4,8 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.7]
+
 ### Added
 
 - **mhs-midi-standalone**: Self-contained binary with embedded Haskell libraries

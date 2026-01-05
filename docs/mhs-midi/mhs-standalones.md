@@ -1,20 +1,21 @@
 # Creating a Self-Contained MicroHs Binary with Embedded Libraries
 
-This article describes how we created a fully self-contained MicroHs-based application that embeds all Haskell libraries and can compile programs to standalone executables without any external file dependencies.
+This document describes how to create a self-contained MicroHs-based application that embeds all MicroHaskell libraries and can compile programs to standalone executables without any external file dependencies.
 
 ## Background
 
-[mhs-midi](https://github.com/smola/midi-langs) is a MIDI music programming environment built on MicroHs. We wanted to distribute a single binary that users could download and run immediately, without needing to install MicroHs or set up `MHSDIR`.
+[mhs-midi](https://github.com/smola/midi-langs) is a MIDI-oriented music programming environment built on MicroHs. It is one of several language implementations that compile into convenient, self-contained executables. In its initial form, `mhs-midi` required extensive manual configuration, including specifying multiple directories such as `MHSDIR`, which points to the original MicroHs installation. To simplify this setup, a Python wrapper script was introduced. This script handled environment configuration and served as a REPL and compiler frontend for running and compiling MIDI-focused Haskell programs, while also integrating with the C/C++ `libremidi` library via FFI.
 
-**Goals:**
-1. Single binary distribution - no external files required
-2. Full functionality - REPL, run, and compile modes all work
-3. No MicroHs source modifications - achieve embedding via C-level interception
-4. Ability to compile user programs to standalone executables
+Despite these improvements, `mhs-midi` remained an outlier: relocating it without friction was still difficult. Ideally, it should be distributable as a single executable that users can download and run immediately, without installing MicroHs or configuring `MHSDIR`. To explore this possibility, an experiment was designed with the following objectives:
+
+1. Single-binary distribution — no external files or dependencies required
+2. Full featured — REPL, run, and compile modes all work
+3. No MicroHs source changes — achieve embedding via C-level interception
+4. Standalone compilation — user programs can be compiled into independent executables
 
 ## The Approach: Virtual Filesystem with fmemopen
 
-MicroHs reads library files through the `mhs_fopen` FFI function in `eval.c`. Our approach intercepts this function to serve embedded files from memory.
+MicroHs reads library files through the `mhs_fopen` FFI function in `eval.c`. The proposed approach intercepts this function to serve embedded files from memory.
 
 ### Step 1: Embed Files as C Arrays
 
@@ -65,7 +66,7 @@ static const EmbeddedFile embedded_files[] = {
 
 #### C Implementation (for MicroHs Integration)
 
-We also provide a pure C implementation (`scripts/embed_libs.c`) suitable for integration into MicroHs itself:
+Provide a pure C implementation (`scripts/embed_libs.c`) suitable for integration into MicroHs itself:
 
 ```c
 // Core byte escaping - handles UTF-8 correctly
@@ -87,7 +88,7 @@ Usage:
 
 ```bash
 # Compile the tool
-cc -o embed_libs scripts/embed_libs.c
+gcc -o embed_libs scripts/embed_libs.c
 
 # Generate header with all dependencies
 ./embed_libs mhs_embedded.h lib/ \
@@ -111,7 +112,7 @@ Generated: mhs_embedded.h (265 files, 2447946 bytes)
 
 The C implementation has no dependencies beyond libc and is portable to any POSIX system.
 
-### Step 2: Virtual Filesystem Using fmemopen
+### Step 2: Virtual Filesystem Using `fmemopen`
 
 The VFS serves embedded files as `FILE*` streams:
 
@@ -148,7 +149,7 @@ FILE* vfs_fopen(const char* path, const char* mode) {
 
 ### Step 3: Intercept MicroHs FFI
 
-MicroHs calls `mhs_fopen` for all file operations. We rename the original and provide our override:
+As MicroHs calls `mhs_fopen` for all file operations, rename the original and provide an override:
 
 ```python
 # scripts/patch_eval_vfs.py
@@ -175,7 +176,7 @@ from_t mhs_fopen(int s) {
 
 ### Step 4: Set MHSDIR to Virtual Root
 
-At startup, point `MHSDIR` to our virtual filesystem:
+At startup, point `MHSDIR` to the virtual filesystem:
 
 ```c
 // main.c
@@ -186,11 +187,11 @@ int main(int argc, char** argv) {
 }
 ```
 
-MicroHs now constructs paths like `/mhs-embedded/lib/Prelude.hs`, which our VFS intercepts and serves from memory.
+MicroHs now constructs paths like `/mhs-embedded/lib/Prelude.hs`, which the VFS intercepts and serves from memory.
 
 ## Challenge 1: UTF-8 Encoding Bug
 
-**Symptom:** After loading ~163 of 185 modules, we got `ERR: getb_utf8`.
+**Symptom:** After loading ~163 of 185 modules, we got `ERR: getb_utf8`. 
 
 **Root Cause:** The embedding script had two bugs:
 
@@ -271,13 +272,13 @@ if (linking_midi) {
 
 ## Generalizing for Other Projects
 
-This approach can be adapted for any MicroHs-based application:
+This approach turned out to be quite useful, can be adapted for any MicroHs-based application:
 
 ### 1. Minimal Standalone (REPL/Run only)
 
 If you only need REPL and `-r` (run) modes, you just need:
 
-- `embed_libs.py` - embed your `.hs` libraries
+- `embed_libs.py` or `embed_lib.c` - embed your `.hs` libraries
 - `vfs.c` - the fmemopen-based VFS
 - `mhs_ffi_override.c` - intercept `mhs_fopen`
 - `patch_eval_vfs.py` - rename original `mhs_fopen`
@@ -302,7 +303,7 @@ If your application has C dependencies:
 
 ### Potential MicroHs Enhancement
 
-A potential enhancement to MicroHs itself could be a compile-time option to embed libraries:
+A potential enhancement to MicroHs itself could be a compile-time option to embed libraries vin the integration of `embed_lib.c`:
 
 ```
 mhs --embed-libs=./lib --embed-runtime -o my_repl MyRepl.hs
@@ -348,7 +349,9 @@ projects/mhs-midi/
 
 ## Acknowledgments
 
-Thanks to Lennart Augustsson for creating MicroHs, which makes this kind of embedding possible through its clean FFI design and single-file C output.
+Thanks to Lennart Augustsson for creating `MicroHs`, which makes this kind of embedding possible through its use of combinators, clean FFI design and single-file C output.
+
+The exploratory work to develop the standalone `mhs-midi` implementation was great accelerated by the use of claude-code.
 
 ## References
 
