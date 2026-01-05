@@ -296,3 +296,34 @@ elseif(UNIX)
 endif()
 
 add_strip_command(mhs-midi-standalone)
+
+# ============================================
+# Installation rules
+# ============================================
+
+# Install binaries
+install(TARGETS mhs-midi mhs-midi-standalone
+    RUNTIME DESTINATION bin
+    COMPONENT mhs-midi
+)
+
+# Install MicroHs library files (needed for compilation)
+install(DIRECTORY ${MHS_LIB}/
+    DESTINATION share/mhs-midi/MicroHs/lib
+    COMPONENT mhs-midi
+    FILES_MATCHING PATTERN "*.hs" PATTERN "*.hs-boot"
+)
+
+# Install MicroHs runtime files (needed for compilation to executable)
+install(DIRECTORY ${MHS_RUNTIME}/
+    DESTINATION share/mhs-midi/MicroHs/src/runtime
+    COMPONENT mhs-midi
+    FILES_MATCHING PATTERN "*.c" PATTERN "*.h"
+)
+
+# Install MIDI Haskell library files
+install(DIRECTORY ${MIDI_LIB_DIR}/
+    DESTINATION share/mhs-midi/lib
+    COMPONENT mhs-midi
+    FILES_MATCHING PATTERN "*.hs"
+)

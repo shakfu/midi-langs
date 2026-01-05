@@ -124,7 +124,7 @@ static int find_midi_lib(char *buf, size_t size, const char *exe_dir) {
 }
 
 static void print_usage(const char *prog) {
-    printf("mhs-midi - MicroHs with MIDI support\n\n");
+    printf("%s - MicroHs with MIDI support\n\n", prog);
     printf("Usage:\n");
     printf("  %s                     Start interactive REPL (default)\n", prog);
     printf("  %s [mhs-options]       Pass options directly to MicroHs\n", prog);

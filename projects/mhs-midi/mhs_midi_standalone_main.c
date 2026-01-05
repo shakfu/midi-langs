@@ -22,7 +22,7 @@
 int mhs_main(int argc, char **argv);
 
 static void print_usage(const char *prog) {
-    printf("mhs-midi-standalone - Self-contained MicroHs with MIDI support\n\n");
+    printf("%s - Self-contained MicroHs with MIDI support\n\n", prog);
     printf("Usage:\n");
     printf("  %s                     Start interactive REPL (default)\n", prog);
     printf("  %s [mhs-options]       Pass options directly to MicroHs\n", prog);

@@ -28,6 +28,11 @@ All notable changes to midi-langs are documented in this file.
   - Combined artifact collection (`midi-langs-all`)
   - MIDI-dependent tests automatically skipped on Linux CI (no virtual MIDI ports)
 
+- **mhs-midi install rules**: CMake install support for mhs-midi binaries
+  - `cmake --install build --component mhs-midi` installs to prefix
+  - Binaries to `bin/`, MicroHs libs to `share/mhs-midi/MicroHs/`, MIDI libs to `share/mhs-midi/lib/`
+  - Auto-detection works from installed location (no MHSDIR needed)
+
 ### Changed
 
 - **Build System**: MicroHs now builds automatically during CMake configuration
@@ -44,6 +49,7 @@ All notable changes to midi-langs are documented in this file.
 ### Fixed
 
 - **CI**: Linux builds now install `libreadline-dev` for readline support
+- **mhs-midi**: Help output now uses `argv[0]` instead of hardcoded executable name
 
 ## [0.1.6]
 
