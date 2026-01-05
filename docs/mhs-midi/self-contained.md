@@ -16,10 +16,11 @@ Both provide identical functionality (REPL, compile, run), but the standalone ve
 ## Status: Complete
 
 The standalone binary is fully working:
-- All 240 library files embedded (~1MB)
-- All 185 modules load correctly
-- REPL and file execution work identically to `mhs-midi`
-- All 39 tests pass
+- 273 files embedded (~2.5MB total)
+- All 185 Haskell modules load correctly
+- REPL, run, and compile modes all work
+- Can compile MIDI programs to standalone executables
+- All tests pass
 
 ## Goals
 
@@ -90,9 +91,14 @@ from_t mhs_fopen(int s) {
 
 | Category | Count | Size | Location |
 |----------|-------|------|----------|
-| MicroHs stdlib | ~230 | ~1MB | `thirdparty/MicroHs/lib/` |
-| MIDI libraries | ~10 | ~50KB | `projects/mhs-midi/lib/` |
-| **Total** | **~240** | **~1MB** | |
+| MicroHs stdlib (.hs) | ~230 | ~1MB | `thirdparty/MicroHs/lib/` |
+| MIDI Haskell libs (.hs) | ~10 | ~50KB | `projects/mhs-midi/lib/` |
+| Runtime (C/H files) | 28 | ~250KB | `thirdparty/MicroHs/src/runtime/` |
+| MIDI FFI header | 1 | ~2KB | `projects/mhs-midi/midi_ffi.h` |
+| Static libraries (.a) | 4 | ~1.2MB | libremidi, midi_ffi, music_theory, midi_file |
+| **Total** | **273** | **~2.5MB** | |
+
+The static libraries enable compiling MIDI programs to standalone executables without requiring libremidi or other dependencies on the target system.
 
 ## Implementation
 
@@ -100,11 +106,13 @@ from_t mhs_fopen(int s) {
 
 ```
 +---------------------------------------------------------+
-|                  mhs-midi-standalone                     |
+|                  mhs-midi-standalone (3.2MB)             |
 +---------------------------------------------------------+
 |  mhs_midi_standalone_main.c                             |
 |    - Initializes VFS                                    |
-|    - Sets MHSDIR=/mhs-embedded                          |
+|    - Detects compilation mode (-o without .c)           |
+|    - For -r/REPL: uses VFS (MHSDIR=/mhs-embedded)       |
+|    - For -o exe: extracts to temp, injects -optl flags  |
 |    - Calls mhs_main()                                   |
 +---------------------------------------------------------+
 |  mhs_ffi_override.c                                     |
@@ -113,10 +121,12 @@ from_t mhs_fopen(int s) {
 |  vfs.c                                                  |
 |    - vfs_fopen() looks up path in embedded_files[]      |
 |    - Returns fmemopen(content, length, "r") for matches |
+|    - vfs_extract_to_temp() for compilation mode         |
 +---------------------------------------------------------+
-|  mhs_embedded_libs.h (generated)                        |
-|    - static const EmbeddedFile embedded_files[] = {...} |
-|    - 240 files, ~1MB total                              |
+|  mhs_embedded_libs.h (generated, ~2.5MB)                |
+|    - 240 Haskell source files                           |
+|    - 28 runtime C/H files                               |
+|    - 4 static libraries (.a)                            |
 +---------------------------------------------------------+
 |  eval_vfs.c (patched from eval.c)                       |
 |    - Original mhs_fopen renamed to mhs_fopen_orig       |
@@ -124,7 +134,7 @@ from_t mhs_fopen(int s) {
 +---------------------------------------------------------+
 
 +---------------------------------------------------------+
-|                      mhs-midi                            |
+|                      mhs-midi (782KB)                    |
 +---------------------------------------------------------+
 |  mhs_midi_main.c                                        |
 |    - Auto-detects MHSDIR from executable location       |
@@ -136,9 +146,35 @@ from_t mhs_fopen(int s) {
 +---------------------------------------------------------+
 ```
 
+### Compilation Modes
+
+The standalone binary handles different modes:
+
+| Mode | Command | Mechanism |
+|------|---------|-----------|
+| REPL | `./mhs-midi-standalone` | VFS serves files from memory |
+| Run | `-r File.hs` | VFS serves files from memory |
+| C output | `-o File.c` | VFS serves files from memory |
+| Executable | `-o File` | Extract to temp, link with embedded libs |
+
+For executable compilation, the standalone:
+1. Extracts all embedded files to `/tmp/mhs-XXXXXX/`
+2. Sets `MHSDIR` to the temp directory
+3. Injects `-optl` flags for MIDI libraries and platform frameworks
+4. Cleans up temp directory after compilation
+
 ### Key Components
 
-**1. `scripts/embed_libs.py`** - Converts all `.hs` files to a C header:
+**1. `scripts/embed_libs.py`** - Converts files to a C header with embedded content:
+
+```sh
+# Usage with all options:
+embed_libs.py output.h lib_dirs... \
+    --runtime src/runtime \
+    --header midi_ffi.h \
+    --lib liblibremidi.a \
+    --lib libmidi_ffi.a
+```
 
 ```c
 // Generated: mhs_embedded_libs.h
@@ -150,8 +186,9 @@ typedef struct {
 
 static const EmbeddedFile embedded_files[] = {
     { "lib/Prelude.hs", "module Prelude...", 12345 },
-    { "lib/Data/List.hs", "module Data.List...", 6789 },
-    // ... 238 more entries
+    { "src/runtime/eval.c", "/* eval.c */...", 198000 },
+    { "lib/liblibremidi.a", "<binary>", 1143392 },
+    // ... 270 more entries
     { NULL, NULL, 0 }
 };
 ```
@@ -187,14 +224,20 @@ from_t mhs_fopen(int s) {
 ### Build Integration
 
 ```cmake
-# Generate embedded library header
+# Generate embedded library header with all dependencies
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mhs_embedded_libs.h
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/embed_libs.py
         ${CMAKE_CURRENT_BINARY_DIR}/mhs_embedded_libs.h
         ${MHS_LIB}
         ${MIDI_LIB_DIR}
-    ...
+        --runtime ${MHS_RUNTIME}
+        --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
+        --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
+        --lib ${CMAKE_BINARY_DIR}/projects/mhs-midi/libmidi_ffi.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
+    DEPENDS libremidi midi_ffi music_theory midi_file
 )
 
 # Standalone binary with VFS
@@ -325,10 +368,11 @@ build/projects/mhs-midi/
 
 ## Future Enhancements
 
-1. **Compression** - Use LZ4/zstd to reduce embedded size
+1. **Compression** - Use LZ4/zstd to reduce embedded size (~2.5MB currently)
 2. **Selective embedding** - Analyze imports to embed only required modules
 3. **Precompiled cache** - Embed `.mhscache` for faster startup
 4. **Windows support** - Implement fmemopen fallback when MicroHs Windows builds work
+5. **Incremental extraction** - Only extract files needed for specific compilation
 
 ## References
 

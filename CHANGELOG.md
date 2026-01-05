@@ -7,11 +7,20 @@ All notable changes to midi-langs are documented in this file.
 ### Added
 
 - **mhs-midi-standalone**: Self-contained binary with embedded Haskell libraries
-  - No external files required - all 240 MicroHs library files embedded (~1MB)
+  - No external files required - 273 files embedded (~2.5MB):
+    - 240 Haskell source files (MicroHs stdlib + MIDI libs)
+    - 28 runtime C/H files for compilation
+    - 4 static libraries (libremidi, midi_ffi, music_theory, midi_file)
+    - midi_ffi.h header for MIDI FFI
   - Pure memory-based VFS using `fmemopen()` for zero-copy file access
+  - Can compile MIDI programs to standalone executables:
+    - `./mhs-midi-standalone -oMyProg MyFile.hs` produces self-contained binary
+    - Automatic temp extraction and linker flag injection for executable compilation
+    - Platform-specific linking (CoreMIDI/CoreAudio on macOS, ALSA on Linux)
   - Build: `cmake --build build --target mhs-midi-standalone`
-  - Debug mode: `MHS_USE_FILESYSTEM=1` bypasses VFS for troubleshooting
-  - New files: `vfs.c/h`, `mhs_ffi_override.c`, `scripts/embed_libs.py`, `scripts/patch_eval_vfs.py`
+  - New files: `vfs.c/h`, `mhs_ffi_override.c`, `mhs_midi_standalone_main.c`
+  - New scripts: `scripts/embed_libs.py`, `scripts/patch_eval_vfs.py`
+  - New test: `mhs_standalone_compile` - verifies compilation to executable
 
 - **CI/CD**: GitHub Actions workflow (`build-test.yml`) for cross-platform builds
   - Builds on Ubuntu, macOS, and Windows

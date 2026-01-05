@@ -217,10 +217,18 @@ add_custom_command(
         ${MIDI_LIB_DIR}
         --runtime ${MHS_RUNTIME}
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
+        --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
+        --lib ${CMAKE_BINARY_DIR}/projects/mhs-midi/libmidi_ffi.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
     DEPENDS
         ${CMAKE_SOURCE_DIR}/scripts/embed_libs.py
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
-    COMMENT "Generating embedded library header with runtime"
+        libremidi
+        midi_ffi
+        music_theory
+        midi_file
+    COMMENT "Generating embedded library header with runtime and MIDI libs"
     VERBATIM
 )
 

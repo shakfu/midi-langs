@@ -6,7 +6,8 @@
  * 3. Supports repl, compile, and run modes
  *
  * For compilation to executable (-o without .c), files are extracted
- * to a temp directory since cc needs real filesystem access.
+ * to a temp directory since cc needs real filesystem access. Linker
+ * flags are automatically added to link against embedded MIDI libraries.
  *
  * For the non-standalone version requiring MHSDIR, see mhs_midi_main.c
  */
@@ -65,6 +66,7 @@ static int needs_extraction(int argc, char **argv) {
 
 int main(int argc, char **argv) {
     char *temp_dir = NULL;
+    int linking_midi = 0;
 
     /* Check for --help before anything else */
     if (argc >= 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
@@ -84,6 +86,7 @@ int main(int argc, char **argv) {
         }
         /* Set MHSDIR to temp directory for cc to find runtime files */
         setenv("MHSDIR", temp_dir, 1);
+        linking_midi = 1;
     } else {
         /* Use VFS - set MHSDIR to virtual root */
         setenv("MHSDIR", vfs_get_temp_dir(), 1);
@@ -95,9 +98,29 @@ int main(int argc, char **argv) {
         arg_offset = 1;
     }
 
-    /* Build new argv with -C flag for caching */
-    int new_argc = argc - arg_offset + 1;
+    /* Build new argv with -C flag for caching, plus linker flags if needed */
+    /* Extra args: -C, and if linking: -optl flags for each library + frameworks */
+#ifdef __APPLE__
+    /* macOS: 4 libraries + 3 frameworks + C++ runtime = 8 -optl pairs = 16 args */
+    #define LINK_EXTRA_ARGS 16
+#else
+    /* Linux: 4 libraries + ALSA + C++ runtime = 6 -optl pairs = 12 args */
+    #define LINK_EXTRA_ARGS 12
+#endif
+
+    int extra_args = 1;  /* -C */
+    if (linking_midi) {
+        extra_args += LINK_EXTRA_ARGS;
+    }
+
+    int new_argc = argc - arg_offset + extra_args;
     char **new_argv = malloc((new_argc + 1) * sizeof(char *));
+
+    /* Buffers for library path arguments */
+    char lib_libremidi[512];
+    char lib_midi_ffi[512];
+    char lib_music_theory[512];
+    char lib_midi_file[512];
 
     if (!new_argv) {
         fprintf(stderr, "Error: Memory allocation failed\n");
@@ -109,11 +132,56 @@ int main(int argc, char **argv) {
     new_argv[j++] = argv[0];
     new_argv[j++] = "-C";  /* Enable caching for faster startup */
 
+    /* Add linker flags for MIDI libraries if compiling to executable */
+    if (linking_midi) {
+        /* Build library paths */
+        snprintf(lib_midi_ffi, sizeof(lib_midi_ffi), "%s/lib/libmidi_ffi.a", temp_dir);
+        snprintf(lib_music_theory, sizeof(lib_music_theory), "%s/lib/libmusic_theory.a", temp_dir);
+        snprintf(lib_midi_file, sizeof(lib_midi_file), "%s/lib/libmidi_file.a", temp_dir);
+        snprintf(lib_libremidi, sizeof(lib_libremidi), "%s/lib/liblibremidi.a", temp_dir);
+
+        /* Add -optl flags for each library */
+        new_argv[j++] = "-optl";
+        new_argv[j++] = lib_midi_ffi;
+        new_argv[j++] = "-optl";
+        new_argv[j++] = lib_music_theory;
+        new_argv[j++] = "-optl";
+        new_argv[j++] = lib_midi_file;
+        new_argv[j++] = "-optl";
+        new_argv[j++] = lib_libremidi;
+
+#ifdef __APPLE__
+        /* macOS frameworks */
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "-framework";
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "CoreMIDI";
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "-framework";
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "CoreFoundation";
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "-framework";
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "CoreAudio";
+#else
+        /* Linux: ALSA */
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "-lasound";
+#endif
+        /* C++ standard library (libremidi is C++) */
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "-lc++";
+    }
+
     /* Copy remaining arguments */
     for (int i = 1 + arg_offset; i < argc; i++) {
         new_argv[j++] = argv[i];
     }
     new_argv[j] = NULL;
+
+    /* Update argc to match */
+    new_argc = j;
 
     /* Call MicroHs main */
     int result = mhs_main(new_argc, new_argv);
