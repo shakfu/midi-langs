@@ -1,0 +1,51 @@
+name: build-windows
+
+on: [workflow_dispatch]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate prelude headers
+        run: |
+          python scripts/prelude2c.py projects/s7-midi/prelude.scm
+          python scripts/prelude2c.py projects/lua-midi/prelude.lua
+          python scripts/prelude2c.py projects/pktpy-midi/prelude.py
+
+      - name: Configure CMake
+        run: cmake -B build -G "Visual Studio 17 2022"
+
+      - name: Build
+        run: cmake --build build --config Release -j4
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure -C Release
+
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp build/Release/forth_midi.exe artifacts/ || true
+          cp build/Release/lua_midi.exe artifacts/ || true
+          cp build/Release/pktpy_midi.exe artifacts/ || true
+          cp build/Release/s7_midi.exe artifacts/ || true
+          cp build/Release/alda_midi.exe artifacts/ || true
+          cp build/Release/mhs-midi.exe artifacts/ || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: midi-langs-windows
+          path: artifacts/
+          if-no-files-found: warn

@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         include:
           - os: ubuntu-latest
             cmake_generator: "Unix Makefiles"
@@ -19,9 +19,6 @@ jobs:
           - os: macos-latest
             cmake_generator: "Unix Makefiles"
             artifact_name: midi-langs-macos
-          - os: windows-latest
-            cmake_generator: "Visual Studio 17 2022"
-            artifact_name: midi-langs-windows
 
     runs-on: ${{ matrix.os }}
 
@@ -58,12 +55,11 @@ jobs:
         if: runner.os == 'Linux'
         run: ctest --test-dir build --output-on-failure -C Release -LE midi
 
-      - name: Run tests (macOS/Windows)
-        if: runner.os != 'Linux'
+      - name: Run tests (macOS)
+        if: runner.os == 'macOS'
         run: ctest --test-dir build --output-on-failure -C Release
 
-      - name: Prepare artifacts (Unix)
-        if: runner.os != 'Windows'
+      - name: Prepare artifacts
         run: |
           mkdir -p artifacts
           cp build/forth_midi artifacts/
@@ -72,18 +68,6 @@ jobs:
           cp build/s7_midi artifacts/
           cp build/alda_midi artifacts/
           cp build/mhs-midi artifacts/
-
-      - name: Prepare artifacts (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          mkdir -p artifacts
-          cp build/Release/forth_midi.exe artifacts/ || true
-          cp build/Release/lua_midi.exe artifacts/ || true
-          cp build/Release/pktpy_midi.exe artifacts/ || true
-          cp build/Release/s7_midi.exe artifacts/ || true
-          cp build/Release/alda_midi.exe artifacts/ || true
-          cp build/Release/mhs-midi.exe artifacts/ || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
