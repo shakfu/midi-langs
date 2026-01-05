@@ -12,9 +12,35 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <getopt.h>
+#endif
+#ifdef USE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
+#endif
+
+#define MAX_INPUT_LENGTH 1024
+
+/* Simple readline fallback for systems without GNU readline */
+#ifndef USE_READLINE
+static char* simple_readline(const char* prompt) {
+    static char buf[MAX_INPUT_LENGTH];
+    printf("%s", prompt);
+    fflush(stdout);
+    if (fgets(buf, sizeof(buf), stdin) == NULL) {
+        return NULL;
+    }
+    /* Remove trailing newline */
+    size_t len = strlen(buf);
+    if (len > 0 && buf[len-1] == '\n') {
+        buf[len-1] = '\0';
+    }
+    return strdup(buf);
+}
+#define readline simple_readline
+#define add_history(x) ((void)0)
+#endif
 
 /* ============================================================================
  * Usage and Help
@@ -186,6 +212,31 @@ int main(int argc, char* argv[]) {
     int sequential = 0;
     const char* input_file = NULL;
 
+#ifdef _WIN32
+    /* Simple argument parsing for Windows (no getopt) */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "-v") == 0) {
+            verbose = 1;
+        } else if (strcmp(argv[i], "--list") == 0 || strcmp(argv[i], "-l") == 0) {
+            list_ports = 1;
+        } else if (strcmp(argv[i], "--sequential") == 0 || strcmp(argv[i], "-s") == 0) {
+            sequential = 1;
+        } else if (strcmp(argv[i], "--no-sleep") == 0) {
+            no_sleep = 1;
+        } else if ((strcmp(argv[i], "--port") == 0 || strcmp(argv[i], "-p") == 0) && i + 1 < argc) {
+            port_index = atoi(argv[++i]);
+        } else if ((strcmp(argv[i], "--output") == 0 || strcmp(argv[i], "-o") == 0) && i + 1 < argc) {
+            port_name = argv[++i];
+        } else if (strcmp(argv[i], "--virtual") == 0 && i + 1 < argc) {
+            virtual_name = argv[++i];
+        } else if (argv[i][0] != '-') {
+            input_file = argv[i];
+        }
+    }
+#else
     /* Long options */
     static struct option long_options[] = {
         {"help",       no_argument,       0, 'h'},
@@ -246,6 +297,7 @@ int main(int argc, char* argv[]) {
     if (optind < argc) {
         input_file = argv[optind];
     }
+#endif
 
     /* Initialize context */
     AldaContext ctx;

@@ -25,6 +25,12 @@ make clean        # Remove build directory
 
 Requires GCC/Clang and CMake 3.16+.
 
+**Linux (Ubuntu/Debian):** Install ALSA and readline development libraries:
+
+```sh
+sudo apt-get install libasound2-dev libreadline-dev
+```
+
 ## Quick Examples
 
 ### alda-midi

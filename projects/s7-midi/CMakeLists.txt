@@ -21,11 +21,15 @@ target_compile_definitions(s7_midi PRIVATE
     DISABLE_AUTOLOAD=1
 )
 
-# Check for readline
+# Check for readline (optional on Windows)
 find_library(READLINE_LIB readline)
 if(READLINE_LIB)
     target_compile_definitions(s7_midi PRIVATE USE_READLINE)
     target_link_libraries(s7_midi PRIVATE ${READLINE_LIB})
+else()
+    if(NOT WIN32)
+        message(FATAL_ERROR "readline library not found (install libreadline-dev on Linux)")
+    endif()
 endif()
 
 # s7 requires math library, libuv for async scheduler

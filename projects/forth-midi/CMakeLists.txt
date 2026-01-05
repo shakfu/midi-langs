@@ -29,13 +29,17 @@ target_link_libraries(forth_midi PRIVATE forth_midi_lib)
 
 target_compile_options(forth_midi PRIVATE -Wall -Wextra)
 
-# Link with readline
-find_library(READLINE_LIBRARY readline)
-if(READLINE_LIBRARY)
-    target_link_libraries(forth_midi PRIVATE ${READLINE_LIBRARY})
-    target_link_libraries(forth_midi_lib PUBLIC ${READLINE_LIBRARY})
+# Link with readline (optional on Windows)
+find_library(READLINE_LIB readline)
+if(READLINE_LIB)
+    target_link_libraries(forth_midi PRIVATE ${READLINE_LIB})
+    target_link_libraries(forth_midi_lib PUBLIC ${READLINE_LIB})
+    target_compile_definitions(forth_midi PRIVATE USE_READLINE)
+    target_compile_definitions(forth_midi_lib PUBLIC USE_READLINE)
 else()
-    message(FATAL_ERROR "readline library not found")
+    if(NOT WIN32)
+        message(FATAL_ERROR "readline library not found (install libreadline-dev on Linux)")
+    endif()
 endif()
 
 # Platform-specific dependencies

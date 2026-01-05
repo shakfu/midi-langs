@@ -1,9 +1,13 @@
 /* main.c - Main entry point for MIDI Forth interpreter */
 
 #include "forth_midi.h"
+#ifdef USE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
+#endif
+#ifndef _WIN32
 #include <getopt.h>
+#endif
 
 /* Print usage */
 static void print_usage(const char* prog) {
@@ -14,6 +18,26 @@ static void print_usage(const char* prog) {
     printf("  --help          Show this help\n");
     printf("\nWithout --script, files are loaded then REPL starts.\n");
 }
+
+/* Simple readline fallback for systems without GNU readline */
+#ifndef USE_READLINE
+static char* simple_readline(const char* prompt) {
+    static char buf[MAX_INPUT_LENGTH];
+    printf("%s", prompt);
+    fflush(stdout);
+    if (fgets(buf, sizeof(buf), stdin) == NULL) {
+        return NULL;
+    }
+    /* Remove trailing newline */
+    size_t len = strlen(buf);
+    if (len > 0 && buf[len-1] == '\n') {
+        buf[len-1] = '\0';
+    }
+    return strdup(buf);
+}
+#define readline simple_readline
+#define add_history(x) ((void)0)
+#endif
 
 /* Interactive interpreter loop */
 static void interpreter_loop(void) {
@@ -109,7 +133,25 @@ static void cleanup(void) {
 int main(int argc, char* argv[]) {
     const char* script_file = NULL;
     int show_help = 0;
+    int first_file_arg = 1;
 
+#ifdef _WIN32
+    /* Simple argument parsing for Windows (no getopt) */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--script") == 0 && i + 1 < argc) {
+            script_file = argv[++i];
+            first_file_arg = i + 1;
+        } else if (strcmp(argv[i], "--no-sleep") == 0) {
+            forth_set_no_sleep(1);
+            first_file_arg = i + 1;
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            show_help = 1;
+        } else if (argv[i][0] != '-') {
+            first_file_arg = i;
+            break;
+        }
+    }
+#else
     static struct option long_options[] = {
         {"script",   required_argument, 0, 's'},
         {"no-sleep", no_argument,       0, 'n'},
@@ -134,6 +176,8 @@ int main(int argc, char* argv[]) {
                 return 1;
         }
     }
+    first_file_arg = optind;
+#endif
 
     if (show_help) {
         print_usage(argv[0]);
@@ -157,10 +201,12 @@ int main(int argc, char* argv[]) {
     }
 
     /* Initialize readline autocomplete (only for interactive mode) */
+#ifdef USE_READLINE
     init_readline_completion();
+#endif
 
     /* Load any additional files provided as arguments */
-    for (int i = optind; i < argc; i++) {
+    for (int i = first_file_arg; i < argc; i++) {
         load_file(argv[i]);
     }
 

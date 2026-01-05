@@ -12,11 +12,15 @@ target_include_directories(pktpy_midi PRIVATE
 
 target_compile_options(pktpy_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
-# Check for readline
+# Check for readline (optional on Windows)
 find_library(READLINE_LIB readline)
 if(READLINE_LIB)
     target_compile_definitions(pktpy_midi PRIVATE USE_READLINE)
     target_link_libraries(pktpy_midi PRIVATE ${READLINE_LIB})
+else()
+    if(NOT WIN32)
+        message(FATAL_ERROR "readline library not found (install libreadline-dev on Linux)")
+    endif()
 endif()
 
 # Link with music_theory, midi_file, and libuv for async scheduler

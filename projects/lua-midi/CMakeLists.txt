@@ -55,11 +55,15 @@ target_include_directories(lua_midi PRIVATE
 
 target_compile_options(lua_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
-# Check for readline
+# Check for readline (optional on Windows)
 find_library(READLINE_LIB readline)
 if(READLINE_LIB)
     target_compile_definitions(lua_midi PRIVATE USE_READLINE)
     target_link_libraries(lua_midi PRIVATE ${READLINE_LIB})
+else()
+    if(NOT WIN32)
+        message(FATAL_ERROR "readline library not found (install libreadline-dev on Linux)")
+    endif()
 endif()
 
 # Lua requires math library, libuv for async scheduler

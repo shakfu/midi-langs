@@ -84,7 +84,18 @@ endif()
 
 # Main executable
 add_executable(alda_midi src/main.c)
-target_link_libraries(alda_midi PRIVATE alda-core readline)
+target_link_libraries(alda_midi PRIVATE alda-core)
+
+# Check for readline (optional on Windows)
+find_library(READLINE_LIB readline)
+if(READLINE_LIB)
+    target_compile_definitions(alda_midi PRIVATE USE_READLINE)
+    target_link_libraries(alda_midi PRIVATE ${READLINE_LIB})
+else()
+    if(NOT WIN32)
+        message(FATAL_ERROR "readline library not found (install libreadline-dev on Linux)")
+    endif()
+endif()
 
 add_strip_command(alda_midi)
 

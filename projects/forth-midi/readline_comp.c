@@ -1,6 +1,8 @@
 /* readline_comp.c - Readline completion for MIDI Forth interpreter */
 
 #include "forth_midi.h"
+
+#ifdef USE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -89,3 +91,12 @@ void init_readline_completion(void) {
     /* Use space as word break character */
     rl_completer_word_break_characters = " \t\n";
 }
+
+#else /* !USE_READLINE */
+
+/* Stub when readline is not available */
+void init_readline_completion(void) {
+    /* No-op: readline not available */
+}
+
+#endif /* USE_READLINE */
