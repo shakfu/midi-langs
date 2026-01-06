@@ -1326,6 +1326,40 @@ void pk_midi_module_init(void) {
     py_bindmagic(tp_MidiOut, py_name("__exit__"), MidiOut__exit__);
     py_bindmagic(tp_MidiOut, py_name("__repr__"), MidiOut__repr__);
 
+    py_TValue tmp;
+    py_newstr(&tmp,
+        "MIDI output module for PocketPy.\n"
+        "\n"
+        "Provides real-time MIDI output using libremidi, with support for\n"
+        "virtual ports, hardware ports, notes, chords, arpeggios, and\n"
+        "concurrent voice playback via an async scheduler.\n"
+        "\n"
+        "Quick start:\n"
+        "    m = midi.open()           # Open virtual port 'pktpyMIDI'\n"
+        "    m.note(midi.c4, 100, 500) # Play middle C, velocity 100, 500ms\n"
+        "    m.chord([midi.c4, midi.e4, midi.g4], 80, 1000)  # C major chord\n"
+        "    m.close()\n"
+        "\n"
+        "Classes:\n"
+        "    MidiOut - MIDI output port (supports context manager)\n"
+        "\n"
+        "Functions:\n"
+        "    open([name_or_index]) - Open virtual or hardware MIDI port\n"
+        "    list_ports()          - List available MIDI output ports\n"
+        "    note(name)            - Parse note name to MIDI number\n"
+        "    spawn(func, [name])   - Spawn async voice from generator\n"
+        "    run()                 - Run scheduler until all voices complete\n"
+        "    stop([id])            - Stop specific or all voices\n"
+        "\n"
+        "Constants:\n"
+        "    Pitches: c0-b8, cs0-bs8 (sharps), db0-bb8 (flats)\n"
+        "    Dynamics: ppp, pp, p, mp, mf, f, ff, fff\n"
+        "    Durations: whole, half, quarter, eighth, sixteenth\n"
+        "    Scales: SCALE_MAJOR, SCALE_MINOR, SCALE_DORIAN, ...\n"
+        "    CC: CC_MODULATION, CC_VOLUME, CC_PAN, CC_SUSTAIN, ..."
+    );
+    py_setdict(mod, py_name("__doc__"), &tmp);
+
     // Register scheduler functions (spawn, run, stop, voices, status)
     pk_scheduler_register(mod);
 
