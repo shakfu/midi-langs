@@ -1326,8 +1326,7 @@ void pk_midi_module_init(void) {
     py_bindmagic(tp_MidiOut, py_name("__exit__"), MidiOut__exit__);
     py_bindmagic(tp_MidiOut, py_name("__repr__"), MidiOut__repr__);
 
-    py_TValue tmp;
-    py_newstr(&tmp,
+    py_newstr(py_r0(),
         "MIDI output module for PocketPy.\n"
         "\n"
         "Provides real-time MIDI output using libremidi, with support for\n"
@@ -1358,7 +1357,7 @@ void pk_midi_module_init(void) {
         "    Scales: SCALE_MAJOR, SCALE_MINOR, SCALE_DORIAN, ...\n"
         "    CC: CC_MODULATION, CC_VOLUME, CC_PAN, CC_SUSTAIN, ..."
     );
-    py_setdict(mod, py_name("__doc__"), &tmp);
+    py_setdict(mod, py_name("__doc__"), py_r0());
 
     // Register scheduler functions (spawn, run, stop, voices, status)
     pk_scheduler_register(mod);
