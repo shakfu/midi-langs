@@ -41,6 +41,7 @@ module MidiPerform (
     times,
 
     -- * Generative
+    seed,
     pick,
     chance,
     oneOf,
@@ -51,7 +52,6 @@ module MidiPerform (
     walk,
     drunk,
     euclidean,
-    seed,
 
     -- * Arpeggio patterns (pure)
     arpUp,
@@ -387,9 +387,9 @@ euclidean hits steps action = euclideanWith quarter action hits steps
 -- Each step takes 'dur' time. Hits trigger the action, misses are silent.
 -- For best results, use an instantaneous action (e.g., just note-on).
 euclideanWith :: Duration -> IO () -> Int -> Int -> IO ()
-euclideanWith dur action hits steps = mapM_ playStep pattern
+euclideanWith dur action hits steps = mapM_ playStep pattern'
   where
-    pattern = euclideanPattern hits steps
+    pattern' = euclideanPattern hits steps
     playStep True = action >> rest dur   -- trigger action, then wait for step
     playStep False = rest dur            -- silent step
 
