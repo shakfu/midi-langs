@@ -393,6 +393,8 @@ This is not a comprehensive list:
 
 - [alda](https://alda.io) - a text-based programming language for music composition. Designed for musicians who don’t know how to program, as well as programmers who don’t know how to music. 
 
+- [chuck](https://chuck.cs.princeton.edu) - a programming language for real-time sound synthesis and music creation.
+
 - [extempore](https://extemporelang.github.io) - an audiovisual live programming environment.
 
 - [lilypond](https://lilypond.org) - a compiled system: it is run on a text file describing the music. The resulting output is viewed on-screen or printed. In some ways, LilyPond is more similar to a programming language than graphical score editing software.
@@ -404,6 +406,8 @@ This is not a comprehensive list:
 - [mma](https://www.mellowood.ca/mma/) - an accompaniment generator. It creates MIDI tracks for a soloist to perform over from a user supplied file containing chords and MMA directives.
 
 - [opusmodus](https://www.opusmodus.com) - a commercial music composition development environment. -- "currently the most advanced software for computer-assisted composition available".
+
+- [textbeat](https://github.com/flipcoder/textbeat) - Compose music in a plaintext format or type music directly in the shell. The format is vertical and column-based, similar to early music trackers, but with syntax inspired by jazz/music theory.
 
 
 
