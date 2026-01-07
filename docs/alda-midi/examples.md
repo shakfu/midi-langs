@@ -254,7 +254,7 @@ The `examples/` directory contains 40 Alda files:
 Play any example file:
 
 ```bash
-./build/alda_midi docs/alda-midi/examples/FILE.alda
+./build/alda_midi docs/alda-midi/examples/duet.alda
 ```
 
 With verbose output:

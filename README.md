@@ -36,8 +36,8 @@ sudo apt-get install libasound2-dev libreadline-dev
 ### alda-midi
 
 ```sh
-% ./build/alda_midi --help
-Usage: ./build/alda_midi [options] [file.alda]
+% ./alda_midi --help
+Usage: ./alda_midi [options] [file.alda]
 
 Alda music language interpreter with MIDI output.
 If no file is provided, starts an interactive REPL.
@@ -52,15 +52,19 @@ Options:
   --no-sleep        Disable timing delays (for testing)
   -s, --sequential  Use sequential playback mode (wait for each input)
 
+Built-in Synth Options:
+  -sf, --soundfont PATH  Use built-in synth with soundfont (.sf2)
+
 By default, connects to the first available MIDI port (or creates a virtual
 port if none exist) and uses concurrent mode for polyphonic playback.
 
 Examples:
-  ./build/alda_midi                            Start interactive REPL
-  ./build/alda_midi song.alda                  Play an Alda file
-  ./build/alda_midi -l                         List MIDI ports
-  ./build/alda_midi -p 0 song.alda             Play using port 0
-  ./build/alda_midi --virtual iMIDI song.alda  Create virtual port + play song
+  ./alda_midi                            Start interactive REPL
+  ./alda_midi song.alda                  Play an Alda file
+  ./alda_midi -l                         List MIDI ports
+  ./alda_midi -p 0 song.alda             Play using port 0
+  ./alda_midi --virtual iMIDI song.alda  Create virtual port + play song
+  ./alda_midi -sf gm.sf2 song.alda       Use built-in synth
 ```
 
 You can enter alda syntax in a repl or create `.alda` files in a text-editor:

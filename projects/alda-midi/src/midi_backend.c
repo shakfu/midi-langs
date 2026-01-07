@@ -6,6 +6,7 @@
  */
 
 #include "alda/midi_backend.h"
+#include "alda/tsf_backend.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -303,54 +304,98 @@ int alda_midi_is_open(AldaContext* ctx) {
  * ============================================================================ */
 
 void alda_midi_send_note_on(AldaContext* ctx, int channel, int pitch, int velocity) {
-    if (!ctx || !ctx->midi_out) return;
+    if (!ctx) return;
 
-    unsigned char msg[3];
-    msg[0] = 0x90 | ((channel - 1) & 0x0F);
-    msg[1] = pitch & 0x7F;
-    msg[2] = velocity & 0x7F;
-    libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+    /* Built-in synth takes priority when enabled */
+    if (ctx->tsf_enabled && alda_tsf_is_enabled()) {
+        alda_tsf_send_note_on(channel, pitch, velocity);
+        return;
+    }
+
+    /* Otherwise send to libremidi if MIDI output is open */
+    if (ctx->midi_out) {
+        unsigned char msg[3];
+        msg[0] = 0x90 | ((channel - 1) & 0x0F);
+        msg[1] = pitch & 0x7F;
+        msg[2] = velocity & 0x7F;
+        libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+    }
 }
 
 void alda_midi_send_note_off(AldaContext* ctx, int channel, int pitch) {
-    if (!ctx || !ctx->midi_out) return;
+    if (!ctx) return;
 
-    unsigned char msg[3];
-    msg[0] = 0x80 | ((channel - 1) & 0x0F);
-    msg[1] = pitch & 0x7F;
-    msg[2] = 0;
-    libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+    /* Built-in synth takes priority when enabled */
+    if (ctx->tsf_enabled && alda_tsf_is_enabled()) {
+        alda_tsf_send_note_off(channel, pitch);
+        return;
+    }
+
+    /* Otherwise send to libremidi if MIDI output is open */
+    if (ctx->midi_out) {
+        unsigned char msg[3];
+        msg[0] = 0x80 | ((channel - 1) & 0x0F);
+        msg[1] = pitch & 0x7F;
+        msg[2] = 0;
+        libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+    }
 }
 
 void alda_midi_send_program(AldaContext* ctx, int channel, int program) {
-    if (!ctx || !ctx->midi_out) return;
+    if (!ctx) return;
 
-    unsigned char msg[2];
-    msg[0] = 0xC0 | ((channel - 1) & 0x0F);
-    msg[1] = program & 0x7F;
-    libremidi_midi_out_send_message(ctx->midi_out, msg, 2);
+    /* Built-in synth takes priority when enabled */
+    if (ctx->tsf_enabled && alda_tsf_is_enabled()) {
+        alda_tsf_send_program(channel, program);
+        return;
+    }
+
+    /* Otherwise send to libremidi if MIDI output is open */
+    if (ctx->midi_out) {
+        unsigned char msg[2];
+        msg[0] = 0xC0 | ((channel - 1) & 0x0F);
+        msg[1] = program & 0x7F;
+        libremidi_midi_out_send_message(ctx->midi_out, msg, 2);
+    }
 }
 
 void alda_midi_send_cc(AldaContext* ctx, int channel, int cc, int value) {
-    if (!ctx || !ctx->midi_out) return;
+    if (!ctx) return;
 
-    unsigned char msg[3];
-    msg[0] = 0xB0 | ((channel - 1) & 0x0F);
-    msg[1] = cc & 0x7F;
-    msg[2] = value & 0x7F;
-    libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+    /* Built-in synth takes priority when enabled */
+    if (ctx->tsf_enabled && alda_tsf_is_enabled()) {
+        alda_tsf_send_cc(channel, cc, value);
+        return;
+    }
+
+    /* Otherwise send to libremidi if MIDI output is open */
+    if (ctx->midi_out) {
+        unsigned char msg[3];
+        msg[0] = 0xB0 | ((channel - 1) & 0x0F);
+        msg[1] = cc & 0x7F;
+        msg[2] = value & 0x7F;
+        libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+    }
 }
 
 void alda_midi_all_notes_off(AldaContext* ctx) {
-    if (!ctx || !ctx->midi_out) return;
+    if (!ctx) return;
 
-    /* Send All Notes Off (CC 123) on all channels */
-    for (int ch = 0; ch < 16; ch++) {
-        unsigned char msg[3];
-        msg[0] = 0xB0 | ch;
-        msg[1] = 123;  /* All Notes Off */
-        msg[2] = 0;
-        libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+    /* Built-in synth takes priority when enabled */
+    if (ctx->tsf_enabled && alda_tsf_is_enabled()) {
+        alda_tsf_all_notes_off();
+        return;
+    }
+
+    /* Otherwise send All Notes Off (CC 123) on all channels via libremidi */
+    if (ctx->midi_out) {
+        for (int ch = 0; ch < 16; ch++) {
+            unsigned char msg[3];
+            msg[0] = 0xB0 | ch;
+            msg[1] = 123;  /* All Notes Off */
+            msg[2] = 0;
+            libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+        }
     }
 }
 

@@ -6,6 +6,7 @@
 #include "alda/alda.h"
 #include "alda/context.h"
 #include "alda/midi_backend.h"
+#include "alda/tsf_backend.h"
 #include "alda/scheduler.h"
 #include "alda/interpreter.h"
 #include "alda/async.h"
@@ -62,6 +63,9 @@ static void print_usage(const char* prog) {
     printf("  --no-sleep        Disable timing delays (for testing)\n");
     printf("  -s, --sequential  Use sequential playback mode (wait for each input)\n");
     printf("\n");
+    printf("Built-in Synth Options:\n");
+    printf("  -sf, --soundfont PATH  Use built-in synth with soundfont (.sf2)\n");
+    printf("\n");
     printf("By default, connects to the first available MIDI port (or creates a virtual\n");
     printf("port if none exist) and uses concurrent mode for polyphonic playback.\n");
     printf("\n");
@@ -71,6 +75,7 @@ static void print_usage(const char* prog) {
     printf("  %s -l                         List MIDI ports\n", prog);
     printf("  %s -p 0 song.alda             Play using port 0\n", prog);
     printf("  %s --virtual iMIDI song.alda  Create virtual port + play song\n", prog);
+    printf("  %s -sf gm.sf2 song.alda       Use built-in synth\n", prog);
     printf("\n");
 }
 
@@ -83,6 +88,12 @@ static void print_repl_help(void) {
     printf("  panic             All notes off\n");
     printf("  sequential        Enable sequential mode (wait for each input)\n");
     printf("  concurrent        Enable concurrent mode (default, polyphony)\n");
+    printf("\n");
+    printf("Output Mode Commands:\n");
+    printf("  sf-load PATH      Load soundfont and use built-in synth\n");
+    printf("  sf-list           List soundfont presets\n");
+    printf("  midi              Switch to MIDI output\n");
+    printf("  builtin           Switch back to built-in synth\n");
     printf("\n");
     printf("Alda Syntax Examples:\n");
     printf("  piano:            Select piano instrument\n");
@@ -174,6 +185,67 @@ static void repl_loop(AldaContext* ctx) {
             continue;
         }
 
+        /* Soundfont commands */
+        if (strncmp(input, "sf-load ", 8) == 0) {
+            const char* path = input + 8;
+            /* Skip leading whitespace */
+            while (*path == ' ') path++;
+            if (*path == '\0') {
+                printf("Usage: sf-load PATH\n");
+            } else {
+                if (alda_tsf_load_soundfont(path) == 0) {
+                    printf("Loaded soundfont: %s\n", path);
+                    /* Auto-enable built-in synth */
+                    if (alda_tsf_enable() == 0) {
+                        ctx->tsf_enabled = 1;
+                        printf("Switched to built-in synth\n");
+                    }
+                }
+            }
+            free(input);
+            continue;
+        }
+
+        if (strcmp(input, "tsf-enable") == 0 || strcmp(input, "builtin") == 0) {
+            if (!alda_tsf_has_soundfont()) {
+                printf("No soundfont loaded. Use 'tsf-load PATH' first.\n");
+            } else if (alda_tsf_enable() == 0) {
+                ctx->tsf_enabled = 1;
+                printf("Switched to built-in synth (MIDI output disabled)\n");
+            }
+            free(input);
+            continue;
+        }
+
+        if (strcmp(input, "tsf-disable") == 0 || strcmp(input, "midi") == 0) {
+            alda_tsf_disable();
+            ctx->tsf_enabled = 0;
+            if (alda_midi_is_open(ctx)) {
+                printf("Switched to MIDI output\n");
+            } else {
+                printf("Built-in synth disabled (no MIDI output available)\n");
+            }
+            free(input);
+            continue;
+        }
+
+        if (strcmp(input, "sf-list") == 0) {
+            if (!alda_tsf_has_soundfont()) {
+                printf("No soundfont loaded\n");
+            } else {
+                int count = alda_tsf_get_preset_count();
+                printf("Soundfont presets (%d):\n", count);
+                for (int i = 0; i < count && i < 128; i++) {
+                    const char* name = alda_tsf_get_preset_name(i);
+                    if (name && name[0] != '\0') {
+                        printf("  %3d: %s\n", i, name);
+                    }
+                }
+            }
+            free(input);
+            continue;
+        }
+
         /* Clear previous events (keep parts and state) */
         alda_events_clear(ctx);
 
@@ -211,6 +283,7 @@ int main(int argc, char* argv[]) {
     int no_sleep = 0;
     int sequential = 0;
     const char* input_file = NULL;
+    const char* soundfont_path = NULL;
 
 #ifdef _WIN32
     /* Simple argument parsing for Windows (no getopt) */
@@ -232,11 +305,24 @@ int main(int argc, char* argv[]) {
             port_name = argv[++i];
         } else if (strcmp(argv[i], "--virtual") == 0 && i + 1 < argc) {
             virtual_name = argv[++i];
+        } else if ((strcmp(argv[i], "--soundfont") == 0 || strcmp(argv[i], "-sf") == 0) && i + 1 < argc) {
+            soundfont_path = argv[++i];
         } else if (argv[i][0] != '-') {
             input_file = argv[i];
         }
     }
 #else
+    /* Pre-process -sf (getopt doesn't support multi-char short options) */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-sf") == 0 && i + 1 < argc) {
+            soundfont_path = argv[i + 1];
+            /* Mark as processed by replacing with empty strings */
+            argv[i] = "";
+            argv[i + 1] = "";
+            i++;
+        }
+    }
+
     /* Long options */
     static struct option long_options[] = {
         {"help",       no_argument,       0, 'h'},
@@ -247,6 +333,7 @@ int main(int argc, char* argv[]) {
         {"virtual",    required_argument, 0, 'V'},
         {"no-sleep",   no_argument,       0, 'S'},
         {"sequential", no_argument,       0, 's'},
+        {"soundfont",  required_argument, 0, 'F'},
         {0, 0, 0, 0}
     };
 
@@ -287,6 +374,10 @@ int main(int argc, char* argv[]) {
                 sequential = 1;
                 break;
 
+            case 'F':
+                soundfont_path = optarg;
+                break;
+
             default:
                 print_usage(argv[0]);
                 return 1;
@@ -305,47 +396,76 @@ int main(int argc, char* argv[]) {
     ctx.verbose_mode = verbose;
     ctx.no_sleep_mode = no_sleep;
 
-    /* Initialize MIDI observer */
+    /* Initialize TSF backend */
+    if (alda_tsf_init() != 0) {
+        fprintf(stderr, "Warning: Failed to initialize built-in synth\n");
+    }
+
+    /* Initialize MIDI observer (needed for --list and port enumeration) */
     alda_midi_init_observer(&ctx);
 
     /* Handle --list */
     if (list_ports) {
         alda_midi_list_ports(&ctx);
+        alda_tsf_cleanup();
         alda_midi_cleanup(&ctx);
         alda_context_cleanup(&ctx);
         return 0;
     }
 
-    /* Open MIDI output */
-    int midi_opened = 0;
-
-    if (virtual_name) {
-        /* Create virtual port */
-        if (alda_midi_open_virtual(&ctx, virtual_name) == 0) {
-            midi_opened = 1;
-            if (verbose) {
-                printf("Created virtual MIDI output: %s\n", virtual_name);
-            }
+    /* If soundfont is specified, use built-in synth */
+    if (soundfont_path) {
+        if (alda_tsf_load_soundfont(soundfont_path) != 0) {
+            fprintf(stderr, "Error: Failed to load soundfont: %s\n", soundfont_path);
+            alda_tsf_cleanup();
+            alda_midi_cleanup(&ctx);
+            alda_context_cleanup(&ctx);
+            return 1;
         }
-    } else if (port_name) {
-        /* Open by name */
-        if (alda_midi_open_by_name(&ctx, port_name) == 0) {
-            midi_opened = 1;
+        if (alda_tsf_enable() != 0) {
+            fprintf(stderr, "Error: Failed to enable built-in synth\n");
+            alda_tsf_cleanup();
+            alda_midi_cleanup(&ctx);
+            alda_context_cleanup(&ctx);
+            return 1;
         }
-    } else if (port_index >= 0) {
-        /* Open by index */
-        if (alda_midi_open_port(&ctx, port_index) == 0) {
-            midi_opened = 1;
+        ctx.tsf_enabled = 1;
+        if (verbose) {
+            printf("Using built-in synth: %s\n", soundfont_path);
         }
     } else {
-        /* Default: auto-select first available port, or create virtual */
-        if (alda_midi_open_auto(&ctx, "AldaMIDI") == 0) {
-            midi_opened = 1;
-        }
-    }
+        /* No soundfont specified - try to open MIDI output */
+        int midi_opened = 0;
 
-    if (!midi_opened) {
-        fprintf(stderr, "Warning: Failed to open MIDI output\n");
+        if (virtual_name) {
+            /* Create virtual port */
+            if (alda_midi_open_virtual(&ctx, virtual_name) == 0) {
+                midi_opened = 1;
+                if (verbose) {
+                    printf("Created virtual MIDI output: %s\n", virtual_name);
+                }
+            }
+        } else if (port_name) {
+            /* Open by name */
+            if (alda_midi_open_by_name(&ctx, port_name) == 0) {
+                midi_opened = 1;
+            }
+        } else if (port_index >= 0) {
+            /* Open by index */
+            if (alda_midi_open_port(&ctx, port_index) == 0) {
+                midi_opened = 1;
+            }
+        } else {
+            /* Default: auto-select first available port, or create virtual */
+            if (alda_midi_open_auto(&ctx, "AldaMIDI") == 0) {
+                midi_opened = 1;
+            }
+        }
+
+        if (!midi_opened) {
+            fprintf(stderr, "Warning: No MIDI output available\n");
+            fprintf(stderr, "Hint: Use -sf <soundfont.sf2> for built-in synth\n");
+        }
     }
 
     /* Concurrent mode is the default; disable if sequential requested */
@@ -390,6 +510,7 @@ int main(int argc, char* argv[]) {
 
     /* Cleanup */
     alda_async_cleanup();
+    alda_tsf_cleanup();
     alda_midi_cleanup(&ctx);
     alda_context_cleanup(&ctx);
 

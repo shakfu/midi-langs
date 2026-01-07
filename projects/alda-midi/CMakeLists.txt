@@ -21,6 +21,7 @@ set(ALDA_INTERPRETER_SOURCES
     src/context.c
     src/instruments.c
     src/midi_backend.c
+    src/tsf_backend.c
     src/scheduler.c
     src/interpreter.c
     src/attributes.c
@@ -38,6 +39,7 @@ set(ALDA_HEADERS
     include/alda/context.h
     include/alda/instruments.h
     include/alda/midi_backend.h
+    include/alda/tsf_backend.h
     include/alda/scheduler.h
     include/alda/interpreter.h
     include/alda/async.h
@@ -55,6 +57,9 @@ target_include_directories(alda-core
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/thirdparty/TinySoundFont
+        ${CMAKE_SOURCE_DIR}/thirdparty/miniaudio
 )
 
 # Link libremidi and libuv
@@ -66,6 +71,7 @@ if(APPLE)
         "-framework CoreMIDI"
         "-framework CoreFoundation"
         "-framework CoreAudio"
+        "-framework AudioToolbox"
     )
 elseif(UNIX AND NOT APPLE)
     find_package(ALSA)
@@ -73,6 +79,8 @@ elseif(UNIX AND NOT APPLE)
         target_link_libraries(alda-core PUBLIC ${ALSA_LIBRARIES})
         target_include_directories(alda-core PRIVATE ${ALSA_INCLUDE_DIRS})
     endif()
+    # miniaudio needs pthread, dl, m on Linux
+    target_link_libraries(alda-core PUBLIC pthread dl m)
 endif()
 
 # Compiler warnings
