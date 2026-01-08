@@ -109,8 +109,8 @@ int main(int argc, char **argv) {
     /* macOS: 4 libraries + 3 frameworks + C++ runtime = 8 -optl pairs = 16 args */
     #define LINK_EXTRA_ARGS 16
 #else
-    /* Linux: 4 libraries + ALSA + C++ runtime + math = 7 -optl pairs = 14 args */
-    #define LINK_EXTRA_ARGS 14
+    /* Linux: --no-as-needed + 4 libraries + ALSA + C++ runtime + math = 8 -optl pairs = 16 args */
+    #define LINK_EXTRA_ARGS 16
 #endif
 
 #ifdef VFS_USE_PKG
@@ -188,6 +188,10 @@ int main(int argc, char **argv) {
         new_argv[j++] = "-optl";
         new_argv[j++] = "-lc++";
 #else
+        /* Linux: Force linker to include libraries despite ordering
+         * (GCC processes libraries left-to-right, but mhs puts -optl before sources) */
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "-Wl,--no-as-needed";
         /* Linux: ALSA */
         new_argv[j++] = "-optl";
         new_argv[j++] = "-lasound";

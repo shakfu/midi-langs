@@ -41,7 +41,7 @@ jobs:
           cp build/Release/pktpy_midi.exe artifacts/ || true
           cp build/Release/s7_midi.exe artifacts/ || true
           cp build/Release/alda_midi.exe artifacts/ || true
-          cp build/Release/mhs-midi.exe artifacts/ || true
+          # Note: mhs-midi is not available on Windows (requires fmemopen)
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
