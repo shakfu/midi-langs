@@ -68,7 +68,7 @@ jobs:
           cp build/s7_midi artifacts/
           cp build/alda_midi artifacts/
           cp build/mhs-midi artifacts/
-          cp build/mhs-midi-standalone artifacts/
+          cp build/mhs-midi-src artifacts/ 2>/dev/null || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -77,21 +77,21 @@ jobs:
           path: artifacts/
           if-no-files-found: error
 
-  # Test mhs-midi-standalone build variations
-  mhs-standalone-variations:
+  # Test mhs-midi standalone build variants
+  mhs-standalone-variants:
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: default
-            cmake_opts: ""
-          - name: pkg
-            cmake_opts: "-DMHS_USE_PKG=ON"
-          - name: zstd
-            cmake_opts: "-DMHS_USE_ZSTD=ON"
-          - name: pkg-zstd
-            cmake_opts: "-DMHS_USE_PKG=ON -DMHS_USE_ZSTD=ON"
+          - name: mhs-midi-src
+            target: mhs-midi-src
+          - name: mhs-midi-src-zstd
+            target: mhs-midi-src-zstd
+          - name: mhs-midi-pkg
+            target: mhs-midi-pkg
+          - name: mhs-midi-pkg-zstd
+            target: mhs-midi-pkg-zstd
 
     steps:
       - name: Checkout repository
@@ -113,16 +113,16 @@ jobs:
       - name: Build MicroHs
         run: make -C thirdparty/MicroHs
 
-      - name: Configure CMake (${{ matrix.name }})
-        run: cmake -B build ${{ matrix.cmake_opts }}
+      - name: Configure CMake
+        run: cmake -B build
 
-      - name: Build mhs-midi-standalone
-        run: cmake --build build --target mhs-midi-standalone -j4
+      - name: Build ${{ matrix.name }}
+        run: cmake --build build --target ${{ matrix.target }} -j4
 
       - name: Check binary size
         run: |
           echo "Binary size for ${{ matrix.name }}:"
-          ls -lh build/mhs-midi-standalone
+          ls -lh build/${{ matrix.target }}
 
       - name: Run standalone compile test
         run: ctest --test-dir build -R mhs_standalone_compile --output-on-failure
