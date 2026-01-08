@@ -76,6 +76,60 @@ jobs:
           path: artifacts/
           if-no-files-found: error
 
+  # Test mhs-midi-standalone build variations
+  mhs-standalone-variations:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            cmake_opts: ""
+          - name: pkg
+            cmake_opts: "-DMHS_USE_PKG=ON"
+          - name: zstd
+            cmake_opts: "-DMHS_USE_ZSTD=ON"
+          - name: pkg-zstd
+            cmake_opts: "-DMHS_USE_PKG=ON -DMHS_USE_ZSTD=ON"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate prelude headers
+        run: |
+          python scripts/prelude2c.py projects/s7-midi/prelude.scm
+          python scripts/prelude2c.py projects/lua-midi/prelude.lua
+          python scripts/prelude2c.py projects/pktpy-midi/prelude.py
+
+      - name: Build MicroHs
+        run: make -C thirdparty/MicroHs
+
+      - name: Install MicroHs packages (for PKG modes)
+        if: contains(matrix.cmake_opts, 'MHS_USE_PKG')
+        run: make -C thirdparty/MicroHs install
+
+      - name: Configure CMake (${{ matrix.name }})
+        run: cmake -B build ${{ matrix.cmake_opts }}
+
+      - name: Build mhs-midi-standalone
+        run: cmake --build build --target mhs-midi-standalone -j4
+
+      - name: Check binary size
+        run: |
+          echo "Binary size for ${{ matrix.name }}:"
+          ls -lh build/mhs-midi-standalone
+
+      - name: Run standalone compile test
+        run: ctest --test-dir build -R mhs_standalone_compile --output-on-failure
+
   collect-artifacts:
     needs: build-and-test
     runs-on: ubuntu-latest

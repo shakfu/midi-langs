@@ -4,7 +4,7 @@ This document provides some details about the development of `MHS_USE_PKG` mode 
 
 The goal was to improve on the earlier demonstration of embedding the base haskell source files, app source files, MicroHS runtime, and statically compiled FFI dependencies.
 
-## Summary of Findings
+## Summary
 
 The `mhs-midi-standalone` binary embeds Haskell source files using a Virtual Filesystem (VFS), but this requires parsing and compiling ~274 modules on first run, resulting in a ~20 second cold-start delay. This document provides details about the development of `MHS_USE_PKG` mode, which embeds precompiled `.pkg` files instead of source files.
 
@@ -317,6 +317,26 @@ Key insight: `.mhscache` is more efficient than `.pkg` for warm starts because i
 | Smallest binary | No | No | Yes | No |
 | Compile to executable | Yes | Yes | Yes | Yes |
 | No external dependencies | Yes | Yes | Yes | Yes |
+
+### Error Messages and Debugging
+
+Error messages and debugging information are functionally identical across all build modes:
+
+- **Runtime errors in user code**: File, line, and column are shown identically
+- **Type errors**: Full constraint information preserved
+- **Stack traces**: MicroHs shows the error location only (no full call stack in any mode)
+
+The only difference is in errors originating from Prelude/library code:
+
+```
+# Source embedding mode (VFS path):
+"/mhs-embedded/lib/Data/List.hs",389:11: head: empty list
+
+# PKG mode (original compile-time path):
+"/Users/.../thirdparty/MicroHs/lib/Data/List.hs",389:11: head: empty list
+```
+
+Line and column numbers are preserved in both cases. There is no degradation in debugging capability when using precompiled packages.
 
 ## Build Instructions
 

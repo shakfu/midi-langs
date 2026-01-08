@@ -4,6 +4,8 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.8]
+
 ### Added
 
 - **alda-midi built-in synthesizer**: TinySoundFont + miniaudio integration for direct audio output
@@ -46,6 +48,17 @@ All notable changes to midi-langs are documented in this file.
     - `projects/mhs-midi/vfs_unified.h` - Header for unified VFS
   - Uses `zstddeclib.c` (decompress-only, 900 KB) at runtime instead of full zstd library
   - Documentation added to `docs/mhs-midi/mhs-standalones.md`
+
+- **CI matrix for mhs-midi-standalone build variations**: GitHub Actions tests all four configurations
+  - default, MHS_USE_PKG, MHS_USE_ZSTD, and combined PKG+ZSTD
+  - Each configuration builds and runs `mhs_standalone_compile` test
+  - Reports binary size for each variation
+
+### Fixed
+
+- **vfs_unified.c**: Fixed ZSTD mode directory operations using wrong type names
+  - Added `#elif defined(VFS_USE_ZSTD)` blocks for `vfs_opendir` and `vfs_readdir`
+  - ZSTD mode now correctly uses `EmbeddedFileZstd` and `embedded_files_zstd`
 
 ## [0.1.7]
 

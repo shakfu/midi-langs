@@ -738,8 +738,24 @@ DIR* vfs_opendir(const char* path) {
                 return (DIR*)state;
             }
         }
+#elif defined(VFS_USE_ZSTD)
+        /* For ZSTD source mode, check if any embedded files match this prefix */
+        int has_files = 0;
+        for (const EmbeddedFileZstd* ef = embedded_files_zstd; ef->path; ef++) {
+            if (strncmp(ef->path, prefix, strlen(prefix)) == 0) {
+                has_files = 1;
+                break;
+            }
+        }
+        if (has_files) {
+            VfsDirState* state = vfs_dir_create(prefix);
+            if (state) {
+                VFS_LOG("Created VFS dir state for %s\n", prefix);
+                return (DIR*)state;
+            }
+        }
 #else
-        /* For source mode, check if any embedded files match this prefix */
+        /* For default source mode, check if any embedded files match this prefix */
         int has_files = 0;
         for (const EmbeddedFile* ef = embedded_files; ef->path; ef++) {
             if (strncmp(ef->path, prefix, strlen(prefix)) == 0) {
@@ -781,6 +797,23 @@ struct dirent* vfs_readdir(DIR* dirp) {
                 /* Extract filename from path */
                 const char* filename = ep->path + state->prefix_len;
                 /* Skip if there's another / (subdirectory) */
+                if (strchr(filename, '/') == NULL) {
+                    strncpy(state->entry.d_name, filename, sizeof(state->entry.d_name) - 1);
+                    state->entry.d_name[sizeof(state->entry.d_name) - 1] = '\0';
+                    state->entry.d_type = DT_REG;
+                    VFS_LOG("VFS readdir: %s\n", state->entry.d_name);
+                    return &state->entry;
+                }
+            }
+        }
+#elif defined(VFS_USE_ZSTD)
+        /* Iterate over ZSTD-compressed embedded files */
+        while (embedded_files_zstd[state->index].path) {
+            const EmbeddedFileZstd* ef = &embedded_files_zstd[state->index];
+            state->index++;
+
+            if (strncmp(ef->path, state->dir_prefix, state->prefix_len) == 0) {
+                const char* filename = ef->path + state->prefix_len;
                 if (strchr(filename, '/') == NULL) {
                     strncpy(state->entry.d_name, filename, sizeof(state->entry.d_name) - 1);
                     state->entry.d_name[sizeof(state->entry.d_name) - 1] = '\0';
