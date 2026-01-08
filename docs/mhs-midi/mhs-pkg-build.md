@@ -1,12 +1,41 @@
 # Embedding Precompiled .pkg Files in a Standalone MicroHs Binary
 
-This article documents the development of `MHS_USE_PKG` mode for `mhs-midi-standalone`, a self-contained MicroHs REPL with embedded MIDI support.
+This document provides some details about the development of `MHS_USE_PKG` mode for `mhs-midi-standalone`, a self-contained MicroHs REPL with embedded MIDI support.
 
 The goal was to improve on the earlier demonstration of embedding the base haskell source files, app source files, MicroHS runtime, and statically compiled FFI dependencies.
 
+## Executive Summary
+
+The `mhs-midi-standalone` binary embeds Haskell source files using a Virtual Filesystem (VFS), but this requires parsing and compiling ~274 modules on first run, resulting in a ~20 second cold-start delay. This document provides details about the development of `MHS_USE_PKG` mode, which embeds precompiled `.pkg` files instead of source files.
+
+**Key Results:**
+
+- **20x faster cold start**: Reduced from ~20s to ~1s
+- **Full functionality preserved**: REPL, compilation to executables, and all MIDI features work identically
+- **Self-contained**: No external dependencies required
+
+**Implementation Challenges Solved:**
+
+1. Virtual directory operations for package discovery (MicroHs scans directories, not just files)
+2. Module-to-package mapping via `.txt` files (185+ mapping files needed)
+3. Hybrid embedding for compilation support (runtime source files still required for `cc`)
+
+**When to Use:**
+
+| Build Mode | Cold Start | Warm Cache (.mhscache) |
+| ---------- | ---------- | ---------------------- |
+| Default (.hs embedding) | ~20s | ~0.5s |
+| MHS_USE_PKG | ~1s | ~0.95s |
+| MHS_USE_ZSTD | ~20s | ~0.5s |
+| MHS_USE_PKG + MHS_USE_ZSTD | ~1s | ~0.95s |
+
+- **`MHS_USE_PKG`**: Recommended for distribution to end users (fast first run, ~5.5 MB binary)
+- **`MHS_USE_PKG + MHS_USE_ZSTD`**: Best balance of fast startup and small size (~1s startup, ~2.5 MB binary)
+- **Default mode**: Suitable for development with persistent `.mhscache` (faster warm starts, ~3.2 MB binary)
+
 ## Background: The Cold Start Problem
 
-The `mhs-midi-standalone` binary embeds all necessary Haskell source files (~274 .hs files from MicroHs/lib and custom MIDI libraries) using a Virtual Filesystem (VFS). On first run, MicroHs must parse and compile every module before presenting the REPL prompt. This takes approximately 20 seconds.
+The `mhs-midi-standalone` binary embeds all necessary Haskell source files (~274 .hs files from `MicroHs/lib` and custom MIDI libraries) using a Virtual Filesystem (VFS). On first run, MicroHs must parse and compile every module before presenting the REPL prompt. This takes approximately 20 seconds.
 
 Subsequent runs load from `.mhscache` in ~0.5 seconds, but the cold-start penalty is problematic for:
 
@@ -33,14 +62,14 @@ MHSDIR=${THIRDPARTY}/MicroHs ${THIRDPARTY}/MicroHs/bin/mhs \
 
 This creates a `.pkg` file containing serialized, already-compiled modules.
 
-To pre-compile the `base` package or MicroHs stardard library
+To pre-compile the `base` package or MicroHs standard library
 
 ```sh
 cd path/to/MicroHs
 make install
 ```
 
-The it becomes possible, to load packages at runtime with `-p`:
+Then it becomes possible to load packages at runtime with `-p`:
 
 ```sh
 ~/.mcabal/bin/mhs -pbase-0.15.2.0
@@ -50,7 +79,7 @@ The it becomes possible, to load packages at runtime with `-p`:
 ~/.mcabal/bin/mhs -pbase
 ```
 
-The key point is that in the default installation of the `mhs` binary, `MHSDIR` is set automatically. If `MHSDIR` is overriden by passing it as an environment var, then it messes up the default settings and the above doesn't work
+The key point is that in the default installation of the `mhs` binary, `MHSDIR` is set automatically. If `MHSDIR` is overridden by passing it as an environment variable, it changes not just the package search path but also where MicroHs looks for source files, causing the above commands to fail.
 
 When using `mhs` as a local dev binary with `MHSDIR` set, you can specify the package path explicitly:
 
@@ -173,7 +202,7 @@ When searching for module `Data.List`, MicroHs looks for `Data/List.txt` and rea
 
 ### Solution: Embed .txt Mapping Files
 
-Updated `embed_pkgs.py` to collect and embed all 185 `.txt` files from the MicroHs installation:
+Updated `embed_pkgs.py` to collect and embed all `.txt` files from the MicroHs installation (approximately 190 files):
 
 ```python
 def collect_txt_files(base_dir: Path) -> list[tuple[str, Path]]:
@@ -267,8 +296,9 @@ During compilation, the VFS extracts these to a temporary directory for `cc` to 
 | Default (.hs embedding) | ~20s | ~0.5s |
 | MHS_USE_PKG | ~1s | ~0.95s |
 | MHS_USE_ZSTD | ~20s | ~0.5s |
+| MHS_USE_PKG + MHS_USE_ZSTD | ~1s | ~0.95s |
 
-Key insight: `.mhscache` is more efficient than `.pkg` for warm starts because it's a single pre-processed blob. The PKG mode's value is eliminating the 20-second cold-start penalty.
+Key insight: `.mhscache` is more efficient than `.pkg` for warm starts because it's a single pre-processed blob. The PKG mode's value is eliminating the 20-second cold-start penalty. Note that `MHS_USE_ZSTD` compresses source files but still requires parsing and compilation, so cold-start time remains ~20s.
 
 ### Binary Size
 
@@ -281,36 +311,34 @@ Key insight: `.mhscache` is more efficient than `.pkg` for warm starts because i
 
 ### Feature Matrix
 
-| Feature | Default | MHS_USE_PKG | MHS_USE_ZSTD |
-| ------- | ------- | ----------- | ------------ |
-| Fast cold start | No | Yes | No |
-| Smallest binary | No | No | Yes |
-| Compile to executable | Yes | Yes | Yes |
-| No external dependencies | Yes | Yes | Yes |
+| Feature | Default | MHS_USE_PKG | MHS_USE_ZSTD | Both |
+| ------- | ------- | ----------- | ------------ | ---- |
+| Fast cold start | No | Yes | No | Yes |
+| Smallest binary | No | No | Yes | No |
+| Compile to executable | Yes | Yes | Yes | Yes |
+| No external dependencies | Yes | Yes | Yes | Yes |
 
 ## Build Instructions
 
 ```sh
-# Default: .hs source embedding
+# Default: .hs source embedding (uncompressed)
 cmake -B build
 cmake --build build --target mhs-midi-standalone
 
-# Default mk2: .hs source embedding + compression
+# Compressed source mode: smallest binary (still requires compilation)
 cmake -B build -DMHS_USE_ZSTD=ON
 cmake --build build --target mhs-midi-standalone
 
-# Package mode: fast cold start
+# Package mode: fast cold start (precompiled packages)
 cmake -B build -DMHS_USE_PKG=ON
 cmake --build build --target mhs-midi-standalone
 
-# Compressed mode: smallest binary
-cmake -B build -DMHS_USE_ZSTD=ON
-cmake --build build --target mhs-midi-standalone
-
-# Combined: fast start + compression
+# Combined: fast start + compression (precompiled packages, compressed)
 cmake -B build -DMHS_USE_PKG=ON -DMHS_USE_ZSTD=ON
 cmake --build build --target mhs-midi-standalone
 ```
+
+**Note:** `MHS_USE_ZSTD` compresses embedded files (source files in default mode, or packages in PKG mode) to reduce binary size. When used with default mode, it compresses `.hs` source files but still requires parsing and compilation on first run (~20s). When combined with `MHS_USE_PKG`, it compresses the precompiled `.pkg` files, maintaining fast startup while reducing binary size.
 
 ## Prerequisites for MHS_USE_PKG
 
