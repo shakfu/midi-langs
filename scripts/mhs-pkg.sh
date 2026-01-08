@@ -7,6 +7,9 @@ PKG_NAME=music
 THIRDPARTY=`pwd`/thirdparty
 MHS_MIDI=`pwd`/projects/mhs-midi
 
-MHSDIR=${THIRDPARTY}/MicroHs ${THIRDPARTY}/MicroHs/bin/mhs -P${PKG_NAME}-${PKG_VER} -i${MHS_MIDI}/lib \
-	Async Midi MidiPerform Music MusicPerform \
-	-o ${PKG_NAME}-${PKG_VER}.pkg
+MHSDIR=${THIRDPARTY}/MicroHs ${THIRDPARTY}/MicroHs/bin/mhs \
+	-P${PKG_NAME}-${PKG_VER} \
+	-i${MHS_MIDI}/lib \
+	-o ${PKG_NAME}-${PKG_VER}.pkg \
+	Async Midi MidiPerform Music MusicPerform
+

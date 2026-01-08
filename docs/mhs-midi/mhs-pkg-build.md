@@ -1,12 +1,15 @@
 # Embedding Precompiled .pkg Files in a Standalone MicroHs Binary
 
-This article documents the development of `MHS_USE_PKG` mode for `mhs-midi-standalone`, a self-contained MicroHs REPL with embedded MIDI support. The goal was to reduce cold-start time from ~20 seconds to under 1 second while retaining the ability to compile Haskell to standalone executables.
+This article documents the development of `MHS_USE_PKG` mode for `mhs-midi-standalone`, a self-contained MicroHs REPL with embedded MIDI support.
+
+The goal was to improve on the earlier demonstration of embedding the base haskell source files, app source files, MicroHS runtime, and statically compiled FFI dependencies.
 
 ## Background: The Cold Start Problem
 
 The `mhs-midi-standalone` binary embeds all necessary Haskell source files (~274 .hs files from MicroHs/lib and custom MIDI libraries) using a Virtual Filesystem (VFS). On first run, MicroHs must parse and compile every module before presenting the REPL prompt. This takes approximately 20 seconds.
 
 Subsequent runs load from `.mhscache` in ~0.5 seconds, but the cold-start penalty is problematic for:
+
 - First-time users evaluating the tool
 - CI/CD pipelines without persistent caches
 - Distribution to end users
@@ -15,29 +18,88 @@ Subsequent runs load from `.mhscache` in ~0.5 seconds, but the cold-start penalt
 
 MicroHs supports precompiled packages via the `-P` flag during compilation:
 
-```bash
-mhs -Pmusic-0.1.0 -i./lib Async Midi Music -o music-0.1.0.pkg
+```sh
+PKG_VER=0.1.0
+PKG_NAME=music
+THIRDPARTY=`pwd`/thirdparty
+MHS_MIDI=`pwd`/projects/mhs-midi
+
+MHSDIR=${THIRDPARTY}/MicroHs ${THIRDPARTY}/MicroHs/bin/mhs \
+    -P${PKG_NAME}-${PKG_VER} \
+    -i${MHS_MIDI}/lib \
+    -o ${PKG_NAME}-${PKG_VER}.pkg \
+    Async Midi MidiPerform Music MusicPerform
 ```
 
-This creates a `.pkg` file containing serialized, already-compiled modules. At runtime, packages are loaded with `-p`:
+This creates a `.pkg` file containing serialized, already-compiled modules.
 
-```bash
-mhs -a/path/to/packages -pbase -pmusic
+To pre-compile the `base` package or MicroHs stardard library
+
+```sh
+cd path/to/MicroHs
+make install
+```
+
+The it becomes possible, to load packages at runtime with `-p`:
+
+```sh
+~/.mcabal/bin/mhs -pbase-0.15.2.0
+
+# OR
+
+~/.mcabal/bin/mhs -pbase
+```
+
+The key point is that in the default installation of the `mhs` binary, `MHSDIR` is set automatically. If `MHSDIR` is overriden by passing it as an environment var, then it messes up the default settings and the above doesn't work
+
+When using `mhs` as a local dev binary with `MHSDIR` set, you can specify the package path explicitly:
+
+```sh
+MHSDIR=./thirdparty/MicroHs ./thirdparty/MicroHs/bin/mhs \
+  -a"$HOME/.mcabal/mhs-0.15.2.0" -pbase
 ```
 
 The `-a` flag sets the package search path (looks in `<path>/packages/`), and `-p` loads named packages.
 
+### The Local Dev Binary Problem
+
+However, there's a critical limitation: **the local dev binary still recompiles all modules from source**, even when packages are preloaded:
+
+**Installed binary (works correctly):**
+
+```sh
+~/.mcabal/bin/mhs -pbase
+Loading package /Users/sa/.mcabal/mhs-0.15.2.0/packages/base-0.15.2.0.pkg
+Type ':quit' to quit, ':help' for help
+>
+```
+
+**Local dev binary (recompiles everything despite -p flag):**
+
+```sh
+MHSDIR=./thirdparty/MicroHs ./thirdparty/MicroHs/bin/mhs -a"$HOME/.mcabal/mhs-0.15.2.0" -pbase
+Welcome to interactive MicroHs, version 0.15.2.0
+    importing done Data.Bool_Type, 3ms
+    importing done Data.Ordering_Type, 2ms
+    importing done Primitives, 148ms
+    ... (continues loading all modules from source)
+```
+
+When `MHSDIR` is overridden, it changes not just the package search path but also where MicroHs looks for source files. The compiler prefers source files from `MHSDIR/lib/` over preloaded package contents.
+
+This limitation is why the VFS embedding approach was necessary - it's the only way to achieve fast startup with a fully self-contained binary that doesn't depend on external paths.
+
 ## Implementation Strategy
 
-The existing VFS intercepts `mhs_fopen` FFI calls to serve embedded files via `fmemopen()`. The plan was straightforward: embed `.pkg` files instead of `.hs` files and adjust the command-line arguments.
+The existing VFS intercepts `mhs_fopen` FFI calls to serve embedded files via `fmemopen()`. Simply embedding `.pkg` files and using `-a`/`-p` flags wouldn't work because of the local dev binary limitation described above.
 
-Reality proved more complex.
+The solution was to embed packages AND intercept all file operations so MicroHs has no access to external source files - forcing it to use the preloaded packages.
 
 ## Challenge 1: Package Discovery via Directory Operations
 
 Initial testing with embedded `.pkg` files failed immediately:
 
-```
+```sh
 Package not found: base
 ```
 
@@ -93,13 +155,13 @@ Packages were now discovered. But loading still failed.
 
 ## Challenge 2: Module-to-Package Mapping
 
-```
+```sh
 Module not found: Prelude
 ```
 
 MicroHs doesn't scan package contents to find modules. Instead, it uses `.txt` mapping files:
 
-```
+```sh
 ~/.mcabal/mhs-0.15.2.0/
     Prelude.txt          # Contains: "base-0.15.2.0.pkg"
     Data/List.txt        # Contains: "base-0.15.2.0.pkg"
@@ -144,7 +206,7 @@ static const char txt_Data_List_txt[] = "base-0.15.2.0.pkg";
 
 With packages loading correctly, the REPL started in ~1 second. But the compilation test failed:
 
-```
+```sh
 mhs-midi-standalone -o /tmp/test /tmp/Test.hs
 # Error: Cannot find runtime files for cc
 ```
@@ -174,7 +236,7 @@ def collect_runtime_files(base_dir: Path) -> list[tuple[str, Path]]:
 
 Static libraries are also embedded for linking:
 
-```bash
+```sh
 python embed_pkgs.py output.h \
     --base-pkg ~/.mcabal/mhs-0.15.2.0/packages/base-0.15.2.0.pkg \
     --music-pkg build/music-0.1.0.pkg \
@@ -189,7 +251,7 @@ During compilation, the VFS extracts these to a temporary directory for `cc` to 
 ## Final Embedded Content (MHS_USE_PKG)
 
 | Category | Count | Size |
-|----------|-------|------|
+| -------- | ----- | ---- |
 | .pkg packages | 2 | 2.7 MB |
 | .txt module mappings | 190 | 3.2 KB |
 | Runtime source files | 33 | 1.5 MB |
@@ -201,7 +263,7 @@ During compilation, the VFS extracts these to a temporary directory for `cc` to 
 ### Startup Time
 
 | Build Mode | Cold Start | Warm Cache (.mhscache) |
-|------------|------------|------------------------|
+| ---------- | ---------- | ---------------------- |
 | Default (.hs embedding) | ~20s | ~0.5s |
 | MHS_USE_PKG | ~1s | ~0.95s |
 | MHS_USE_ZSTD | ~20s | ~0.5s |
@@ -211,7 +273,7 @@ Key insight: `.mhscache` is more efficient than `.pkg` for warm starts because i
 ### Binary Size
 
 | Build Mode | Binary Size |
-|------------|-------------|
+| ---------- | ----------- |
 | Default (.hs embedding) | ~3.2 MB |
 | MHS_USE_PKG | ~5.5 MB |
 | MHS_USE_ZSTD | ~1.3 MB |
@@ -219,21 +281,8 @@ Key insight: `.mhscache` is more efficient than `.pkg` for warm starts because i
 
 ### Feature Matrix
 
-The three modes are:
-
-| Mode         | What's embedded           | Compression |
-|--------------|---------------------------|-------------|
-| Default      | .hs source files          | None        |
-| MHS_USE_ZSTD | .hs source files          | zstd        |
-| MHS_USE_PKG  | .pkg precompiled packages | None        |
-| Both         | .pkg precompiled packages | zstd        |
-
-
-They lead to this feature matrix:
-
-
 | Feature | Default | MHS_USE_PKG | MHS_USE_ZSTD |
-|---------|---------|-------------|--------------|
+| ------- | ------- | ----------- | ------------ |
 | Fast cold start | No | Yes | No |
 | Smallest binary | No | No | Yes |
 | Compile to executable | Yes | Yes | Yes |
@@ -241,7 +290,7 @@ They lead to this feature matrix:
 
 ## Build Instructions
 
-```bash
+```sh
 # Default: .hs source embedding
 cmake -B build
 cmake --build build --target mhs-midi-standalone
@@ -267,7 +316,7 @@ cmake --build build --target mhs-midi-standalone
 
 The package mode requires MicroHs to be installed:
 
-```bash
+```sh
 cd thirdparty/MicroHs
 make
 make install  # Creates ~/.mcabal/mhs-0.15.2.0/
@@ -278,6 +327,7 @@ This installs `base-0.15.2.0.pkg` and the module mapping `.txt` files that `embe
 ## Conclusion
 
 Embedding precompiled `.pkg` files required solving three unexpected challenges:
+
 1. Virtual directory operations for package discovery
 2. Module-to-package `.txt` mapping files
 3. Hybrid embedding for compilation support
