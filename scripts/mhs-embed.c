@@ -1,13 +1,15 @@
 /*
- * embed_libs_zstd.c - Convert library files to C header with zstd compression
+ * mhs-embed.c - Embed files into C headers for MicroHs standalone binaries
  *
- * Uses dictionary-based compression for optimal ratio on similar files.
- * Text files (.hs, .c, .h) are compressed with a trained dictionary.
- * Binary files (.a, .pkg) are compressed without dictionary.
+ * Unified tool that supports:
+ * - Source mode: Embed .hs/.c/.h files (default: zstd compressed)
+ * - Package mode: Embed .pkg files with module mappings (--pkg-mode)
+ * - Uncompressed mode: Plain C string embedding (--no-compress)
  *
- * Usage: embed_libs_zstd <output.h> <libdir1> [libdir2 ...] [options]
+ * Usage: mhs-embed <output.h> [libdir ...] [options]
  *
  * Options:
+ *   --no-compress       Disable compression (plain C strings)
  *   --runtime <dir>     Embed runtime C/H files from <dir>
  *   --lib <file>        Embed a library file (.a) in lib/
  *   --header <file>     Embed a header file in src/runtime/
@@ -15,22 +17,17 @@
  *   --level <1-22>      Compression level (default: 19)
  *
  * Package mode options (--pkg-mode):
- *   --pkg-mode              Output in pkg-zstd format with file types
- *   --pkg <vfs>=<file>      Embed a .pkg file (e.g., packages/base.pkg=/path/to/base.pkg)
+ *   --pkg-mode              Output in pkg format with file types
+ *   --pkg <vfs>=<file>      Embed a .pkg file
  *   --txt-dir <dir>         Collect .txt module mapping files from <dir>
  *   --music-modules <p:m1,m2> Generate synthetic .txt for music modules
  *
  * Compile:
- *   cc -O2 -o embed_libs_zstd embed_libs_zstd.c \
+ *   cc -O2 -o mhs-embed mhs-embed.c \
  *      ../thirdparty/zstd-1.5.7/zstd.c -I../thirdparty/zstd-1.5.7 -lpthread
  *
- * The generated header contains compressed data with a shared dictionary:
- *   - embedded_zstd_dict[]     - trained dictionary
- *   - embedded_files_zstd[]    - compressed file entries
- *
- * In --pkg-mode, outputs:
- *   - embedded_pkg_zstd_dict[] - trained dictionary
- *   - embedded_files_pkg_zstd[] - compressed entries with file_type field
+ * For --no-compress mode, zstd is not required:
+ *   cc -O2 -DMHS_EMBED_NO_ZSTD -o mhs-embed-nocompress mhs-embed.c
  */
 
 #include <stdio.h>
@@ -40,14 +37,16 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-/* Zstd includes */
+#ifndef MHS_EMBED_NO_ZSTD
 #define ZSTD_STATIC_LINKING_ONLY
 #include "zstd.h"
 #include "zdict.h"
+#endif
 
 #define MAX_FILES 1024
 #define MAX_PATH 4096
-#define DEFAULT_DICT_SIZE (112 * 1024)  /* 112KB dictionary */
+#define CHUNK_SIZE 4000  /* Max string literal chunk size for C89 compatibility */
+#define DEFAULT_DICT_SIZE (112 * 1024)
 #define DEFAULT_COMP_LEVEL 19
 
 /* File types for pkg-mode */
@@ -61,7 +60,7 @@ typedef struct {
     char* full_path;          /* Full filesystem path */
     unsigned char* content;   /* Original content */
     size_t length;            /* Original length */
-    unsigned char* compressed;/* Compressed content */
+    unsigned char* compressed;/* Compressed content (NULL if --no-compress) */
     size_t compressed_len;    /* Compressed length */
     int use_dict;             /* 1 if compressed with dictionary */
     int file_type;            /* FILE_TYPE_* for pkg-mode */
@@ -72,12 +71,12 @@ static int g_file_count = 0;
 
 static size_t g_dict_size = DEFAULT_DICT_SIZE;
 static int g_comp_level = DEFAULT_COMP_LEVEL;
-static int g_pkg_mode = 0;  /* Output in pkg-zstd format */
+static int g_pkg_mode = 0;      /* Output in pkg format */
+static int g_no_compress = 0;   /* Disable compression */
 
 /* Forward declarations */
 static int collect_files_recursive(const char* dir_path, const char* base_name,
                                    const char* pattern, int include_subdirs);
-static int write_header(const char* output_path, const unsigned char* dict, size_t dict_len);
 static void free_files(void);
 
 /*-----------------------------------------------------------
@@ -103,7 +102,8 @@ static int is_text_file(const char* path) {
     return matches_pattern(path, "*.hs") ||
            matches_pattern(path, "*.hs-boot") ||
            matches_pattern(path, "*.c") ||
-           matches_pattern(path, "*.h");
+           matches_pattern(path, "*.h") ||
+           matches_pattern(path, "*.txt");
 }
 
 static unsigned char* read_file(const char* path, size_t* out_length) {
@@ -194,7 +194,7 @@ static int add_synthetic_file(const char* vfs_path, const char* content_str, int
     entry->length = length;
     entry->compressed = NULL;
     entry->compressed_len = 0;
-    entry->use_dict = 1;  /* txt files benefit from dictionary */
+    entry->use_dict = 1;
     entry->file_type = file_type;
 
     return 0;
@@ -295,10 +295,7 @@ static int embed_single_file(const char* file_path, const char* vfs_prefix) {
     return add_file_with_type(vfs_path, file_path, FILE_TYPE_RUNTIME);
 }
 
-/*
- * Collect .txt module mapping files from a directory (for pkg-mode)
- * These are small files mapping module names to package names.
- */
+/* Collect .txt module mapping files from a directory (for pkg-mode) */
 static int collect_txt_files(const char* base_dir) {
     DIR* dir = opendir(base_dir);
     if (!dir) {
@@ -316,17 +313,12 @@ static int collect_txt_files(const char* base_dir) {
         snprintf(full_path, sizeof(full_path), "%s/%s", base_dir, entry->d_name);
 
         if (is_directory(full_path)) {
-            /* Skip 'packages' subdirectory */
             if (strcmp(entry->d_name, "packages") == 0)
                 continue;
-            /* Recurse into subdirectory */
             collect_txt_files(full_path);
         } else if (matches_pattern(entry->d_name, "*.txt")) {
-            /* Get relative path from base_dir for vfs_path */
-            /* For now, just use the filename directly */
             const char* rel_start = full_path + strlen(base_dir);
             if (*rel_start == '/') rel_start++;
-
             add_file_with_type(rel_start, full_path, FILE_TYPE_TXT);
         }
     }
@@ -335,10 +327,7 @@ static int collect_txt_files(const char* base_dir) {
     return 0;
 }
 
-/*
- * Add a .pkg file with explicit vfs_path (for pkg-mode)
- * Format: vfs_path=file_path (e.g., packages/base-0.15.2.0.pkg=/path/to/base.pkg)
- */
+/* Add a .pkg file with explicit vfs_path (for pkg-mode) */
 static int add_pkg_file(const char* spec) {
     char* eq = strchr(spec, '=');
     if (!eq) {
@@ -362,11 +351,7 @@ static int add_pkg_file(const char* spec) {
     return add_file_with_type(vfs_path, file_path, FILE_TYPE_PKG);
 }
 
-/*
- * Parse music-modules spec and add synthetic .txt files
- * Format: pkg_name:module1,module2,module3
- * Example: music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform
- */
+/* Parse music-modules spec and add synthetic .txt files */
 static int add_music_modules(const char* spec) {
     char* colon = strchr(spec, ':');
     if (!colon) {
@@ -374,14 +359,12 @@ static int add_music_modules(const char* spec) {
         return -1;
     }
 
-    /* Extract package name */
     char pkg_name[256];
     size_t pkg_len = colon - spec;
     if (pkg_len >= sizeof(pkg_name)) pkg_len = sizeof(pkg_name) - 1;
     strncpy(pkg_name, spec, pkg_len);
     pkg_name[pkg_len] = '\0';
 
-    /* Parse comma-separated modules */
     const char* modules = colon + 1;
     char mod_list[1024];
     strncpy(mod_list, modules, sizeof(mod_list) - 1);
@@ -389,7 +372,6 @@ static int add_music_modules(const char* spec) {
 
     char* mod = strtok(mod_list, ",");
     while (mod) {
-        /* Trim whitespace */
         while (*mod == ' ') mod++;
         char* end = mod + strlen(mod) - 1;
         while (end > mod && *end == ' ') *end-- = '\0';
@@ -408,14 +390,11 @@ static int add_music_modules(const char* spec) {
 }
 
 /*-----------------------------------------------------------
- * Zstd compression
+ * Zstd compression (only when not --no-compress)
  *-----------------------------------------------------------*/
 
-/*
- * Train dictionary on text file samples
- */
+#ifndef MHS_EMBED_NO_ZSTD
 static unsigned char* train_dictionary(size_t* out_dict_len) {
-    /* Count text files and total size */
     int text_count = 0;
     size_t total_size = 0;
 
@@ -434,7 +413,6 @@ static unsigned char* train_dictionary(size_t* out_dict_len) {
 
     printf("Training dictionary from %d samples (%zu bytes)...\n", text_count, total_size);
 
-    /* Build sample buffer and sizes array */
     unsigned char* samples = malloc(total_size);
     size_t* sample_sizes = malloc(text_count * sizeof(size_t));
     if (!samples || !sample_sizes) {
@@ -454,7 +432,6 @@ static unsigned char* train_dictionary(size_t* out_dict_len) {
         }
     }
 
-    /* Train dictionary */
     unsigned char* dict = malloc(g_dict_size);
     if (!dict) {
         free(samples);
@@ -480,23 +457,17 @@ static unsigned char* train_dictionary(size_t* out_dict_len) {
     printf("Dictionary trained: %zu bytes\n", dict_len);
     *out_dict_len = dict_len;
 
-    /* Shrink to actual size */
     unsigned char* shrunk = realloc(dict, dict_len);
     return shrunk ? shrunk : dict;
 }
 
-/*
- * Compress all files
- */
 static int compress_files(const unsigned char* dict, size_t dict_len) {
-    /* Create compression context */
     ZSTD_CCtx* cctx = ZSTD_createCCtx();
     if (!cctx) {
         fprintf(stderr, "Error: Failed to create compression context\n");
         return -1;
     }
 
-    /* Create dictionary if we have one */
     ZSTD_CDict* cdict = NULL;
     if (dict && dict_len > 0) {
         cdict = ZSTD_createCDict(dict, dict_len, g_comp_level);
@@ -515,7 +486,6 @@ static int compress_files(const unsigned char* dict, size_t dict_len) {
     for (int i = 0; i < g_file_count; i++) {
         FileEntry* entry = &g_files[i];
 
-        /* Allocate output buffer (worst case is slightly larger than input) */
         size_t bound = ZSTD_compressBound(entry->length);
         entry->compressed = malloc(bound);
         if (!entry->compressed) {
@@ -523,7 +493,6 @@ static int compress_files(const unsigned char* dict, size_t dict_len) {
             continue;
         }
 
-        /* Compress */
         size_t result;
         if (entry->use_dict && cdict) {
             result = ZSTD_compress_usingCDict(cctx,
@@ -550,7 +519,6 @@ static int compress_files(const unsigned char* dict, size_t dict_len) {
         total_original += entry->length;
         total_compressed += result;
 
-        /* Shrink buffer to actual size */
         unsigned char* shrunk = realloc(entry->compressed, result);
         if (shrunk) entry->compressed = shrunk;
     }
@@ -565,11 +533,264 @@ static int compress_files(const unsigned char* dict, size_t dict_len) {
 
     return 0;
 }
+#endif /* MHS_EMBED_NO_ZSTD */
 
 /*-----------------------------------------------------------
- * Output generation
+ * Output generation - Uncompressed mode
  *-----------------------------------------------------------*/
 
+/* Escape byte for C string literal */
+static int escape_byte(unsigned char byte, char* buf) {
+    switch (byte) {
+        case '\\': return sprintf(buf, "\\\\");
+        case '"':  return sprintf(buf, "\\\"");
+        case '\n': return sprintf(buf, "\\n");
+        case '\r': return sprintf(buf, "\\r");
+        case '\t': return sprintf(buf, "\\t");
+        default:
+            if (byte < 32 || byte > 126) {
+                return sprintf(buf, "\\%03o", byte);
+            } else {
+                buf[0] = byte;
+                buf[1] = '\0';
+                return 1;
+            }
+    }
+}
+
+/* Write file content as C string literal(s) with chunking */
+static void write_string_literal(FILE* out, const unsigned char* content, size_t length) {
+    char escape_buf[8];
+    int chunk_len = 0;
+    int first_chunk = 1;
+
+    fprintf(out, "      ");
+
+    /* Handle empty files */
+    if (length == 0) {
+        fprintf(out, "\"\"");
+        return;
+    }
+
+    for (size_t i = 0; i < length; i++) {
+        int esc_len = escape_byte(content[i], escape_buf);
+
+        if (chunk_len + esc_len > CHUNK_SIZE) {
+            if (first_chunk) {
+                fprintf(out, "\"\n      ");
+                first_chunk = 0;
+            } else {
+                fprintf(out, "\"\n      ");
+            }
+            chunk_len = 0;
+        }
+
+        if (chunk_len == 0) {
+            fprintf(out, "\"");
+        }
+
+        fprintf(out, "%s", escape_buf);
+        chunk_len += esc_len;
+    }
+
+    if (chunk_len > 0 || length == 0) {
+        fprintf(out, "\"");
+    }
+}
+
+static int compare_files(const void* a, const void* b) {
+    const FileEntry* fa = (const FileEntry*)a;
+    const FileEntry* fb = (const FileEntry*)b;
+    return strcmp(fa->vfs_path, fb->vfs_path);
+}
+
+/* Write uncompressed header (--no-compress mode) */
+static int write_header_uncompressed(const char* output_path) {
+    FILE* out = fopen(output_path, "w");
+    if (!out) {
+        fprintf(stderr, "Error: Could not create %s: %s\n", output_path, strerror(errno));
+        return -1;
+    }
+
+    qsort(g_files, g_file_count, sizeof(FileEntry), compare_files);
+
+    size_t total_size = 0;
+    int hs_count = 0, runtime_count = 0, lib_count = 0;
+    for (int i = 0; i < g_file_count; i++) {
+        total_size += g_files[i].length;
+        if (matches_pattern(g_files[i].vfs_path, "*.hs") ||
+            matches_pattern(g_files[i].vfs_path, "*.hs-boot"))
+            hs_count++;
+        else if (matches_pattern(g_files[i].vfs_path, "*.a"))
+            lib_count++;
+        else
+            runtime_count++;
+    }
+
+    fprintf(out, "/* Auto-generated by mhs-embed --no-compress - DO NOT EDIT */\n");
+    fprintf(out, "/* %d embedded files (%d .hs, %d runtime, %d libs, %zu bytes total) */\n\n",
+            g_file_count, hs_count, runtime_count, lib_count, total_size);
+    fprintf(out, "#ifndef MHS_EMBEDDED_LIBS_H\n");
+    fprintf(out, "#define MHS_EMBEDDED_LIBS_H\n\n");
+    fprintf(out, "#include <stddef.h>\n\n");
+
+    fprintf(out, "typedef struct {\n");
+    fprintf(out, "    const char* path;      /* VFS path, e.g., \"lib/Prelude.hs\" */\n");
+    fprintf(out, "    const char* content;   /* File contents */\n");
+    fprintf(out, "    size_t length;         /* Content length in bytes */\n");
+    fprintf(out, "} EmbeddedFile;\n\n");
+
+    fprintf(out, "static const EmbeddedFile embedded_files[] = {\n");
+
+    for (int i = 0; i < g_file_count; i++) {
+        FileEntry* entry = &g_files[i];
+        fprintf(out, "    /* %s */\n", entry->full_path);
+        fprintf(out, "    { \"%s\",\n", entry->vfs_path);
+        write_string_literal(out, entry->content, entry->length);
+        fprintf(out, ",\n");
+        fprintf(out, "      %zu },\n\n", entry->length);
+    }
+
+    fprintf(out, "    /* Sentinel */\n");
+    fprintf(out, "    { NULL, NULL, 0 }\n");
+    fprintf(out, "};\n\n");
+
+    fprintf(out, "#define EMBEDDED_FILE_COUNT %d\n\n", g_file_count);
+    fprintf(out, "#endif /* MHS_EMBEDDED_LIBS_H */\n");
+
+    fclose(out);
+
+    printf("Generated: %s (%d files, %zu bytes)\n", output_path, g_file_count, total_size);
+    return 0;
+}
+
+/* Write uncompressed pkg-mode header */
+static int write_header_pkg_uncompressed(const char* output_path) {
+    FILE* out = fopen(output_path, "w");
+    if (!out) {
+        fprintf(stderr, "Error: Could not create %s: %s\n", output_path, strerror(errno));
+        return -1;
+    }
+
+    qsort(g_files, g_file_count, sizeof(FileEntry), compare_files);
+
+    size_t total_size = 0;
+    int pkg_count = 0, txt_count = 0, runtime_count = 0;
+    for (int i = 0; i < g_file_count; i++) {
+        total_size += g_files[i].length;
+        switch (g_files[i].file_type) {
+            case FILE_TYPE_PKG: pkg_count++; break;
+            case FILE_TYPE_TXT: txt_count++; break;
+            default: runtime_count++; break;
+        }
+    }
+
+    fprintf(out, "/* Auto-generated by mhs-embed --pkg-mode --no-compress - DO NOT EDIT */\n");
+    fprintf(out, "/* %d packages, %d txt files, %d runtime files */\n\n",
+            pkg_count, txt_count, runtime_count);
+    fprintf(out, "#ifndef MHS_EMBEDDED_PKGS_H\n");
+    fprintf(out, "#define MHS_EMBEDDED_PKGS_H\n\n");
+    fprintf(out, "#include <stddef.h>\n\n");
+
+    /* Write byte arrays for each file */
+    fprintf(out, "/* File data */\n");
+    int data_idx = 0;
+    for (int i = 0; i < g_file_count; i++) {
+        FileEntry* entry = &g_files[i];
+        fprintf(out, "/* %s */\n", entry->vfs_path);
+        fprintf(out, "static const unsigned char pkg_data_%d[] = {\n", data_idx++);
+        if (entry->length == 0) {
+            fprintf(out, "    0  /* empty file placeholder */\n");
+        } else {
+            for (size_t j = 0; j < entry->length; j++) {
+                if (j % 16 == 0) fprintf(out, "    ");
+                fprintf(out, "0x%02x", entry->content[j]);
+                if (j + 1 < entry->length) fprintf(out, ",");
+                if (j % 16 == 15 || j + 1 == entry->length) fprintf(out, "\n");
+            }
+        }
+        fprintf(out, "};\n\n");
+    }
+
+    /* Struct types - vfs.c expects separate arrays for pkg, txt, and runtime */
+    fprintf(out, "typedef struct {\n");
+    fprintf(out, "    const char* path;              /* VFS path */\n");
+    fprintf(out, "    const unsigned char* content;  /* Binary data */\n");
+    fprintf(out, "    size_t length;                 /* Content length */\n");
+    fprintf(out, "} EmbeddedPackage;\n\n");
+
+    fprintf(out, "typedef struct {\n");
+    fprintf(out, "    const char* path;              /* Module.txt */\n");
+    fprintf(out, "    const char* content;           /* Package name */\n");
+    fprintf(out, "    size_t length;                 /* Content length */\n");
+    fprintf(out, "} EmbeddedTxtFile;\n\n");
+
+    fprintf(out, "typedef struct {\n");
+    fprintf(out, "    const char* path;              /* Runtime source path */\n");
+    fprintf(out, "    const unsigned char* content;  /* File content */\n");
+    fprintf(out, "    size_t length;                 /* Content length */\n");
+    fprintf(out, "} EmbeddedRuntimeFile;\n\n");
+
+    /* Package files array */
+    fprintf(out, "static const EmbeddedPackage embedded_packages[] = {\n");
+    data_idx = 0;
+    for (int i = 0; i < g_file_count; i++) {
+        FileEntry* entry = &g_files[i];
+        if (entry->file_type == FILE_TYPE_PKG) {
+            fprintf(out, "    { \"%s\", pkg_data_%d, %zu },\n",
+                    entry->vfs_path, data_idx, entry->length);
+        }
+        data_idx++;
+    }
+    fprintf(out, "    { NULL, NULL, 0 }\n");
+    fprintf(out, "};\n\n");
+
+    /* Txt files array (cast to char* since they're text) */
+    fprintf(out, "static const EmbeddedTxtFile embedded_txt_files[] = {\n");
+    data_idx = 0;
+    for (int i = 0; i < g_file_count; i++) {
+        FileEntry* entry = &g_files[i];
+        if (entry->file_type == FILE_TYPE_TXT) {
+            fprintf(out, "    { \"%s\", (const char*)pkg_data_%d, %zu },\n",
+                    entry->vfs_path, data_idx, entry->length);
+        }
+        data_idx++;
+    }
+    fprintf(out, "    { NULL, NULL, 0 }\n");
+    fprintf(out, "};\n\n");
+
+    /* Runtime files array */
+    fprintf(out, "static const EmbeddedRuntimeFile embedded_runtime_files[] = {\n");
+    data_idx = 0;
+    for (int i = 0; i < g_file_count; i++) {
+        FileEntry* entry = &g_files[i];
+        if (entry->file_type == FILE_TYPE_RUNTIME) {
+            fprintf(out, "    { \"%s\", pkg_data_%d, %zu },\n",
+                    entry->vfs_path, data_idx, entry->length);
+        }
+        data_idx++;
+    }
+    fprintf(out, "    { NULL, NULL, 0 }\n");
+    fprintf(out, "};\n\n");
+
+    fprintf(out, "#define EMBEDDED_PACKAGE_COUNT %d\n", pkg_count);
+    fprintf(out, "#define EMBEDDED_TXT_COUNT %d\n", txt_count);
+    fprintf(out, "#define EMBEDDED_RUNTIME_COUNT %d\n\n", runtime_count);
+    fprintf(out, "#endif /* MHS_EMBEDDED_PKGS_H */\n");
+
+    fclose(out);
+
+    printf("Generated: %s (pkg-mode, uncompressed)\n", output_path);
+    printf("  Packages: %d, Txt: %d, Runtime: %d\n", pkg_count, txt_count, runtime_count);
+    printf("  Total: %zu bytes\n", total_size);
+    return 0;
+}
+
+/*-----------------------------------------------------------
+ * Output generation - Compressed mode
+ *-----------------------------------------------------------*/
+
+#ifndef MHS_EMBED_NO_ZSTD
 static void write_byte_array(FILE* out, const char* name,
                              const unsigned char* data, size_t len) {
     fprintf(out, "static const unsigned char %s[] = {\n", name);
@@ -584,24 +805,16 @@ static void write_byte_array(FILE* out, const char* name,
     fprintf(out, "};\n\n");
 }
 
-static int compare_files(const void* a, const void* b) {
-    const FileEntry* fa = (const FileEntry*)a;
-    const FileEntry* fb = (const FileEntry*)b;
-    return strcmp(fa->vfs_path, fb->vfs_path);
-}
-
-static int write_header(const char* output_path,
-                        const unsigned char* dict, size_t dict_len) {
+static int write_header_compressed(const char* output_path,
+                                   const unsigned char* dict, size_t dict_len) {
     FILE* out = fopen(output_path, "w");
     if (!out) {
         fprintf(stderr, "Error: Could not create %s: %s\n", output_path, strerror(errno));
         return -1;
     }
 
-    /* Sort files */
     qsort(g_files, g_file_count, sizeof(FileEntry), compare_files);
 
-    /* Calculate totals */
     size_t total_original = 0;
     size_t total_compressed = 0;
     int valid_count = 0;
@@ -618,8 +831,7 @@ static int write_header(const char* output_path,
     double ratio = total_embedded > 0 ?
         (double)total_original / total_embedded : 0;
 
-    /* Write header */
-    fprintf(out, "/* Auto-generated by embed_libs_zstd - DO NOT EDIT */\n");
+    fprintf(out, "/* Auto-generated by mhs-embed - DO NOT EDIT */\n");
     fprintf(out, "/* %d files, zstd compressed with dictionary */\n", valid_count);
     fprintf(out, "/* Original: %zu bytes -> Embedded: %zu bytes (%.2fx) */\n\n",
             total_original, total_embedded, ratio);
@@ -629,7 +841,6 @@ static int write_header(const char* output_path,
     fprintf(out, "#include <stddef.h>\n");
     fprintf(out, "#include <stdint.h>\n\n");
 
-    /* Write dictionary */
     if (dict && dict_len > 0) {
         fprintf(out, "/* Zstd dictionary for text file decompression */\n");
         write_byte_array(out, "embedded_zstd_dict", dict, dict_len);
@@ -639,7 +850,6 @@ static int write_header(const char* output_path,
         fprintf(out, "#define EMBEDDED_DICT_SIZE 0\n\n");
     }
 
-    /* File entry structure */
     fprintf(out, "typedef struct {\n");
     fprintf(out, "    const char* path;              /* VFS path */\n");
     fprintf(out, "    const unsigned char* data;     /* Compressed data */\n");
@@ -648,7 +858,6 @@ static int write_header(const char* output_path,
     fprintf(out, "    uint8_t use_dict;              /* 1 if compressed with dictionary */\n");
     fprintf(out, "} EmbeddedFileZstd;\n\n");
 
-    /* Write compressed data arrays */
     fprintf(out, "/* Compressed file data */\n");
     int array_idx = 0;
     for (int i = 0; i < g_file_count; i++) {
@@ -664,7 +873,6 @@ static int write_header(const char* output_path,
         array_idx++;
     }
 
-    /* Write file table */
     fprintf(out, "static const EmbeddedFileZstd embedded_files_zstd[] = {\n");
     array_idx = 0;
     for (int i = 0; i < g_file_count; i++) {
@@ -698,21 +906,16 @@ static int write_header(const char* output_path,
     return 0;
 }
 
-/*
- * Write pkg-mode header with file types
- */
-static int write_header_pkg(const char* output_path,
-                            const unsigned char* dict, size_t dict_len) {
+static int write_header_pkg_compressed(const char* output_path,
+                                       const unsigned char* dict, size_t dict_len) {
     FILE* out = fopen(output_path, "w");
     if (!out) {
         fprintf(stderr, "Error: Could not create %s: %s\n", output_path, strerror(errno));
         return -1;
     }
 
-    /* Sort files */
     qsort(g_files, g_file_count, sizeof(FileEntry), compare_files);
 
-    /* Calculate totals by type */
     size_t total_original = 0;
     size_t total_compressed = 0;
     int valid_count = 0;
@@ -735,8 +938,7 @@ static int write_header_pkg(const char* output_path,
     double ratio = total_embedded > 0 ?
         (double)total_original / total_embedded : 0;
 
-    /* Write header */
-    fprintf(out, "/* Auto-generated by embed_libs_zstd --pkg-mode - DO NOT EDIT */\n");
+    fprintf(out, "/* Auto-generated by mhs-embed --pkg-mode - DO NOT EDIT */\n");
     fprintf(out, "/* %d packages, %d txt files, %d runtime files */\n",
             pkg_count, txt_count, runtime_count);
     fprintf(out, "/* Original: %zu bytes -> Embedded: %zu bytes (%.2fx) */\n\n",
@@ -747,7 +949,6 @@ static int write_header_pkg(const char* output_path,
     fprintf(out, "#include <stddef.h>\n");
     fprintf(out, "#include <stdint.h>\n\n");
 
-    /* Write dictionary */
     if (dict && dict_len > 0) {
         fprintf(out, "/* Zstd dictionary for decompression */\n");
         write_byte_array(out, "embedded_pkg_zstd_dict", dict, dict_len);
@@ -757,7 +958,6 @@ static int write_header_pkg(const char* output_path,
         fprintf(out, "#define EMBEDDED_PKG_DICT_SIZE 0\n\n");
     }
 
-    /* File entry structure with file_type */
     fprintf(out, "typedef struct {\n");
     fprintf(out, "    const char* path;              /* VFS path */\n");
     fprintf(out, "    const unsigned char* data;     /* Compressed data */\n");
@@ -770,7 +970,6 @@ static int write_header_pkg(const char* output_path,
     fprintf(out, "#define PKG_FILE_TYPE_TXT     1\n");
     fprintf(out, "#define PKG_FILE_TYPE_RUNTIME 2\n\n");
 
-    /* Write compressed data arrays */
     fprintf(out, "/* Compressed file data */\n");
     int array_idx = 0;
     for (int i = 0; i < g_file_count; i++) {
@@ -786,18 +985,16 @@ static int write_header_pkg(const char* output_path,
         array_idx++;
     }
 
-    /* Write file table - map internal file_type to output format */
     fprintf(out, "static const EmbeddedFilePkgZstd embedded_files_pkg_zstd[] = {\n");
     array_idx = 0;
     for (int i = 0; i < g_file_count; i++) {
         if (!g_files[i].compressed) continue;
 
-        /* Map file_type: PKG->0, TXT->1, RUNTIME->2 */
         int out_type;
         switch (g_files[i].file_type) {
             case FILE_TYPE_PKG: out_type = 0; break;
             case FILE_TYPE_TXT: out_type = 1; break;
-            default: out_type = 2; break;  /* RUNTIME and SOURCE -> runtime */
+            default: out_type = 2; break;
         }
 
         fprintf(out, "    { \"%s\", pkgzstd_data_%d, %zu, %zu, %d },\n",
@@ -832,6 +1029,11 @@ static int write_header_pkg(const char* output_path,
 
     return 0;
 }
+#endif /* MHS_EMBED_NO_ZSTD */
+
+/*-----------------------------------------------------------
+ * Cleanup and main
+ *-----------------------------------------------------------*/
 
 static void free_files(void) {
     for (int i = 0; i < g_file_count; i++) {
@@ -845,27 +1047,31 @@ static void free_files(void) {
 
 static void print_usage(const char* prog) {
     printf("Usage: %s <output.h> [libdir ...] [options]\n\n", prog);
+    printf("Embed files into C headers for MicroHs standalone binaries.\n\n");
     printf("Options:\n");
-    printf("  --runtime <dir>       Embed runtime C/H files from <dir>\n");
-    printf("  --lib <file>          Embed a library file (.a) in lib/ (repeatable)\n");
-    printf("  --header <file>       Embed a header file in src/runtime/ (repeatable)\n");
-    printf("  --dict-size <bytes>   Dictionary size (default: %d)\n", DEFAULT_DICT_SIZE);
-    printf("  --level <1-22>        Compression level (default: %d)\n", DEFAULT_COMP_LEVEL);
-    printf("  --help                Show this help\n");
+    printf("  --no-compress       Disable zstd compression (plain C strings)\n");
+    printf("  --runtime <dir>     Embed runtime C/H files from <dir>\n");
+    printf("  --lib <file>        Embed a library file (.a) in lib/ (repeatable)\n");
+    printf("  --header <file>     Embed a header file in src/runtime/ (repeatable)\n");
+#ifndef MHS_EMBED_NO_ZSTD
+    printf("  --dict-size <bytes> Dictionary size (default: %d)\n", DEFAULT_DICT_SIZE);
+    printf("  --level <1-22>      Compression level (default: %d)\n", DEFAULT_COMP_LEVEL);
+#endif
+    printf("  --help              Show this help\n");
     printf("\nPackage mode (--pkg-mode):\n");
-    printf("  --pkg-mode            Output in pkg-zstd format with file types\n");
+    printf("  --pkg-mode            Output in pkg format with file types\n");
     printf("  --pkg <vfs>=<file>    Embed a .pkg file (repeatable)\n");
     printf("  --txt-dir <dir>       Collect .txt module mapping files\n");
     printf("  --music-modules <spec> Add synthetic .txt (pkg:mod1,mod2,...)\n");
     printf("\nExamples:\n");
-    printf("  %s mhs_embedded_zstd.h lib/ --runtime src/runtime/\n", prog);
-    printf("  %s out.h lib/ --lib libfoo.a --level 22\n", prog);
-    printf("\n  # Package mode:\n");
+    printf("  # Source mode with compression (default)\n");
+    printf("  %s mhs_embedded_zstd.h lib/ --runtime src/runtime/\n\n", prog);
+    printf("  # Source mode without compression\n");
+    printf("  %s mhs_embedded.h lib/ --no-compress\n\n", prog);
+    printf("  # Package mode with compression\n");
     printf("  %s out.h --pkg-mode \\\n", prog);
     printf("    --pkg packages/base.pkg=/path/base.pkg \\\n");
-    printf("    --pkg packages/music.pkg=/path/music.pkg \\\n");
-    printf("    --txt-dir /path/to/mcabal/mhs-0.15.2.0 \\\n");
-    printf("    --music-modules music-0.1.0.pkg:Async,Midi,Music\n");
+    printf("    --txt-dir /path/to/mcabal/mhs-0.15.2.0\n");
 }
 
 int main(int argc, char** argv) {
@@ -891,7 +1097,9 @@ int main(int argc, char** argv) {
 
     /* Parse arguments */
     for (int i = 2; i < argc; i++) {
-        if (strcmp(argv[i], "--runtime") == 0) {
+        if (strcmp(argv[i], "--no-compress") == 0) {
+            g_no_compress = 1;
+        } else if (strcmp(argv[i], "--runtime") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "Error: --runtime requires an argument\n");
                 return 1;
@@ -917,6 +1125,7 @@ int main(int argc, char** argv) {
                 return 1;
             }
             header_files[header_count++] = argv[++i];
+#ifndef MHS_EMBED_NO_ZSTD
         } else if (strcmp(argv[i], "--dict-size") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "Error: --dict-size requires an argument\n");
@@ -933,6 +1142,7 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Error: --level must be 1-22\n");
                 return 1;
             }
+#endif
         } else if (strcmp(argv[i], "--pkg-mode") == 0) {
             g_pkg_mode = 1;
         } else if (strcmp(argv[i], "--pkg") == 0) {
@@ -992,7 +1202,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    /* Package mode: process pkg files, txt directory, and music modules */
     if (pkg_count > 0) {
         printf("Embedding packages:\n");
         for (int i = 0; i < pkg_count; i++) {
@@ -1019,27 +1228,40 @@ int main(int argc, char** argv) {
 
     printf("\nCollected %d files\n", g_file_count);
 
-    /* Train dictionary */
-    size_t dict_len = 0;
-    unsigned char* dict = train_dictionary(&dict_len);
-
-    /* Compress all files */
-    if (compress_files(dict, dict_len) != 0) {
-        free(dict);
-        free_files();
-        return 1;
-    }
-
-    /* Write output */
     int result;
-    if (g_pkg_mode) {
-        result = write_header_pkg(output_path, dict, dict_len);
+
+    if (g_no_compress) {
+        /* Uncompressed mode */
+        if (g_pkg_mode) {
+            result = write_header_pkg_uncompressed(output_path);
+        } else {
+            result = write_header_uncompressed(output_path);
+        }
     } else {
-        result = write_header(output_path, dict, dict_len);
+#ifdef MHS_EMBED_NO_ZSTD
+        fprintf(stderr, "Error: This build does not support compression. Use --no-compress.\n");
+        result = 1;
+#else
+        /* Compressed mode */
+        size_t dict_len = 0;
+        unsigned char* dict = train_dictionary(&dict_len);
+
+        if (compress_files(dict, dict_len) != 0) {
+            free(dict);
+            free_files();
+            return 1;
+        }
+
+        if (g_pkg_mode) {
+            result = write_header_pkg_compressed(output_path, dict, dict_len);
+        } else {
+            result = write_header_compressed(output_path, dict, dict_len);
+        }
+
+        free(dict);
+#endif
     }
 
-    free(dict);
     free_files();
-
     return result;
 }

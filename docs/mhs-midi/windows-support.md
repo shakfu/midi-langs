@@ -2,7 +2,7 @@
 
 ## Current Status
 
-The `mhs-midi` and `mhs-midi-standalone` binaries are **not available on Windows** due to the use of `fmemopen()`, a POSIX function for creating in-memory file streams that has no direct Windows equivalent.
+The standalone mhs-midi binaries (`mhs-midi-src`, `mhs-midi-pkg-zstd`, etc.) are **not available on Windows** due to the use of `fmemopen()`, a POSIX function for creating in-memory file streams that has no direct Windows equivalent.
 
 The Virtual Filesystem (VFS) used by these binaries relies on `fmemopen()` to serve embedded files to the MicroHs runtime.
 

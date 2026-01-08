@@ -19,8 +19,20 @@ Note: This is an evolving project—-expect API iterations as implementations ma
 
 ```sh
 make              # Build everything
-make test         # Run all tests (33 tests)
+make test         # Run all tests
 make clean        # Remove build directory
+make help         # Show all targets
+```
+
+**Individual language targets:**
+
+```sh
+make alda-midi    # Alda interpreter
+make forth-midi   # Forth interpreter
+make lua-midi     # Lua interpreter
+make pktpy-midi   # PocketPy interpreter
+make s7-midi      # s7 Scheme interpreter
+make mhs-midi-pkg-zstd  # MicroHs (recommended variant)
 ```
 
 Requires GCC/Clang and CMake 3.16+.
@@ -168,10 +180,17 @@ Commands:
 
 **Standalone binaries** (no external files needed):
 ```sh
-cmake --build build --target mhs-midi-pkg-zstd  # Recommended (3MB, fast startup)
+make mhs-midi-pkg-zstd  # Recommended (3MB, fast startup)
 ./build/mhs-midi-pkg-zstd -r MyFile.hs
 
-# Other variants: mhs-midi-src (3.3MB), mhs-midi-src-zstd (1.3MB), mhs-midi-pkg (4.8MB)
+# Other variants:
+make mhs-midi-src       # 3.3MB, source embedding
+make mhs-midi-src-zstd  # 1.3MB, smallest
+make mhs-midi-pkg       # 4.8MB, fast startup
+make mhs-midi-all       # Build all variants
+
+# Or using cmake directly:
+cmake --build build --target mhs-midi-pkg-zstd
 ```
 
 **Write and compile a program:**

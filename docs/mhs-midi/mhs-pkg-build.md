@@ -1,12 +1,12 @@
 # Embedding Precompiled .pkg Files in a Standalone MicroHs Binary
 
-This document provides some details about the development of `MHS_USE_PKG` mode for `mhs-midi-standalone`, a self-contained MicroHs REPL with embedded MIDI support.
+This document provides some details about the development of `MHS_USE_PKG` mode for the standalone mhs-midi variants (`mhs-midi-pkg`, `mhs-midi-pkg-zstd`), self-contained MicroHs REPLs with embedded MIDI support.
 
 The goal was to improve on the earlier demonstration of embedding the base haskell source files, app source files, MicroHS runtime, and statically compiled FFI dependencies.
 
 ## Summary
 
-The `mhs-midi-standalone` binary embeds Haskell source files using a Virtual Filesystem (VFS), but this requires parsing and compiling ~274 modules on first run, resulting in a ~20 second cold-start delay. This document provides details about the development of `MHS_USE_PKG` mode, which embeds precompiled `.pkg` files instead of source files.
+The standalone mhs-midi binaries embed Haskell source files using a Virtual Filesystem (VFS), but this requires parsing and compiling ~274 modules on first run, resulting in a ~20 second cold-start delay. This document provides details about the development of `MHS_USE_PKG` mode, which embeds precompiled `.pkg` files instead of source files.
 
 **Key Results:**
 
@@ -35,7 +35,7 @@ The `mhs-midi-standalone` binary embeds Haskell source files using a Virtual Fil
 
 ## Background: The Cold Start Problem
 
-The `mhs-midi-standalone` binary embeds all necessary Haskell source files (~274 .hs files from `MicroHs/lib` and custom MIDI libraries) using a Virtual Filesystem (VFS). On first run, MicroHs must parse and compile every module before presenting the REPL prompt. This takes approximately 20 seconds.
+The standalone mhs-midi binaries embed all necessary Haskell source files (~274 .hs files from `MicroHs/lib` and custom MIDI libraries) using a Virtual Filesystem (VFS). On first run, MicroHs must parse and compile every module before presenting the REPL prompt. This takes approximately 20 seconds.
 
 Subsequent runs load from `.mhscache` in ~0.5 seconds, but the cold-start penalty is problematic for:
 
@@ -202,7 +202,7 @@ When searching for module `Data.List`, MicroHs looks for `Data/List.txt` and rea
 
 ### Solution: Embed .txt Mapping Files
 
-Updated `embed_pkgs.py` to collect and embed all `.txt` files from the MicroHs installation (approximately 190 files):
+Updated `mhs-embed.c` (with `--pkg-mode`) to collect and embed all `.txt` files from the MicroHs installation (approximately 190 files):
 
 ```python
 def collect_txt_files(base_dir: Path) -> list[tuple[str, Path]]:
@@ -236,7 +236,7 @@ static const char txt_Data_List_txt[] = "base-0.15.2.0.pkg";
 With packages loading correctly, the REPL started in ~1 second. But the compilation test failed:
 
 ```sh
-mhs-midi-standalone -o /tmp/test /tmp/Test.hs
+mhs-midi-pkg -o /tmp/test /tmp/Test.hs
 # Error: Cannot find runtime files for cc
 ```
 
@@ -267,13 +267,14 @@ Static libraries are also embedded for linking:
 
 ```sh
 # CMake handles this automatically, but the equivalent command is:
-python embed_pkgs.py output.h \
-    --base-pkg build/mcabal/mhs-0.15.2.0/packages/base-0.15.2.0.pkg \
-    --music-pkg build/music-0.1.0.pkg \
-    --base-dir build/mcabal/mhs-0.15.2.0 \
-    --lib lib/libmidi_ffi.a=build/libmidi_ffi.a \
-    --lib lib/liblibremidi.a=build/liblibremidi.a \
-    --header include/midi_ffi.h=src/midi_ffi.h
+./mhs-embed output.h --pkg-mode \
+    --pkg packages/base-0.15.2.0.pkg=build/mcabal/mhs-0.15.2.0/packages/base-0.15.2.0.pkg \
+    --pkg packages/music-0.1.0.pkg=build/music-0.1.0.pkg \
+    --txt-dir build/mcabal/mhs-0.15.2.0 \
+    --music-modules music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform \
+    --lib build/libmidi_ffi.a \
+    --lib build/liblibremidi.a \
+    --header src/midi_ffi.h
 ```
 
 During compilation, the VFS extracts these to a temporary directory for `cc` to consume.
@@ -342,24 +343,25 @@ Line and column numbers are preserved in both cases. There is no degradation in 
 ## Build Instructions
 
 ```sh
-# Default: .hs source embedding (uncompressed)
-cmake -B build
-cmake --build build --target mhs-midi-standalone
+# Build all variants
+make mhs-midi-all
 
-# Compressed source mode: smallest binary (still requires compilation)
-cmake -B build -DMHS_USE_ZSTD=ON
-cmake --build build --target mhs-midi-standalone
+# Or build specific variants:
+make mhs-midi-src        # Source embedding (uncompressed)
+make mhs-midi-src-zstd   # Source embedding (compressed, smallest)
+make mhs-midi-pkg        # Package embedding (fast startup)
+make mhs-midi-pkg-zstd   # Package + compression (recommended)
 
-# Package mode: fast cold start (precompiled packages)
-cmake -B build -DMHS_USE_PKG=ON
-cmake --build build --target mhs-midi-standalone
-
-# Combined: fast start + compression (precompiled packages, compressed)
-cmake -B build -DMHS_USE_PKG=ON -DMHS_USE_ZSTD=ON
-cmake --build build --target mhs-midi-standalone
+# Or using cmake directly:
+cmake --build build --target mhs-midi-all
+cmake --build build --target mhs-midi-pkg-zstd
 ```
 
-**Note:** `MHS_USE_ZSTD` compresses embedded files (source files in default mode, or packages in PKG mode) to reduce binary size. When used with default mode, it compresses `.hs` source files but still requires parsing and compilation on first run (~20s). When combined with `MHS_USE_PKG`, it compresses the precompiled `.pkg` files, maintaining fast startup while reducing binary size.
+**Variant Summary:**
+- **`mhs-midi-src`**: Embeds .hs source files, ~20s cold start, ~3.3MB
+- **`mhs-midi-src-zstd`**: Compressed source, ~20s cold start, ~1.3MB (smallest)
+- **`mhs-midi-pkg`**: Precompiled packages, ~1s cold start, ~4.8MB
+- **`mhs-midi-pkg-zstd`**: Compressed packages, ~1s cold start, ~3.0MB (recommended)
 
 ## Prerequisites for MHS_USE_PKG
 
@@ -373,7 +375,7 @@ make
 The CMake build handles everything else automatically:
 - Builds `base-0.15.2.0.pkg` locally in `build/mhs-base-src/dist-mcabal/`
 - Installs packages to `build/mcabal/` (not `~/.mcabal`)
-- Generates module mapping `.txt` files that `embed_pkgs.py` reads
+- Generates module mapping `.txt` files that `mhs-embed.c --pkg-mode` reads
 
 This keeps the source tree clean and avoids modifying user's home directory.
 

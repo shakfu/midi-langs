@@ -19,7 +19,7 @@ Announcing `mhs-midi`, a new Haskell MIDI library designed for the MicroHs compi
   - Comes with 55 built-in scales, including diatonic modes, pentatonics, blues, world scales, and more.
   - Microtonal support with cents-based scales for quarter-tone music.
 
-- **Interactive REPL**: The `mhs-midi-repl` provides a fast-starting environment for live coding and experimentation, with MIDI ports accessible for immediate feedback.
+- **Interactive REPL**: The `./scripts/mhs-midi` tool provides a fast-starting environment for live coding and experimentation, with MIDI ports accessible for immediate feedback.
 
 ## Quick Example (Pure Composition)
 

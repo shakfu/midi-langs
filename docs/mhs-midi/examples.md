@@ -337,7 +337,7 @@ main = do
 Start the REPL:
 
 ```bash
-./scripts/mhs-midi-repl
+./scripts/mhs-midi
 ```
 
 ### Quick Test with MidiPerform

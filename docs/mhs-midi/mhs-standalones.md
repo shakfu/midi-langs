@@ -20,7 +20,7 @@ MicroHs reads library files through the `mhs_fopen` FFI function in `eval.c`. Th
 A script converts all `.hs` files to a C header. We provide both Python and C implementations:
 
 ```python
-# scripts/embed_libs.py (simplified)
+# scripts/mhs-embed.py (simplified)
 def escape_c_string(content: bytes) -> str:
     """Escape raw bytes for C string literal."""
     result = []
@@ -64,7 +64,7 @@ static const EmbeddedFile embedded_files[] = {
 
 #### C Implementation (for MicroHs Integration)
 
-Provide a pure C implementation (`scripts/embed_libs.c`) suitable for integration into MicroHs itself:
+Provide a pure C implementation (`scripts/mhs-embed.c`) suitable for integration into MicroHs itself:
 
 ```c
 // Core byte escaping - handles UTF-8 correctly
@@ -85,15 +85,17 @@ static int escape_byte(unsigned char byte, char* buf) {
 Usage:
 
 ```bash
-# Compile the tool
-gcc -o embed_libs scripts/embed_libs.c
+# Compile the tool (requires zstd)
+gcc -o mhs-embed scripts/mhs-embed.c thirdparty/zstd-1.5.7/zstd.c \
+    -Ithirdparty/zstd-1.5.7 -lpthread
 
 # Generate header with all dependencies
-./embed_libs mhs_embedded.h lib/ \
+./mhs-embed mhs_embedded.h lib/ \
     --runtime src/runtime/ \
     --header midi_ffi.h \
     --lib liblibremidi.a \
-    --lib libmidi_ffi.a
+    --lib libmidi_ffi.a \
+    --no-compress  # Optional: disable compression
 ```
 
 Output:
@@ -108,7 +110,7 @@ Embedding libraries:
 Generated: mhs_embedded.h (265 files, 2447946 bytes)
 ```
 
-The C implementation has no dependencies beyond libc and is portable to any POSIX system.
+The C implementation has no dependencies beyond libc and `zstd` in the `thirdparty` directory and is portable to any POSIX system.
 
 ### Step 2: Virtual Filesystem Using `fmemopen`
 
@@ -150,7 +152,7 @@ FILE* vfs_fopen(const char* path, const char* mode) {
 As MicroHs calls `mhs_fopen` for all file operations, rename the original and provide an override:
 
 ```python
-# scripts/patch_eval_vfs.py
+# scripts/mhs-patch-eval.py
 # Renames mhs_fopen to mhs_fopen_orig in eval.c
 # Adds forward declaration for our override
 ```
@@ -276,10 +278,10 @@ This approach turned out to be quite useful, and can be adapted for any MicroHs-
 
 If you only need REPL and `-r` (run) modes, you just need:
 
-- `embed_libs.py` or `embed_lib.c` - embed your `.hs` libraries
+- `mhs-embed.c` or `mhs-embed.py` - embed your `.hs` libraries
 - `vfs.c` - the fmemopen-based VFS
 - `mhs_ffi_override.c` - intercept `mhs_fopen`
-- `patch_eval_vfs.py` - rename original `mhs_fopen`
+- `mhs-patch-eval.py` - rename original `mhs_fopen`
 
 This gives you a ~1MB overhead for the MicroHs standard library.
 
@@ -309,7 +311,7 @@ mhs --embed-libs=./lib --embed-runtime -o my_repl MyRepl.hs
 
 This would generate a single C file with embedded libraries, eliminating the need for external VFS machinery. The generated REPL would be truly standalone.
 
-The C implementation of `embed_libs.c` (~500 lines, no dependencies) could be integrated directly into MicroHs to provide this functionality. It handles:
+The C implementation of `mhs-embed.c` (~1200 lines, optional zstd dependency) could be integrated directly into MicroHs to provide this functionality. It handles:
 
 - Recursive directory traversal for `.hs` and `.hs-boot` files
 - Runtime C/H file embedding (`--runtime`)
@@ -353,23 +355,27 @@ Dictionary-based compression is particularly effective for Haskell source files 
 
 ```bash
 # Build all variants
-cmake -B build && cmake --build build --target mhs-midi-all
+make mhs-midi-all
 
 # Or build individual variants:
-cmake --build build --target mhs-midi-src        # Source embedding (default)
-cmake --build build --target mhs-midi-src-zstd   # Compressed source (smallest)
-cmake --build build --target mhs-midi-pkg        # Package embedding (fastest startup)
-cmake --build build --target mhs-midi-pkg-zstd   # Compressed packages (best balance)
+make mhs-midi-src        # Source embedding (default)
+make mhs-midi-src-zstd   # Compressed source (smallest)
+make mhs-midi-pkg        # Package embedding (fastest startup)
+make mhs-midi-pkg-zstd   # Compressed packages (best balance)
+
+# Or using cmake directly:
+cmake --build build --target mhs-midi-all
+cmake --build build --target mhs-midi-pkg-zstd
 ```
 
 ### How It Works
 
 The compression system consists of:
 
-1. **`embed_libs_zstd.c`** - A C tool that:
+1. **`mhs-embed.c`** - A unified C tool that:
    - Collects all files to embed
    - Trains a zstd dictionary (~112KB) on text files (.hs, .c, .h)
-   - Compresses each file using the dictionary
+   - Compresses each file using the dictionary (or use `--no-compress`)
    - Generates `mhs_embedded_zstd.h` with compressed byte arrays
 
 2. **`vfs.c`** - A unified VFS that:
@@ -411,12 +417,12 @@ FILE* vfs_fopen(const char* path, const char* mode) {
 The dictionary training analyzes patterns across all text files:
 
 ```bash
-# Build the compression tool
-cc -O2 -o embed_libs_zstd scripts/embed_libs_zstd.c \
+# Build the embedding tool
+cc -O2 -o mhs-embed scripts/mhs-embed.c \
    thirdparty/zstd-1.5.7/zstd.c -Ithirdparty/zstd-1.5.7 -lpthread
 
 # Generate compressed header
-./embed_libs_zstd mhs_embedded_zstd.h lib/ \
+./mhs-embed mhs_embedded_zstd.h lib/ \
    --runtime src/runtime/ \
    --lib liblibremidi.a
 
@@ -443,10 +449,9 @@ cc -O2 -o embed_libs_zstd scripts/embed_libs_zstd.c \
 
 ```
 scripts/
-    embed_libs.py         # Convert files to C header (Python)
-    embed_libs.c          # Convert files to C header (C)
-    embed_libs_zstd.c     # Convert files to C header with zstd compression
-    patch_eval_vfs.py     # Patch eval.c for override
+    mhs-embed.c           # Convert files to C header (unified, with optional zstd)
+    mhs-embed.py          # Convert files to C header (Python alternative)
+    mhs-patch-eval.py     # Patch eval.c for override
 
 projects/mhs-midi/
     vfs.c, vfs.h          # Virtual filesystem (handles all modes via #ifdef)

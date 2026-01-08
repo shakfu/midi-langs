@@ -187,8 +187,7 @@ projects/mhs-midi/
   CMakeLists.txt         # Build configuration
 
 scripts/
-  mhs-midi-repl          # REPL launcher
-  mhs-midi-compile       # Compilation script
+  mhs-midi               # REPL/compile/run tool
 
 thirdparty/
   MicroHs/               # MicroHs compiler
@@ -232,4 +231,4 @@ MicroHs supports compilation caching via `.mhscache`:
 - First run builds the cache
 - Subsequent runs are faster
 
-The `mhs-midi-repl` script enables caching by default.
+The `./scripts/mhs-midi` tool enables caching by default.

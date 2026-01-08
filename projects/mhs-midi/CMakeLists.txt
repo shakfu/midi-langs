@@ -231,26 +231,26 @@ add_custom_command(
 # Create patched eval.c that renames mhs_fopen to mhs_fopen_orig for VFS override
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/eval_vfs.c
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/patch_eval_vfs.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/mhs-patch-eval.py
             ${MHS_RUNTIME}/eval.c
             ${CMAKE_CURRENT_BINARY_DIR}/eval_vfs.c
-    DEPENDS ${MHS_RUNTIME}/eval.c ${CMAKE_SOURCE_DIR}/scripts/patch_eval_vfs.py
+    DEPENDS ${MHS_RUNTIME}/eval.c ${CMAKE_SOURCE_DIR}/scripts/mhs-patch-eval.py
     COMMENT "Creating eval_vfs.c with mhs_fopen renamed for VFS override"
     VERBATIM
 )
 
-# Build zstd embedding tool (shared by src-zstd and pkg-zstd)
-set(EMBED_LIBS_ZSTD ${CMAKE_BINARY_DIR}/embed_libs_zstd)
+# Build mhs-embed tool (unified embedding tool with zstd support)
+set(MHS_EMBED ${CMAKE_BINARY_DIR}/mhs-embed)
 add_custom_command(
-    OUTPUT ${EMBED_LIBS_ZSTD}
+    OUTPUT ${MHS_EMBED}
     COMMAND ${CMAKE_C_COMPILER} -O2
-        -o ${EMBED_LIBS_ZSTD}
-        ${CMAKE_SOURCE_DIR}/scripts/embed_libs_zstd.c
+        -o ${MHS_EMBED}
+        ${CMAKE_SOURCE_DIR}/scripts/mhs-embed.c
         ${ZSTD_DIR}/zstd.c
         -I${ZSTD_DIR}
         -lpthread
-    DEPENDS ${CMAKE_SOURCE_DIR}/scripts/embed_libs_zstd.c
-    COMMENT "Building embed_libs_zstd tool"
+    DEPENDS ${CMAKE_SOURCE_DIR}/scripts/mhs-embed.c
+    COMMENT "Building mhs-embed tool"
     VERBATIM
 )
 
@@ -263,10 +263,11 @@ add_custom_command(
 set(EMBEDDED_SRC_HEADER ${CMAKE_CURRENT_BINARY_DIR}/mhs_embedded_libs.h)
 add_custom_command(
     OUTPUT ${EMBEDDED_SRC_HEADER}
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/embed_libs.py
+    COMMAND ${MHS_EMBED}
         ${EMBEDDED_SRC_HEADER}
         ${MHS_LIB}
         ${MIDI_LIB_DIR}
+        --no-compress
         --runtime ${MHS_RUNTIME}
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
         --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
@@ -274,7 +275,7 @@ add_custom_command(
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
     DEPENDS
-        ${CMAKE_SOURCE_DIR}/scripts/embed_libs.py
+        ${MHS_EMBED}
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
         libremidi
         midi_ffi
@@ -289,7 +290,7 @@ add_custom_command(
 set(EMBEDDED_SRC_ZSTD_HEADER ${CMAKE_CURRENT_BINARY_DIR}/mhs_embedded_zstd.h)
 add_custom_command(
     OUTPUT ${EMBEDDED_SRC_ZSTD_HEADER}
-    COMMAND ${EMBED_LIBS_ZSTD}
+    COMMAND ${MHS_EMBED}
         ${EMBEDDED_SRC_ZSTD_HEADER}
         ${MHS_LIB}
         ${MIDI_LIB_DIR}
@@ -300,7 +301,7 @@ add_custom_command(
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
     DEPENDS
-        ${EMBED_LIBS_ZSTD}
+        ${MHS_EMBED}
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
         libremidi
         midi_ffi
@@ -381,18 +382,21 @@ add_custom_command(
 set(EMBEDDED_PKG_HEADER ${CMAKE_CURRENT_BINARY_DIR}/mhs_embedded_pkgs.h)
 add_custom_command(
     OUTPUT ${EMBEDDED_PKG_HEADER}
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/embed_pkgs.py
+    COMMAND ${MHS_EMBED}
         ${EMBEDDED_PKG_HEADER}
-        --base-pkg ${BASE_PKG}
-        --music-pkg ${MUSIC_PKG}
-        --base-dir ${BASE_DIR}
-        --lib lib/liblibremidi.a=${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
-        --lib lib/libmidi_ffi.a=${CMAKE_BINARY_DIR}/projects/mhs-midi/libmidi_ffi.a
-        --lib lib/libmusic_theory.a=${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
-        --lib lib/libmidi_file.a=${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
-        --header include/midi_ffi.h=${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
+        --no-compress
+        --pkg-mode
+        --pkg packages/base-${MHS_VERSION}.pkg=${BASE_PKG}
+        --pkg packages/music-0.1.0.pkg=${MUSIC_PKG}
+        --txt-dir ${BASE_DIR}
+        --music-modules music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform
+        --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
+        --lib ${CMAKE_BINARY_DIR}/projects/mhs-midi/libmidi_ffi.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
+        --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
     DEPENDS
-        ${CMAKE_SOURCE_DIR}/scripts/embed_pkgs.py
+        ${MHS_EMBED}
         ${LOCAL_MCABAL_STAMP}
         ${MUSIC_PKG}
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
@@ -409,7 +413,7 @@ add_custom_command(
 set(EMBEDDED_PKG_ZSTD_HEADER ${CMAKE_CURRENT_BINARY_DIR}/mhs_embedded_pkgs_zstd.h)
 add_custom_command(
     OUTPUT ${EMBEDDED_PKG_ZSTD_HEADER}
-    COMMAND ${EMBED_LIBS_ZSTD}
+    COMMAND ${MHS_EMBED}
         ${EMBEDDED_PKG_ZSTD_HEADER}
         --pkg-mode
         --pkg packages/base-${MHS_VERSION}.pkg=${BASE_PKG}
@@ -422,7 +426,7 @@ add_custom_command(
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
     DEPENDS
-        ${EMBED_LIBS_ZSTD}
+        ${MHS_EMBED}
         ${LOCAL_MCABAL_STAMP}
         ${MUSIC_PKG}
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h

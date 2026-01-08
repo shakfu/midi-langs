@@ -16,8 +16,12 @@ HEADER_PY  := projects/pktpy-midi/py_prelude.h
 
 PRELUDE_HEADERS := $(HEADER_SCM) $(HEADER_LUA) $(HEADER_PY)
 
-.PHONY: all build configure clean test test-quick test-verbose rebuild help \
-		reset preludes build-debug build-mhs-standalone
+.PHONY: all build configure clean test test-quick test-verbose \
+		rebuild ctidy help reset preludes build-debug \
+		alda-midi forth-midi lua-midi pktpy-midi s7-midi \
+		mhs-midi mhs-midi-all \
+		mhs-midi-src mhs-midi-src-zstd \
+		mhs-midi-pkg mhs-midi-pkg-zstd 
 
 all: build
 
@@ -45,9 +49,40 @@ build-debug: $(PRELUDE_HEADERS)
 	@$(CMAKE) -DENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -B $(BUILD_DIR)
 	@$(CMAKE) --build $(BUILD_DIR)
 
-build-mhs-standalone: $(PRELUDE_HEADERS)
-	@$(CMAKE) -B $(BUILD_DIR) -DMHS_USE_PKG=ON -DMHS_USE_ZSTD=ON
-	@$(CMAKE) --build $(BUILD_DIR) --target mhs-midi-standalone
+# Individual language targets
+alda-midi: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target alda_midi
+
+forth-midi: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target forth_midi
+
+lua-midi: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target lua_midi
+
+pktpy-midi: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target pktpy_midi
+
+s7-midi: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target s7_midi
+
+# mhs-midi variants
+mhs-midi: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target mhs-midi
+
+mhs-midi-src: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target mhs-midi-src
+
+mhs-midi-src-zstd: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target mhs-midi-src-zstd
+
+mhs-midi-pkg: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target mhs-midi-pkg
+
+mhs-midi-pkg-zstd: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target mhs-midi-pkg-zstd
+
+mhs-midi-all: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target mhs-midi-all
 
 clean:
 	@rm -rf $(BUILD_DIR)
@@ -63,6 +98,9 @@ test-verbose: build
 
 rebuild: reset build test
 
+ctidy:
+	python3 scripts/ctidy.py
+
 reset:
 	@rm -rf build
 	@rm -rf thirdparty/MicroHs/bin
@@ -70,15 +108,31 @@ reset:
 
 help:
 	@echo "Targets:"
-	@echo "  all          Build everything (default)"
-	@echo "  build        Build all targets"
-	@echo "  build-debug  Build all w/ debug and santizer modes"
-	@echo "  configure    Run CMake configuration"
-	@echo "  preludes     Generate C headers from prelude source files"
-	@echo "  clean        Remove build directory"
-	@echo "  test         Run all tests"
-	@echo "  test-quick   Run quick tests only"
-	@echo "  test-verbose Run tests with verbose output"
-	@echo "  rebuild      Clean and build"
-	@echo "  reset        Reset project to initial state"
+	@echo "  all              Build everything (default)"
+	@echo "  build            Build all targets"
+	@echo "  build-debug      Build with debug and sanitizer modes"
+	@echo "  configure        Run CMake configuration"
+	@echo "  preludes         Generate C headers from prelude source files"
+	@echo "  clean            Remove build directory"
+	@echo "  test             Run all tests"
+	@echo "  test-quick       Run quick tests only"
+	@echo "  test-verbose     Run tests with verbose output"
+	@echo "  rebuild          Clean and build"
+	@echo "  ctidy            Run clang-tidy"
+	@echo "  reset            Reset project to initial state"
+	@echo ""
+	@echo "Language targets:"
+	@echo "  alda-midi        Build Alda interpreter"
+	@echo "  forth-midi       Build Forth interpreter"
+	@echo "  lua-midi         Build Lua interpreter"
+	@echo "  pktpy-midi       Build PocketPy interpreter"
+	@echo "  s7-midi          Build s7 Scheme interpreter"
+	@echo ""
+	@echo "mhs-midi variants:"
+	@echo "  mhs-midi         Non-standalone (requires MHSDIR)"
+	@echo "  mhs-midi-src     Source embedding (~3.3MB, ~20s cold start)"
+	@echo "  mhs-midi-src-zstd  Compressed source (~1.3MB, smallest)"
+	@echo "  mhs-midi-pkg     Package embedding (~4.8MB, ~1s cold start)"
+	@echo "  mhs-midi-pkg-zstd  Compressed packages (~3MB, recommended)"
+	@echo "  mhs-midi-all     Build all mhs-midi variants"
 	@echo ""

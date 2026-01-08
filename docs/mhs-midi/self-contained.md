@@ -38,13 +38,17 @@ The standalone binary is fully working:
 
 ```sh
 # Build all variants
-cmake --build build --target mhs-midi-all
+make mhs-midi-all
 
 # Or build individual variants:
-cmake --build build --target mhs-midi-src        # Source embedding (default)
-cmake --build build --target mhs-midi-src-zstd   # Compressed source
-cmake --build build --target mhs-midi-pkg        # Package embedding (fastest)
-cmake --build build --target mhs-midi-pkg-zstd   # Compressed packages
+make mhs-midi-src        # Source embedding (default)
+make mhs-midi-src-zstd   # Compressed source
+make mhs-midi-pkg        # Package embedding (fastest)
+make mhs-midi-pkg-zstd   # Compressed packages
+
+# Or using cmake directly:
+cmake --build build --target mhs-midi-src
+cmake --build build --target mhs-midi-pkg-zstd
 ```
 
 ### Running
@@ -161,7 +165,7 @@ The standalone binary handles different modes:
 
 | Mode | Command | Mechanism |
 |------|---------|-----------|
-| REPL | `./mhs-midi-standalone` | VFS serves files from memory |
+| REPL | `./mhs-midi-pkg-zstd` | VFS serves files from memory |
 | Run | `-r File.hs` | VFS serves files from memory |
 | C output | `-o File.c` | VFS serves files from memory |
 | Executable | `-o File` | Extract to temp, link with embedded libs |
@@ -174,15 +178,16 @@ For executable compilation, the standalone:
 
 ### Key Components
 
-**1. `scripts/embed_libs.py`** - Converts files to a C header with embedded content:
+**1. `scripts/mhs-embed.c`** - Converts files to a C header with embedded content:
 
 ```sh
 # Usage with all options:
-embed_libs.py output.h lib_dirs... \
+mhs-embed output.h lib_dirs... \
     --runtime src/runtime \
     --header midi_ffi.h \
     --lib liblibremidi.a \
     --lib libmidi_ffi.a
+    --no-compress  # Optional: disable zstd compression
 ```
 
 ```c
@@ -228,7 +233,7 @@ from_t mhs_fopen(int s) {
 }
 ```
 
-**4. `scripts/patch_eval_vfs.py`** - Patches eval.c to rename original mhs_fopen
+**4. `scripts/mhs-patch-eval.py`** - Patches eval.c to rename original mhs_fopen
 
 ### Build Integration
 
@@ -299,7 +304,7 @@ The error originated in MicroHs's `bfile.c` in `getb_utf8()`, which validates UT
 5. Checked `Data/Bifunctor.hs` - found Unicode content (mathematical symbol)
 6. Compared byte vs character counts - **found the mismatch**
 
-**The Bug in `embed_libs.py`**:
+**The Bug in the original `embed_libs.py`**:
 
 `Data/Bifunctor.hs` contains the `U+2261` symbol. The script had two bugs:
 
@@ -327,7 +332,7 @@ def escape_c_string(content: bytes) -> str:
 
 **Problem**: Both `eval.c` and `mhs_ffi_override.c` define `mhs_fopen`, causing duplicate symbol errors.
 
-**Solution**: `patch_eval_vfs.py` renames `mhs_fopen` to `mhs_fopen_orig` in eval.c and adds forward declaration for our override.
+**Solution**: `mhs-patch-eval.py` renames `mhs_fopen` to `mhs_fopen_orig` in eval.c and adds forward declaration for our override.
 
 ### Challenge: Windows Support
 
@@ -352,14 +357,15 @@ FILE* fmemopen_win(void* buf, size_t size, const char* mode) {
 ```
 projects/mhs-midi/
     mhs_midi_main.c             # Entry point for mhs-midi (non-standalone)
-    mhs_midi_standalone_main.c  # Entry point for mhs-midi-standalone
+    mhs_midi_standalone_main.c  # Entry point for standalone variants
     vfs.c                       # Virtual filesystem implementation
     vfs.h                       # VFS header
     mhs_ffi_override.c          # FFI intercept for mhs_fopen
 
 scripts/
-    embed_libs.py               # Convert .hs files to C header
-    patch_eval_vfs.py           # Patch eval.c for VFS override
+    mhs-embed.c                 # Convert files to C header (with optional zstd)
+    mhs-embed.py                # Convert files to C header (Python alternative)
+    mhs-patch-eval.py           # Patch eval.c for VFS override
 
 build/projects/mhs-midi/
     mhs_embedded_libs.h         # Generated embedded content

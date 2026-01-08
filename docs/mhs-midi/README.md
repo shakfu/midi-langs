@@ -26,16 +26,19 @@ A Haskell MIDI library for MicroHs, providing both pure functional composition a
 
 ### 1. Build
 
+The build-system consists of cmake as the backend handling all builds and make as the frontend for usability. To build all midi languages:
+
 ```bash
 make
 ```
 
-This builds the default `mhs-midi-standalone` with embedded `.hs` source files.
+This builds all mhs-midi variants. The recommended variant for end users is `mhs-midi-pkg-zstd`.
 
 ### 2. Start the REPL
 
 ```bash
-./scripts/mhs-midi-repl
+./scripts/mhs-midi              # Start REPL (uses mhs-midi binary)
+./build/mhs-midi-pkg-zstd       # Or run standalone directly
 ```
 
 ### 3. Immediate Playback (MidiPerform)
@@ -259,22 +262,25 @@ Multiple build variants are available with different trade-offs:
 
 | Priority | Recommended Variant | Command |
 |----------|---------------------|---------|
-| Fastest startup | `mhs-midi-pkg` | `cmake --build build --target mhs-midi-pkg` |
-| Smallest binary | `mhs-midi-src-zstd` | `cmake --build build --target mhs-midi-src-zstd` |
-| Best balance | `mhs-midi-pkg-zstd` | `cmake --build build --target mhs-midi-pkg-zstd` |
-| Simplest build | `mhs-midi-src` | `cmake --build build --target mhs-midi-src` |
+| Fastest startup | `mhs-midi-pkg` | `make mhs-midi-pkg` |
+| Smallest binary | `mhs-midi-src-zstd` | `make mhs-midi-src-zstd` |
+| Best balance | `mhs-midi-pkg-zstd` | `make mhs-midi-pkg-zstd` |
+| Simplest build | `mhs-midi-src` | `make mhs-midi-src` |
 
 ### Build Commands
 
 ```bash
 # Build all variants
-cmake -B build && cmake --build build --target mhs-midi-all
+make mhs-midi-all
 
 # Or build individual variants:
-cmake --build build --target mhs-midi-src        # Source embedding
-cmake --build build --target mhs-midi-src-zstd   # Compressed source
-cmake --build build --target mhs-midi-pkg        # Package embedding
-cmake --build build --target mhs-midi-pkg-zstd   # Compressed packages
+make mhs-midi-src        # Source embedding
+make mhs-midi-src-zstd   # Compressed source
+make mhs-midi-pkg        # Package embedding
+make mhs-midi-pkg-zstd   # Compressed packages
+
+# Or using cmake directly:
+cmake --build build --target mhs-midi-pkg-zstd
 ```
 
 ### Variant Details
@@ -296,11 +302,17 @@ make
 make install   # Creates ~/.mcabal/mhs-0.15.2.0/ with base.pkg
 ```
 
-### Aliases
+### Non-Standalone Variant
 
-For convenience, the following aliases are available:
-- `mhs-midi` - Same as `mhs-midi-src` (default, requires MHSDIR auto-detection)
-- `mhs-midi-standalone` - Alias for `mhs-midi-src` (backward compatibility)
+The `mhs-midi` target (without suffix) requires `MHSDIR` to be set or auto-detected. It's smaller (782KB) but not self-contained:
+
+```bash
+make mhs-midi  # or: cmake --build build --target mhs-midi
+MHSDIR=./thirdparty/MicroHs ./build/mhs-midi   # Manual MHSDIR
+./build/mhs-midi                                # Auto-detects from executable location
+```
+
+For distribution, use one of the standalone variants (`mhs-midi-src`, `mhs-midi-pkg-zstd`, etc.).
 
 ## Requirements
 
