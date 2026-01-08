@@ -194,6 +194,9 @@ int main(int argc, char **argv) {
         /* C++ standard library (libremidi is C++) - GCC uses libstdc++ */
         new_argv[j++] = "-optl";
         new_argv[j++] = "-lstdc++";
+        /* Math library - required on Linux, implicit on macOS */
+        new_argv[j++] = "-optl";
+        new_argv[j++] = "-lm";
 #endif
     }
 
