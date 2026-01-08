@@ -58,7 +58,9 @@ add_subdirectory(projects/common)
 
 # Add project subdirectories
 add_subdirectory(projects/forth-midi)
+if(NOT WIN32)
 add_subdirectory(projects/mhs-midi)
+endif()
 add_subdirectory(projects/pktpy-midi)
 add_subdirectory(projects/s7-midi)
 add_subdirectory(projects/lua-midi)

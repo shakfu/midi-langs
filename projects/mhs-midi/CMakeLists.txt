@@ -148,8 +148,6 @@ add_custom_target(mhs-midi-examples
 )
 endif()
 
-# mhs-midi and mhs-midi-standalone require fmemopen() which is not available on Windows
-if(NOT WIN32)
 # ============================================
 # mhs-midi: Interactive REPL with MIDI support
 # ============================================
@@ -493,5 +491,3 @@ install(DIRECTORY ${MIDI_LIB_DIR}/
     COMPONENT mhs-midi
     FILES_MATCHING PATTERN "*.hs"
 )
-
-endif() # NOT WIN32
