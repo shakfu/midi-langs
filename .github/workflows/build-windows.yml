@@ -29,8 +29,8 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j4
 
-      - name: Run tests
-        run: ctest --test-dir build --output-on-failure -C Release
+      - name: Run tests (skip MIDI tests - no virtual ports on Windows CI)
+        run: ctest --test-dir build --output-on-failure -C Release -LE midi
 
       - name: Prepare artifacts
         shell: bash

@@ -68,6 +68,10 @@ All notable changes to midi-langs are documented in this file.
   - Added cross-platform mutex abstraction using `CRITICAL_SECTION` on Windows
   - POSIX systems continue to use `pthread_mutex_t`
 
+- **alda-midi cross-platform sleep**: Fixed unistd.h dependency for Windows
+  - Added `usleep()` macro using `Sleep()` on Windows
+  - POSIX systems continue to use `unistd.h`
+
 ### Changed
 
 - **VFS consolidation**: Consolidated VFS implementations into single `vfs.c`
