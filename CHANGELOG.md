@@ -59,12 +59,27 @@ All notable changes to midi-langs are documented in this file.
   - Added `#elif defined(VFS_USE_ZSTD)` blocks for `vfs_opendir` and `vfs_readdir`
   - ZSTD mode now correctly uses `EmbeddedFileZstd` and `embedded_files_zstd`
 
+- **mhs-midi-standalone Linux linking**: Fixed compilation to executable on Linux
+  - Use `-lstdc++` instead of `-lc++` (GCC uses libstdc++, not Clang's libc++)
+  - Added `-lm` for math library (required on Linux, implicit on macOS)
+  - Added `-Wl,--no-as-needed` to fix linker ordering issues (GCC processes libraries left-to-right)
+
+- **alda-midi cross-platform mutex**: Fixed pthread dependency for Windows
+  - Added cross-platform mutex abstraction using `CRITICAL_SECTION` on Windows
+  - POSIX systems continue to use `pthread_mutex_t`
+
 ### Changed
 
 - **VFS consolidation**: Consolidated VFS implementations into single `vfs.c`
   - Renamed `vfs_unified.c` to `vfs.c` (handles all modes via `#ifdef`)
   - Deleted unused files: old `vfs.c`, `vfs_zstd.c`, `vfs_zstd.h`, `vfs_unified.h`
   - Updated documentation in `mhs-standalones.md` and `self-contained.md`
+
+- **mhs-midi Windows exclusion**: Disabled mhs-midi builds on Windows
+  - VFS requires `fmemopen()` which has no Windows equivalent
+  - Added `if(NOT WIN32)` wrapper in top-level CMakeLists.txt
+  - Updated `build-windows.yml` workflow
+  - Added `docs/mhs-midi/windows-support.md` with workarounds for Windows users
 
 ## [0.1.7]
 
