@@ -193,6 +193,7 @@ set_tests_properties(
     PROPERTIES LABELS "quick;midi"
 )
 
+if(NOT WIN32)
 # mhs-midi tests
 add_test(
     NAME mhs_midi_test_suite
@@ -204,6 +205,7 @@ set_tests_properties(mhs_midi_test_suite PROPERTIES
     TIMEOUT 120
     LABELS "integration"
 )
+endif()
 
 # Golden .4th test programs for forth_midi
 add_test(
@@ -313,11 +315,13 @@ add_test(
     COMMAND $<TARGET_FILE:s7_midi> ${CMAKE_CURRENT_SOURCE_DIR}/examples/demo_s7.scm
 )
 
+If(NOT WIN32)
 add_test(
     NAME demo_example_mhs
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/mhs-midi run ${CMAKE_CURRENT_SOURCE_DIR}/examples/DemoMhs.hs
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+if()
 
 set_tests_properties(
     demo_example_mhs
@@ -339,6 +343,7 @@ set_tests_properties(
     PROPERTIES LABELS "quick;midi"
 )
 
+If(NOT WIN32)
 # mhs-midi-standalone compilation test
 # Compiles a simple Haskell file to executable and runs it
 add_test(
@@ -350,3 +355,4 @@ set_tests_properties(mhs_standalone_compile PROPERTIES
     TIMEOUT 60
     LABELS "integration"
 )
+endif()
