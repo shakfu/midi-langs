@@ -366,15 +366,10 @@ add_custom_command(
 # Uses patched eval_vfs.c so mhs_ffi_override.c can intercept fopen
 # Uses mhs_midi_standalone_main.c (separate from mhs_midi_main.c)
 #
-# With MHS_USE_ZSTD=ON:
-#   - Uses vfs_unified.c with VFS_USE_ZSTD defined
-#   - Links zstddeclib.c (decompress-only, ~900KB smaller than full zstd)
-#   - Binary is ~2MB smaller due to compressed embedded files
-#
-# With MHS_USE_ZSTD=OFF (default):
-#   - Uses vfs_unified.c without compression
-#   - No zstd dependency
-#   - Faster startup (no decompression overhead)
+# Build modes (vfs.c handles all via #ifdef):
+#   - Default: embeds .hs source files (uncompressed)
+#   - MHS_USE_ZSTD=ON: embeds compressed .hs files (~2MB smaller binary)
+#   - MHS_USE_PKG=ON: embeds precompiled .pkg files (~20x faster startup)
 
 set(STANDALONE_SOURCES
     ${CMAKE_CURRENT_BINARY_DIR}/mhs_standalone.c
@@ -383,7 +378,7 @@ set(STANDALONE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi_wrappers.c
     ${CMAKE_CURRENT_SOURCE_DIR}/mhs_ffi_override.c
     ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/vfs_unified.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/vfs.c
     ${EMBEDDED_LIBS_HEADER}
 )
 

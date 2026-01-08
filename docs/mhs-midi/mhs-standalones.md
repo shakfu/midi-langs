@@ -369,9 +369,10 @@ The compression system consists of:
    - Compresses each file using the dictionary
    - Generates `mhs_embedded_zstd.h` with compressed byte arrays
 
-2. **`vfs_unified.c`** - A unified VFS that:
+2. **`vfs.c`** - A unified VFS that:
    - When `VFS_USE_ZSTD` is defined: decompresses files on demand using the embedded dictionary
-   - When undefined: serves uncompressed files directly
+   - When `VFS_USE_PKG` is defined: serves precompiled .pkg files for fast startup
+   - When neither is defined: serves uncompressed .hs files directly
    - Caches decompressed content for repeated access
 
 3. **`zstddeclib.c`** - The decompress-only zstd library (~900KB source) linked into the binary
@@ -379,12 +380,14 @@ The compression system consists of:
 ### Implementation Details
 
 ```c
-// vfs_unified.c - compile-time switch
+// vfs.c - compile-time switch
 #ifdef VFS_USE_ZSTD
 #include "zstd.h"
 #include "mhs_embedded_zstd.h"  // Compressed data + dictionary
+#elif defined(VFS_USE_PKG)
+#include "mhs_embedded_pkgs.h"  // Precompiled packages
 #else
-#include "mhs_embedded_libs.h"  // Uncompressed data
+#include "mhs_embedded_libs.h"  // Uncompressed source files
 #endif
 
 FILE* vfs_fopen(const char* path, const char* mode) {
@@ -442,10 +445,7 @@ scripts/
     patch_eval_vfs.py     # Patch eval.c for override
 
 projects/mhs-midi/
-    vfs.c, vfs.h          # Virtual filesystem (uncompressed)
-    vfs_unified.c         # Unified VFS (both compressed and uncompressed)
-    vfs_unified.h         # Header for unified VFS
-    vfs_zstd.c, vfs_zstd.h  # Zstd-only VFS (alternative)
+    vfs.c, vfs.h          # Virtual filesystem (handles all modes via #ifdef)
     mhs_ffi_override.c    # FFI intercept
     mhs_midi_standalone_main.c  # Entry point
 

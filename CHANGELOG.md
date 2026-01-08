@@ -44,8 +44,7 @@ All notable changes to midi-langs are documented in this file.
   - Decompression on demand with caching (~50ms startup overhead)
   - New files:
     - `scripts/embed_libs_zstd.c` - C tool for zstd compression with dictionary training
-    - `projects/mhs-midi/vfs_unified.c` - Unified VFS supporting both compressed and uncompressed modes
-    - `projects/mhs-midi/vfs_unified.h` - Header for unified VFS
+  - Consolidated `vfs.c` now handles all modes (default, ZSTD, PKG) via `#ifdef` conditionals
   - Uses `zstddeclib.c` (decompress-only, 900 KB) at runtime instead of full zstd library
   - Documentation added to `docs/mhs-midi/mhs-standalones.md`
 
@@ -56,9 +55,16 @@ All notable changes to midi-langs are documented in this file.
 
 ### Fixed
 
-- **vfs_unified.c**: Fixed ZSTD mode directory operations using wrong type names
+- **vfs.c**: Fixed ZSTD mode directory operations using wrong type names
   - Added `#elif defined(VFS_USE_ZSTD)` blocks for `vfs_opendir` and `vfs_readdir`
   - ZSTD mode now correctly uses `EmbeddedFileZstd` and `embedded_files_zstd`
+
+### Changed
+
+- **VFS consolidation**: Consolidated VFS implementations into single `vfs.c`
+  - Renamed `vfs_unified.c` to `vfs.c` (handles all modes via `#ifdef`)
+  - Deleted unused files: old `vfs.c`, `vfs_zstd.c`, `vfs_zstd.h`, `vfs_unified.h`
+  - Updated documentation in `mhs-standalones.md` and `self-contained.md`
 
 ## [0.1.7]
 
