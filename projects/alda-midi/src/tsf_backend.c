@@ -12,7 +12,23 @@
 #include "alda/tsf_backend.h"
 #include <stdio.h>
 #include <string.h>
+
+/* Cross-platform mutex */
+#ifdef _WIN32
+#include <windows.h>
+typedef CRITICAL_SECTION tsf_mutex_t;
+static inline int tsf_mutex_init(tsf_mutex_t* m) { InitializeCriticalSection(m); return 0; }
+static inline void tsf_mutex_destroy(tsf_mutex_t* m) { DeleteCriticalSection(m); }
+static inline void tsf_mutex_lock(tsf_mutex_t* m) { EnterCriticalSection(m); }
+static inline void tsf_mutex_unlock(tsf_mutex_t* m) { LeaveCriticalSection(m); }
+#else
 #include <pthread.h>
+typedef pthread_mutex_t tsf_mutex_t;
+static inline int tsf_mutex_init(tsf_mutex_t* m) { return pthread_mutex_init(m, NULL); }
+static inline void tsf_mutex_destroy(tsf_mutex_t* m) { pthread_mutex_destroy(m); }
+static inline void tsf_mutex_lock(tsf_mutex_t* m) { pthread_mutex_lock(m); }
+static inline void tsf_mutex_unlock(tsf_mutex_t* m) { pthread_mutex_unlock(m); }
+#endif
 
 /* ============================================================================
  * Constants
@@ -33,7 +49,7 @@ typedef struct {
     int device_initialized;
     int enabled;
     int initialized;
-    pthread_mutex_t mutex;
+    tsf_mutex_t mutex;
 } TsfBackend;
 
 static TsfBackend g_tsf = {0};
@@ -48,13 +64,13 @@ static void tsf_audio_callback(ma_device* device, void* output, const void* inpu
 
     float* out = (float*)output;
 
-    pthread_mutex_lock(&g_tsf.mutex);
+    tsf_mutex_lock(&g_tsf.mutex);
     if (g_tsf.synth && g_tsf.enabled) {
         tsf_render_float(g_tsf.synth, out, (int)frame_count, 0);
     } else {
         memset(out, 0, (size_t)frame_count * TSF_CHANNELS * sizeof(float));
     }
-    pthread_mutex_unlock(&g_tsf.mutex);
+    tsf_mutex_unlock(&g_tsf.mutex);
 }
 
 /* ============================================================================
@@ -68,7 +84,7 @@ int alda_tsf_init(void) {
 
     memset(&g_tsf, 0, sizeof(g_tsf));
 
-    if (pthread_mutex_init(&g_tsf.mutex, NULL) != 0) {
+    if (tsf_mutex_init(&g_tsf.mutex) != 0) {
         fprintf(stderr, "TSF: Failed to create mutex\n");
         return -1;
     }
@@ -85,7 +101,7 @@ void alda_tsf_cleanup(void) {
     /* Disable and stop audio */
     alda_tsf_disable();
 
-    pthread_mutex_lock(&g_tsf.mutex);
+    tsf_mutex_lock(&g_tsf.mutex);
 
     /* Close soundfont */
     if (g_tsf.synth) {
@@ -93,9 +109,9 @@ void alda_tsf_cleanup(void) {
         g_tsf.synth = NULL;
     }
 
-    pthread_mutex_unlock(&g_tsf.mutex);
+    tsf_mutex_unlock(&g_tsf.mutex);
 
-    pthread_mutex_destroy(&g_tsf.mutex);
+    tsf_mutex_destroy(&g_tsf.mutex);
     g_tsf.initialized = 0;
 }
 
@@ -114,7 +130,7 @@ int alda_tsf_load_soundfont(const char* path) {
         return -1;
     }
 
-    pthread_mutex_lock(&g_tsf.mutex);
+    tsf_mutex_lock(&g_tsf.mutex);
 
     /* Close existing soundfont */
     if (g_tsf.synth) {
@@ -125,7 +141,7 @@ int alda_tsf_load_soundfont(const char* path) {
     /* Load new soundfont */
     g_tsf.synth = tsf_load_filename(path);
     if (!g_tsf.synth) {
-        pthread_mutex_unlock(&g_tsf.mutex);
+        tsf_mutex_unlock(&g_tsf.mutex);
         fprintf(stderr, "TSF: Failed to load soundfont: %s\n", path);
         return -1;
     }
@@ -134,7 +150,7 @@ int alda_tsf_load_soundfont(const char* path) {
     tsf_set_output(g_tsf.synth, TSF_STEREO_INTERLEAVED, TSF_SAMPLE_RATE, 0.0f);
     tsf_set_max_voices(g_tsf.synth, TSF_MAX_VOICES);
 
-    pthread_mutex_unlock(&g_tsf.mutex);
+    tsf_mutex_unlock(&g_tsf.mutex);
 
     return 0;
 }
@@ -244,9 +260,9 @@ void alda_tsf_send_note_on(int channel, int pitch, int velocity) {
     /* Channel is 1-16, TSF uses 0-15 */
     int ch = (channel - 1) & 0x0F;
 
-    pthread_mutex_lock(&g_tsf.mutex);
+    tsf_mutex_lock(&g_tsf.mutex);
     tsf_channel_note_on(g_tsf.synth, ch, pitch, vel);
-    pthread_mutex_unlock(&g_tsf.mutex);
+    tsf_mutex_unlock(&g_tsf.mutex);
 }
 
 void alda_tsf_send_note_off(int channel, int pitch) {
@@ -257,9 +273,9 @@ void alda_tsf_send_note_off(int channel, int pitch) {
     /* Channel is 1-16, TSF uses 0-15 */
     int ch = (channel - 1) & 0x0F;
 
-    pthread_mutex_lock(&g_tsf.mutex);
+    tsf_mutex_lock(&g_tsf.mutex);
     tsf_channel_note_off(g_tsf.synth, ch, pitch);
-    pthread_mutex_unlock(&g_tsf.mutex);
+    tsf_mutex_unlock(&g_tsf.mutex);
 }
 
 void alda_tsf_send_program(int channel, int program) {
@@ -273,9 +289,9 @@ void alda_tsf_send_program(int channel, int program) {
     /* Use bank 0 for GM instruments, drum channel 10 uses drum bank */
     int is_drum = (channel == 10);
 
-    pthread_mutex_lock(&g_tsf.mutex);
+    tsf_mutex_lock(&g_tsf.mutex);
     tsf_channel_set_presetnumber(g_tsf.synth, ch, program, is_drum);
-    pthread_mutex_unlock(&g_tsf.mutex);
+    tsf_mutex_unlock(&g_tsf.mutex);
 }
 
 void alda_tsf_send_cc(int channel, int cc, int value) {
@@ -286,9 +302,9 @@ void alda_tsf_send_cc(int channel, int cc, int value) {
     /* Channel is 1-16, TSF uses 0-15 */
     int ch = (channel - 1) & 0x0F;
 
-    pthread_mutex_lock(&g_tsf.mutex);
+    tsf_mutex_lock(&g_tsf.mutex);
     tsf_channel_midi_control(g_tsf.synth, ch, cc, value);
-    pthread_mutex_unlock(&g_tsf.mutex);
+    tsf_mutex_unlock(&g_tsf.mutex);
 }
 
 void alda_tsf_all_notes_off(void) {
@@ -296,7 +312,7 @@ void alda_tsf_all_notes_off(void) {
         return;
     }
 
-    pthread_mutex_lock(&g_tsf.mutex);
+    tsf_mutex_lock(&g_tsf.mutex);
     tsf_note_off_all(g_tsf.synth);
-    pthread_mutex_unlock(&g_tsf.mutex);
+    tsf_mutex_unlock(&g_tsf.mutex);
 }
