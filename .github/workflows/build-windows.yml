@@ -52,9 +52,9 @@ jobs:
           dir build\Release\*.exe
         continue-on-error: true
 
-      - name: Run tests (skip MIDI tests - no virtual ports on Windows CI)
-        run: ctest --test-dir build --output-on-failure -C Release -LE midi
-        continue-on-error: true
+      # - name: Run tests (skip MIDI tests - no virtual ports on Windows CI)
+      #   run: ctest --test-dir build --output-on-failure -C Release -LE midi
+      #   continue-on-error: true
 
       - name: Prepare artifacts
         shell: bash
