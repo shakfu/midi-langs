@@ -321,7 +321,6 @@ add_test(
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/mhs-midi run ${CMAKE_CURRENT_SOURCE_DIR}/examples/DemoMhs.hs
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
-if()
 
 set_tests_properties(
     demo_example_mhs
@@ -329,6 +328,7 @@ set_tests_properties(
         LABELS "integration"
         TIMEOUT 120
 )
+endif()
 
 set_tests_properties(
     demo_example_alda
