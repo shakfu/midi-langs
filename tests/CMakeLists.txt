@@ -9,6 +9,9 @@ add_test(
 )
 set_tests_properties(forth_midi_unit_tests PROPERTIES LABELS "quick")
 
+# Shell-based tests (Unix only)
+if(NOT WIN32)
+
 # Test using the comprehensive shell script
 add_test(
     NAME forth_midi_test_suite
@@ -193,7 +196,6 @@ set_tests_properties(
     PROPERTIES LABELS "quick;midi"
 )
 
-if(NOT WIN32)
 # mhs-midi tests
 add_test(
     NAME mhs_midi_test_suite
@@ -205,7 +207,6 @@ set_tests_properties(mhs_midi_test_suite PROPERTIES
     TIMEOUT 120
     LABELS "integration"
 )
-endif()
 
 # Golden .4th test programs for forth_midi
 add_test(
@@ -258,7 +259,7 @@ set_tests_properties(
     PROPERTIES LABELS "golden;midi"
 )
 
-# alda_midi tests
+# alda_midi test suite (shell script)
 add_test(
     NAME alda_midi_test_suite
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_alda_midi.sh $<TARGET_FILE:alda_midi>
@@ -270,19 +271,54 @@ set_tests_properties(alda_midi_test_suite PROPERTIES
     LABELS "integration"
 )
 
-# Quick alda_midi tests
+# Quick alda_midi tests (shell-based)
 add_test(
     NAME alda_midi_smoke
     COMMAND sh -c "$<TARGET_FILE:alda_midi> --help | grep -q 'Alda'"
 )
 
+set_tests_properties(
+    alda_midi_smoke
+    PROPERTIES LABELS "quick"
+)
+
+# demo_example_mhs (shell script)
+add_test(
+    NAME demo_example_mhs
+    COMMAND ${CMAKE_SOURCE_DIR}/scripts/mhs-midi run ${CMAKE_CURRENT_SOURCE_DIR}/examples/DemoMhs.hs
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+set_tests_properties(
+    demo_example_mhs
+    PROPERTIES
+        LABELS "integration"
+        TIMEOUT 120
+)
+
+# mhs-midi-src compilation test (tests the default standalone variant)
+# Compiles a simple Haskell file to executable and runs it
+add_test(
+    NAME mhs_standalone_compile
+    COMMAND sh -c "TMPEXE=$(mktemp) && $<TARGET_FILE:mhs-midi-src> -o\$TMPEXE ${CMAKE_CURRENT_SOURCE_DIR}/mhs/TestCompile.hs && \$TMPEXE; STATUS=\$?; rm -f \$TMPEXE; exit \$STATUS"
+)
+
+set_tests_properties(mhs_standalone_compile PROPERTIES
+    TIMEOUT 60
+    LABELS "integration"
+)
+
+endif() # NOT WIN32
+
+# Cross-platform tests (work on both Unix and Windows)
+
+# alda_midi basic test - direct executable, no shell
 add_test(
     NAME alda_midi_basic
     COMMAND $<TARGET_FILE:alda_midi> --no-sleep ${CMAKE_CURRENT_SOURCE_DIR}/alda/basic.alda
 )
 
 set_tests_properties(
-    alda_midi_smoke
     alda_midi_basic
     PROPERTIES LABELS "quick"
 )
@@ -315,21 +351,6 @@ add_test(
     COMMAND $<TARGET_FILE:s7_midi> ${CMAKE_CURRENT_SOURCE_DIR}/examples/demo_s7.scm
 )
 
-If(NOT WIN32)
-add_test(
-    NAME demo_example_mhs
-    COMMAND ${CMAKE_SOURCE_DIR}/scripts/mhs-midi run ${CMAKE_CURRENT_SOURCE_DIR}/examples/DemoMhs.hs
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
-set_tests_properties(
-    demo_example_mhs
-    PROPERTIES
-        LABELS "integration"
-        TIMEOUT 120
-)
-endif()
-
 set_tests_properties(
     demo_example_alda
     demo_example_forth
@@ -342,17 +363,3 @@ set_tests_properties(
     demo_example_lua
     PROPERTIES LABELS "quick;midi"
 )
-
-If(NOT WIN32)
-# mhs-midi-src compilation test (tests the default standalone variant)
-# Compiles a simple Haskell file to executable and runs it
-add_test(
-    NAME mhs_standalone_compile
-    COMMAND sh -c "TMPEXE=$(mktemp) && $<TARGET_FILE:mhs-midi-src> -o\$TMPEXE ${CMAKE_CURRENT_SOURCE_DIR}/mhs/TestCompile.hs && \$TMPEXE; STATUS=\$?; rm -f \$TMPEXE; exit \$STATUS"
-)
-
-set_tests_properties(mhs_standalone_compile PROPERTIES
-    TIMEOUT 60
-    LABELS "integration"
-)
-endif()

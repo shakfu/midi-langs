@@ -41,6 +41,9 @@ jobs:
       - name: Build alda_midi
         run: cmake --build build --config Release --target alda_midi
 
+      - name: Build test_forth_midi_unit
+        run: cmake --build build --config Release --target test_forth_midi_unit
+
       - name: List built executables
         run: |
           echo "Built executables:"
