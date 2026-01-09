@@ -6,6 +6,14 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **Unified CI workflow**: New `build-all.yml` combines all build workflows into a single workflow
+  - `build-unix` job: Linux and macOS builds (from build-test.yml)
+  - `build-windows` job: Windows builds for all languages except mhs-midi
+  - `build-windows-mhs` job: Windows build specifically for mhs-midi (requires MicroHs)
+  - `mhs-standalone-variants` job: macOS builds for mhs-midi standalone variants (src, src-zstd, pkg, pkg-zstd)
+  - `collect-artifacts` job: Aggregates all artifacts into single `midi-langs-all` download
+  - Triggered manually via `workflow_dispatch`
+
 - **mhs-midi Windows support**: New GitHub workflow for building mhs-midi on Windows
   - `build-windows-mhs.yml` workflow builds MicroHs compiler and mhs-midi REPL
   - Cross-platform Python script `mhs-patch-xffi.py` replaces sed for patching mhs.c
@@ -20,10 +28,12 @@ All notable changes to midi-langs are documented in this file.
   - Disabled pocketpy threading on Windows (`PK_ENABLE_THREADS=0`) to avoid MSVC C11 atomics issues
   - Patched s7.c: fixed `nil_string` bug in Windows `g_uname()` and added `<time.h>` include
 
-- **mhs-midi Windows compatibility**:
+- **mhs-midi Windows compatibility**: mhs-midi REPL now builds on Windows
   - `mhs_midi_main.c`: Added `GetModuleFileNameA()`, `_fullpath()`, `_putenv_s()` for Windows
-  - `midi_ffi.c`: Added `Sleep()` and `QueryPerformanceCounter()` implementations for Windows
-  - `CMakeLists.txt`: Added Windows runtime include path and `winmm` library
+  - `midi_ffi.c`: Added `useconds_t` typedef, `Sleep()`, and `QueryPerformanceCounter()` for Windows
+  - `CMakeLists.txt`: Fixed `.exe` extension for MHS_COMPILER, added Windows runtime includes and `winmm` library
+  - Moved `find_package(Python3)` before mhs-midi target to fix target generation
+  - Standalone variants (mhs-midi-src/pkg/zstd) remain Unix-only due to fmemopen dependency
 
 - **Windows CI tests**: Shell-based tests now properly excluded on Windows
   - Wrapped all `sh -c` and `.sh` script tests in `if(NOT WIN32)` blocks
