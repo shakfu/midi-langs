@@ -16,6 +16,7 @@
 
 /* Cross-platform compatibility */
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #define usleep(us) Sleep((us) / 1000)
 /* Windows high-resolution timing */
@@ -29,7 +30,7 @@ static inline void forth_init_perf_freq(void) {
 }
 #ifndef CLOCK_MONOTONIC
 #define CLOCK_MONOTONIC 0
-struct timespec { long tv_sec; long tv_nsec; };
+#endif
 static inline int clock_gettime(int clk_id, struct timespec *tp) {
     (void)clk_id;
     forth_init_perf_freq();
@@ -39,7 +40,6 @@ static inline int clock_gettime(int clk_id, struct timespec *tp) {
     tp->tv_nsec = (long)((count.QuadPart % forth_perf_freq.QuadPart) * 1000000000 / forth_perf_freq.QuadPart);
     return 0;
 }
-#endif
 #else
 #include <unistd.h>
 #endif

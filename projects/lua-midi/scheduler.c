@@ -12,6 +12,7 @@
 
 /* Cross-platform timing */
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 static LARGE_INTEGER sched_perf_freq;
 static int sched_perf_freq_init = 0;

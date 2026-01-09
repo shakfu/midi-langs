@@ -15,6 +15,7 @@
 
 /* Cross-platform mutex */
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 typedef CRITICAL_SECTION tsf_mutex_t;
 static inline int tsf_mutex_init(tsf_mutex_t* m) { InitializeCriticalSection(m); return 0; }
