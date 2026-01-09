@@ -17,6 +17,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Build MicroHs compiler
         shell: cmd
         working-directory: thirdparty/MicroHs
