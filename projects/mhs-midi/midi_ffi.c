@@ -11,6 +11,7 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+typedef unsigned int useconds_t;
 #define usleep(us) Sleep((us) / 1000)
 
 #ifndef CLOCK_MONOTONIC
