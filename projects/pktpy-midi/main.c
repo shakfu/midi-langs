@@ -2,7 +2,10 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+
+#ifndef _WIN32
 #include <getopt.h>
+#endif
 
 #ifdef USE_READLINE
 #include <readline/readline.h>
@@ -44,6 +47,7 @@ static void print_help(const char* prog) {
     printf("  %s -l                 # List MIDI ports\n", prog);
 }
 
+#ifndef _WIN32
 static struct option long_options[] = {
     {"help",    no_argument,       0, 'h'},
     {"version", no_argument,       0, 'v'},
@@ -52,6 +56,7 @@ static struct option long_options[] = {
     {"debug",   no_argument,       0, 'D'},
     {0, 0, 0, 0}
 };
+#endif
 
 #ifdef USE_READLINE
 /* ============================================================================
@@ -311,6 +316,32 @@ int main(int argc, char** argv) {
     const char* filename = NULL;
     const char* eval_expr = NULL;
 
+#ifdef _WIN32
+    /* Simple argument parsing for Windows (no getopt) */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            print_help(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            print_version();
+            return 0;
+        } else if (strcmp(argv[i], "--list") == 0 || strcmp(argv[i], "-l") == 0) {
+            list_ports = true;
+        } else if (strcmp(argv[i], "--profile") == 0) {
+            profile = true;
+        } else if (strcmp(argv[i], "--debug") == 0) {
+            debug = true;
+        } else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
+            eval_expr = argv[++i];
+        } else if (argv[i][0] != '-') {
+            filename = argv[i];
+        } else {
+            fprintf(stderr, "Unknown option: %s\n", argv[i]);
+            print_help(argv[0]);
+            return 1;
+        }
+    }
+#else
     int opt;
     int option_index = 0;
     while ((opt = getopt_long(argc, argv, "hvle:", long_options, &option_index)) != -1) {
@@ -343,6 +374,7 @@ int main(int argc, char** argv) {
     if (optind < argc) {
         filename = argv[optind];
     }
+#endif
 
     if (debug && profile) {
         fprintf(stderr, "Error: --debug and --profile cannot be used together.\n");

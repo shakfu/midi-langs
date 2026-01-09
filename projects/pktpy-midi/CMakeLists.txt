@@ -10,6 +10,11 @@ target_include_directories(pktpy_midi PRIVATE
     ${CMAKE_SOURCE_DIR}/thirdparty/pocketpy
 )
 
+# Disable pocketpy threading on Windows to avoid C11 atomics issues with MSVC
+if(WIN32)
+    target_compile_definitions(pktpy_midi PRIVATE PK_ENABLE_THREADS=0)
+endif()
+
 # Compiler warnings (GCC/Clang only)
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(pktpy_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)

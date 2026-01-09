@@ -23,8 +23,9 @@ static void sched_init_perf_freq(void) {
         sched_perf_freq_init = 1;
     }
 }
+#ifndef CLOCK_MONOTONIC
 #define CLOCK_MONOTONIC 0
-struct timespec { long tv_sec; long tv_nsec; };
+#endif
 static int clock_gettime(int clk_id, struct timespec *tp) {
     (void)clk_id;
     sched_init_perf_freq();

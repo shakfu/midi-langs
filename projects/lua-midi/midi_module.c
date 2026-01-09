@@ -22,8 +22,9 @@ static void init_perf_freq(void) {
         perf_freq_init = 1;
     }
 }
+#ifndef CLOCK_MONOTONIC
 #define CLOCK_MONOTONIC 0
-struct timespec { long tv_sec; long tv_nsec; };
+#endif
 static int clock_gettime(int clk_id, struct timespec *tp) {
     (void)clk_id;
     init_perf_freq();
