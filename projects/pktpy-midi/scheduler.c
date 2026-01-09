@@ -12,6 +12,30 @@
 #include <string.h>
 #include <time.h>
 
+/* Cross-platform timing */
+#ifdef _WIN32
+#include <windows.h>
+static LARGE_INTEGER sched_perf_freq;
+static int sched_perf_freq_init = 0;
+static void sched_init_perf_freq(void) {
+    if (!sched_perf_freq_init) {
+        QueryPerformanceFrequency(&sched_perf_freq);
+        sched_perf_freq_init = 1;
+    }
+}
+#define CLOCK_MONOTONIC 0
+struct timespec { long tv_sec; long tv_nsec; };
+static int clock_gettime(int clk_id, struct timespec *tp) {
+    (void)clk_id;
+    sched_init_perf_freq();
+    LARGE_INTEGER count;
+    QueryPerformanceCounter(&count);
+    tp->tv_sec = (long)(count.QuadPart / sched_perf_freq.QuadPart);
+    tp->tv_nsec = (long)((count.QuadPart % sched_perf_freq.QuadPart) * 1000000000 / sched_perf_freq.QuadPart);
+    return 0;
+}
+#endif
+
 /* ============================================================================
  * Static State
  * ============================================================================ */
