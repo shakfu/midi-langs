@@ -26,33 +26,33 @@ make
 
 ### 2. Choose an MIDI output method
 
-**Option A: Auto mode (virtual port or first available)**
+a. Auto mode (virtual port or first available)
 
-```bash
-./build/alda_midi                         # Creates "AldaMIDI" virtual port
-```
+  ```bash
+  ./build/alda_midi                         # Creates "AldaMIDI" virtual port
+  ```
 
-Connect FluidSynth, a DAW, or hardware synth to the "AldaMIDI" port to hear sound. If a MIDI port is already available (e.g., FluidSynth running), alda-midi connects to it automatically.
+  Connect FluidSynth, a DAW, or hardware synth to the "AldaMIDI" port to hear sound. If a MIDI port is already available (e.g., FluidSynth running), alda-midi connects to it automatically.
 
-**Option B: Specific MIDI port (by index or name)**
+b. Specific MIDI port (by index or name)
 
-```bash
-./build/alda_midi -l                      # List available MIDI ports
-./build/alda_midi -p 0                    # Connect by port index
-./build/alda_midi -o "FluidSynth"         # Connect by name (substring match)
-```
+  ```bash
+  ./build/alda_midi -l                      # List available MIDI ports
+  ./build/alda_midi -p 0                    # Connect by port index
+  ./build/alda_midi -o "FluidSynth"         # Connect by name (substring match)
+  ```
 
-**Option C: Built-in synth (no external software needed)**
+c. Built-in synth (no external software needed)
 
-```bash
-./build/alda_midi -sf /path/to/gm.sf2     # Direct audio output
-```
+  ```bash
+  ./build/alda_midi -sf /path/to/gm.sf2     # Direct audio output
+  ```
 
-Requires a SoundFont file. See [Getting a SoundFont](#getting-a-soundfont) below.
+  Requires a SoundFont file. See [Getting a SoundFont](#getting-a-soundfont) below.
 
 ### 3. Play some notes
 
-```
+```text
 alda> piano:
 alda> c d e f g
 alda> c/e/g
@@ -79,7 +79,7 @@ Type `help` for commands, `quit` or Ctrl-D to exit.
 ### CLI Options
 
 | Option | Description |
-|--------|-------------|
+| ------ | ----------- |
 | `-h, --help` | Show help message |
 | `-v, --verbose` | Enable verbose output |
 | `-l, --list` | List available MIDI ports |
@@ -97,7 +97,7 @@ Use `-sf` with a SoundFont file to use the built-in synthesizer instead of MIDI 
 ## REPL Commands
 
 | Command | Description |
-|---------|-------------|
+| ------- | ----------- |
 | `help` | Show help |
 | `quit`, `exit` | Exit the REPL |
 | `list` | List MIDI ports |
@@ -163,7 +163,7 @@ piano:
 
 Each REPL input plays immediately without waiting for previous playback to finish. This allows polyphonic layering:
 
-```
+```text
 alda> piano: c1 d e f g a b > c
 alda> violin: e2 f g a b > c d e    # Plays alongside piano
 alda> cello: c1 g c g               # Adds bass layer
@@ -248,6 +248,7 @@ V0: c1             # Merge voices (continue at max tick)
 - macOS (CoreAudio), Linux (ALSA), or Windows (WinMM)
 
 For audio output, use one of:
+
 - **Built-in synth**: Requires a SoundFont (.sf2) file
 - **MIDI output**: Requires an external synth (FluidSynth, DAW, hardware)
 
@@ -268,13 +269,14 @@ alda-midi includes a built-in synthesizer powered by TinySoundFont and miniaudio
 ### Getting a SoundFont
 
 Download a General MIDI SoundFont:
+
 - [FluidR3_GM.sf2](https://musical-artifacts.com/artifacts/738) (~140MB, high quality)
 - [GeneralUser_GS.sf2](https://schristiancollins.com/generaluser.php) (~30MB, good quality)
 - [Timbres of Heaven](https://midkar.com/soundfonts/) (~300MB, orchestral focus)
 
 ### Switching Between Modes in REPL
 
-```
+```text
 alda> sf-load /path/to/soundfont.sf2    # Load SF and switch to built-in synth
 alda> piano: c d e f g                   # Plays through speakers
 alda> midi                               # Switch to MIDI output
@@ -300,7 +302,7 @@ python scripts/fluidsynth-gm.py
 ### Install FluidSynth
 
 | Platform | Command |
-|----------|---------|
+| -------- | ------- |
 | macOS | `brew install fluidsynth` |
 | Ubuntu/Debian | `sudo apt install fluidsynth` |
 | Fedora | `sudo dnf install fluidsynth` |

@@ -7,7 +7,7 @@ Self-contained mhs-midi binaries with all MicroHs libraries embedded, eliminatin
 The mhs-midi project builds multiple executable variants with different trade-offs:
 
 | Executable | Size | Cold Start | Description |
-|------------|------|------------|-------------|
+| ---------- | ---- | ---------- | ----------- |
 | `mhs-midi` | 782KB | ~20s | Requires MHSDIR (auto-detected or set manually) |
 | `mhs-midi-src` | 3.3MB | ~20s | Source embedding (default standalone) |
 | `mhs-midi-src-zstd` | 1.3MB | ~20s | Compressed source (smallest binary) |
@@ -19,6 +19,7 @@ All standalone variants provide identical functionality (REPL, compile, run) and
 ## Status: Complete
 
 The standalone binary is fully working:
+
 - 273 files embedded (~2.5MB total)
 - All 185 Haskell modules load correctly
 - REPL, run, and compile modes all work
@@ -69,7 +70,7 @@ MHSDIR=./thirdparty/MicroHs ./build/mhs-midi -r MyFile.hs
 
 MicroHs compiles Haskell source to C via combinators:
 
-```
+```text
 Haskell source (.hs)
     |
     v
@@ -100,7 +101,7 @@ from_t mhs_fopen(int s) {
 ### Files Embedded
 
 | Category | Count | Size | Location |
-|----------|-------|------|----------|
+| -------- | ----- | ---- | -------- |
 | MicroHs stdlib (.hs) | ~230 | ~1MB | `thirdparty/MicroHs/lib/` |
 | MIDI Haskell libs (.hs) | ~10 | ~50KB | `projects/mhs-midi/lib/` |
 | Runtime (C/H files) | 28 | ~250KB | `thirdparty/MicroHs/src/runtime/` |
@@ -114,7 +115,7 @@ The static libraries enable compiling MIDI programs to standalone executables wi
 
 ### Architecture
 
-```
+```text
 +---------------------------------------------------------+
 |        Standalone Variants (mhs-midi-src/pkg[-zstd])     |
 +---------------------------------------------------------+
@@ -164,13 +165,14 @@ The static libraries enable compiling MIDI programs to standalone executables wi
 The standalone binary handles different modes:
 
 | Mode | Command | Mechanism |
-|------|---------|-----------|
+| ---- | ------- | --------- |
 | REPL | `./mhs-midi-pkg-zstd` | VFS serves files from memory |
 | Run | `-r File.hs` | VFS serves files from memory |
 | C output | `-o File.c` | VFS serves files from memory |
 | Executable | `-o File` | Extract to temp, link with embedded libs |
 
 For executable compilation, the standalone:
+
 1. Extracts all embedded files to `/tmp/mhs-XXXXXX/`
 2. Sets `MHSDIR` to the temp directory
 3. Injects `-optl` flags for MIDI libraries and platform frameworks
@@ -297,6 +299,7 @@ add_executable(mhs-midi
 The error originated in MicroHs's `bfile.c` in `getb_utf8()`, which validates UTF-8 byte sequences. Key insight: `getb_utf8` is called via **function pointer dispatch** (`p->getb(p)`), not direct calls.
 
 **Isolating the Problem**:
+
 1. Redirected stdin to /dev/null - error still occurred
 2. Closed stdin entirely - error still occurred (not stdin-related)
 3. Added VFS debug logging - files opening correctly
@@ -354,7 +357,7 @@ FILE* fmemopen_win(void* buf, size_t size, const char* mode) {
 
 ## File Structure
 
-```
+```sh
 projects/mhs-midi/
     mhs_midi_main.c             # Entry point for mhs-midi (non-standalone)
     mhs_midi_standalone_main.c  # Entry point for standalone variants
@@ -394,5 +397,5 @@ build/projects/mhs-midi/
 
 ## References
 
-- MicroHs repository: https://github.com/augustss/MicroHs
+- MicroHs repository: <https://github.com/augustss/MicroHs>
 - fmemopen(3) man page

@@ -20,7 +20,7 @@ This document explains how mhs-midi integrates MicroHs with MIDI functionality.
 ## Module Structure
 
 | Module | Purpose | Dependencies |
-|--------|---------|--------------|
+| ------ | ------- | ------------ |
 | `Music.hs` | Pure music theory + DSL | None |
 | `Midi.hs` | FFI bindings | None |
 | `MusicPerform.hs` | Bridge pure Music to MIDI | Music, Midi |
@@ -216,7 +216,7 @@ mhs_from_Unit(s, arity)         // Return () for void functions
 The arity parameter must equal the number of arguments consumed:
 
 | Function | Args | Arity |
-|----------|------|-------|
+| -------- | ---- | ----- |
 | `midi_init` | 0 | 0 |
 | `midi_open` | 1 | 1 |
 | `midi_note_off` | 2 | 2 |

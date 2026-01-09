@@ -8,7 +8,7 @@
 
 When building with parallel jobs (`make -j4` or similar), multiple MicroHs compilations could run simultaneously. All MicroHs compilations share a single `.mhscache` file in the working directory, and concurrent access corrupts this file, causing build failures:
 
-```
+```sh
 /Users/.../thirdparty/MicroHs/bin/mhs: uncaught exception: Handle(.mhscache): end of file (hGetChar)
 ```
 
@@ -30,13 +30,13 @@ This creates a build chain: `hello_midi -> chords -> melody_example -> arpeggio 
 
 If you encounter cache corruption (e.g., after interrupting a build), clear the cache:
 
-```bash
+```sh
 make reset   # Removes .mhscache files recursively
 make         # Rebuild
 ```
 
 Or manually:
 
-```bash
+```sh
 rm -f projects/mhs-midi/.mhscache
 ```

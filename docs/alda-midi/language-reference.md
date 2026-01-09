@@ -27,7 +27,7 @@ c_                 # Natural (explicit)
 Durations are specified as note values (denominators):
 
 | Value | Name | Ticks |
-|-------|------|-------|
+| ----- | ---- | ----- |
 | 1 | Whole note | 1920 |
 | 2 | Half note | 960 |
 | 4 | Quarter note | 480 |
@@ -110,7 +110,7 @@ o3 c               # Octave 3
 Octaves range from 0 to 9. Middle C (MIDI note 60) is `o4 c` or `c4` in octave 4.
 
 | Octave | C MIDI Number |
-|--------|---------------|
+| ------ | ------------- |
 | 0 | 12 |
 | 1 | 24 |
 | 2 | 36 |
@@ -322,7 +322,7 @@ c d e f    # Inline comment
 Channels are automatically assigned to parts in declaration order:
 
 | Order | Channel |
-|-------|---------|
+| ----- | ------- |
 | 1st part | Channel 1 |
 | 2nd part | Channel 2 |
 | ... | ... |

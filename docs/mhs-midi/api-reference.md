@@ -3,7 +3,7 @@
 ## Module Overview
 
 | Module | Import | Purpose |
-|--------|--------|---------|
+| ------ | ------ | ------- |
 | `MidiPerform` | `import MidiPerform` | Immediate IO, generative music |
 | `MusicPerform` | `import MusicPerform` | Pure Music DSL + perform + Async |
 | `Async` | `import Async` | Concurrent scheduler (re-exported by MusicPerform) |
@@ -352,7 +352,7 @@ Pitch class (semitone offset): `c = 0`, `cs = 1`, ..., `b = 11`
 ### Duration Constants
 
 | Constant | Value | Note |
-|----------|-------|------|
+| -------- | ----- | ---- |
 | `whole` | 2000 | Whole note |
 | `half` | 1000 | Half note |
 | `quarter` | 500 | Quarter note |
@@ -367,7 +367,7 @@ bpm :: Int -> Duration          -- quarter note duration for tempo
 ### Velocity Constants
 
 | Constant | Value | Dynamic |
-|----------|-------|---------|
+| -------- | ----- | ------- |
 | `ppp` | 16 | Pianississimo |
 | `pp` | 33 | Pianissimo |
 | `p` | 49 | Piano |
@@ -597,5 +597,6 @@ main = do
 ```
 
 This prints:
+
 - File metadata (format, tracks, PPQN, tempo, duration)
 - All events with tick, channel, type, and data bytes

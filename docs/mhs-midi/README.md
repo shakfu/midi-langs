@@ -15,7 +15,7 @@ A Haskell MIDI library for MicroHs, providing both pure functional composition a
 ## Module Structure
 
 | Module | Purpose |
-|--------|---------|
+| ------ | ------- |
 | `Music.hs` | Pure music theory + DSL (no IO) |
 | `Midi.hs` | FFI bindings |
 | `Async.hs` | Concurrent scheduler using forkIO |
@@ -248,20 +248,21 @@ main = do
 Multiple build variants are available with different trade-offs:
 
 | Target | Binary Size | Cold Start | Description |
-|--------|-------------|------------|-------------|
+| ------ | ----------- | ---------- | ----------- |
 | `mhs-midi-src` | 3.3 MB | ~20s | Source embedding (default) |
 | `mhs-midi-src-zstd` | 1.3 MB | ~20s | Compressed source (smallest) |
 | `mhs-midi-pkg` | 4.8 MB | ~1s | Package embedding (fastest startup) |
 | `mhs-midi-pkg-zstd` | 3.0 MB | ~1s | Compressed packages (best balance) |
 
 **Key insight**: After the first run, `.mhscache` is created and all variants have similar warm-start times (~0.5-1s). The main differences are:
+
 - **pkg variants**: Eliminate the 20-second cold-start penalty (first run or fresh machine)
 - **zstd variants**: Reduce binary size significantly (useful for distribution)
 
 ### Selection Guide
 
 | Priority | Recommended Variant | Command |
-|----------|---------------------|---------|
+| -------- | ------------------- | ------- |
 | Fastest startup | `mhs-midi-pkg` | `make mhs-midi-pkg` |
 | Smallest binary | `mhs-midi-src-zstd` | `make mhs-midi-src-zstd` |
 | Best balance | `mhs-midi-pkg-zstd` | `make mhs-midi-pkg-zstd` |
@@ -286,7 +287,7 @@ cmake --build build --target mhs-midi-pkg-zstd
 ### Variant Details
 
 | Variant | What's Embedded | Compression | Use Case |
-|---------|-----------------|-------------|----------|
+| ------- | --------------- | ----------- | -------- |
 | `mhs-midi-src` | .hs source files | None | Development, debugging |
 | `mhs-midi-src-zstd` | .hs source files | zstd | Size-constrained distribution |
 | `mhs-midi-pkg` | .pkg precompiled packages | None | Fast cold start, CI/CD |

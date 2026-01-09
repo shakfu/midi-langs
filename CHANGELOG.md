@@ -70,6 +70,20 @@ All notable changes to midi-langs are documented in this file.
 
 ### Fixed
 
+- **Windows build compatibility**: All MIDI language implementations now build and test on Windows
+  - Added `WIN32_LEAN_AND_MEAN` before `<windows.h>` includes to prevent winsock.h/winsock2.h conflicts
+  - Removed `struct timespec` definitions (Windows UCRT already provides it in `<time.h>`)
+  - Added `#ifndef CLOCK_MONOTONIC` guards with `QueryPerformanceCounter`-based timing implementation
+  - Fixed `getopt.h` unavailability in pktpy-midi with Windows-specific argument parsing
+  - Disabled pocketpy threading on Windows (`PK_ENABLE_THREADS=0`) to avoid MSVC C11 atomics issues
+  - Patched s7.c: fixed `nil_string` bug in Windows `g_uname()` and added `<time.h>` include
+  - Files modified: `forth_midi.h`, `lua-midi/midi_module.c`, `lua-midi/scheduler.c`, `pktpy-midi/midi_module.c`, `pktpy-midi/scheduler.c`, `pktpy-midi/main.c`, `s7-midi/midi_module.c`, `s7-midi/scheduler.c`, `alda-midi/src/midi_backend.c`, `alda-midi/src/tsf_backend.c`, `thirdparty/s7/s7.c`
+
+- **Windows CI tests**: Shell-based tests now properly excluded on Windows
+  - Wrapped all `sh -c` and `.sh` script tests in `if(NOT WIN32)` blocks
+  - Cross-platform tests (direct executable calls) remain available on all platforms
+  - Windows CI now runs: unit tests, demo examples, and direct executable tests
+
 - **vfs.c**: Fixed ZSTD mode directory operations using wrong type names
   - Added `#elif defined(VFS_USE_ZSTD)` blocks for `vfs_opendir` and `vfs_readdir`
   - ZSTD mode now correctly uses `EmbeddedFileZstd` and `embedded_files_zstd`

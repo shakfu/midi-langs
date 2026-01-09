@@ -1,3 +1,5 @@
+# Standalone MicroHs Builds
+
 This document describes how to create a self-contained MicroHs-based application that embeds all MicroHaskell libraries and can compile programs to standalone executables without any external file dependencies.
 
 ## Background
@@ -99,7 +101,8 @@ gcc -o mhs-embed scripts/mhs-embed.c thirdparty/zstd-1.5.7/zstd.c \
 ```
 
 Output:
-```
+
+```sh
 Collecting .hs files from lib/...
 Collecting runtime files from src/runtime/...
 Embedding headers:
@@ -191,7 +194,7 @@ MicroHs now constructs paths like `/mhs-embedded/lib/Prelude.hs`, which the VFS 
 
 ## Challenge 1: UTF-8 Encoding Bug
 
-**Symptom:** After loading ~163 of 185 modules, we got `ERR: getb_utf8`. 
+**Symptom:** After loading ~163 of 185 modules, we got `ERR: getb_utf8`.
 
 **Root Cause:** The embedding script had two bugs:
 
@@ -305,7 +308,7 @@ If your application has C dependencies:
 
 A potential enhancement to MicroHs itself could be a compile-time option to embed libraries:
 
-```
+```sh
 mhs --embed-libs=./lib --embed-runtime -o my_repl MyRepl.hs
 ```
 
@@ -323,7 +326,7 @@ The C implementation of `mhs-embed.c` (~1200 lines, optional zstd dependency) co
 ## Results
 
 | Binary | Size | Cold Start | Capabilities |
-|--------|------|------------|--------------|
+| ------ | ---- | ---------- | ------------ |
 | mhs-midi | 782KB | ~20s | Requires MHSDIR (auto-detected) |
 | mhs-midi-src | 3.3MB | ~20s | Source embedding (default standalone) |
 | mhs-midi-src-zstd | 1.3MB | ~20s | Compressed source (smallest) |
@@ -331,6 +334,7 @@ The C implementation of `mhs-embed.c` (~1200 lines, optional zstd dependency) co
 | mhs-midi-pkg-zstd | 3.0MB | ~1s | Compressed packages (best balance) |
 
 The standalone binary:
+
 - Embeds 273 files (~2.5MB of content)
 - Starts REPL in ~0.5s (with `-C` caching)
 - Can compile HelloMidi.hs to 859KB standalone executable
@@ -343,7 +347,7 @@ The embedded files can be compressed using zstd with dictionary mode to signific
 ### Compression Results
 
 | Metric | Uncompressed | Zstd Compressed |
-|--------|--------------|-----------------|
+| ------ | ------------ | --------------- |
 | Binary size | 3.2 MB | 1.3 MB |
 | Embedded data | 2.5 MB | 367 KB |
 | Compression ratio | 1x | 5.2x |
@@ -435,19 +439,20 @@ cc -O2 -o mhs-embed scripts/mhs-embed.c \
 ### Trade-offs
 
 | Variant | Binary Size | Cold Start | Use Case |
-|---------|-------------|------------|----------|
+| ------- | ----------- | ---------- | -------- |
 | mhs-midi-src | 3.3 MB | ~20s | Development, debugging |
 | mhs-midi-src-zstd | 1.3 MB | ~20s | Size-constrained distribution |
 | mhs-midi-pkg | 4.8 MB | ~1s | Fast cold start, CI/CD |
 | mhs-midi-pkg-zstd | 3.0 MB | ~1s | Best for end-user distribution |
 
 **Key insight**: After the first run, `.mhscache` is created and all variants have similar warm-start times (~0.5-1s). The main differences are:
+
 - **pkg variants**: Eliminate the 20-second cold-start penalty (first run or fresh machine)
 - **zstd variants**: Reduce binary size significantly (useful for distribution)
 
 ## Files
 
-```
+```sh
 scripts/
     mhs-embed.c           # Convert files to C header (unified, with optional zstd)
     mhs-embed.py          # Convert files to C header (Python alternative)

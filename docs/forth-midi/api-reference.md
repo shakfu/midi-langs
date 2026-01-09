@@ -5,7 +5,7 @@
 ### MIDI Output
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `midi-output-list` | `( -- )` | List available MIDI output ports |
 | `midi-output-virtual` | `( -- )` | Create virtual port "ForthMIDI" |
 | `midi-output-open-as` | `name ( -- )` | Create virtual port with custom name |
@@ -14,6 +14,7 @@
 | `panic` | `( -- )` | All notes off (emergency stop) |
 
 **Aliases** (for backward compatibility):
+
 - `midi-list` = `midi-output-list`
 - `midi-open` = `midi-output-virtual`
 - `midi-open-as` = `midi-output-open-as`
@@ -39,7 +40,7 @@ midi-close                  \ Close when done
 Receive MIDI messages from external devices or other applications.
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `midi-input-list` | `( -- )` | List available MIDI input ports |
 | `midi-input-open` | `( n -- )` | Open input port by index |
 | `midi-input-virtual` | `( -- )` | Create virtual input port "ForthMIDI Input" |
@@ -49,6 +50,7 @@ Receive MIDI messages from external devices or other applications.
 | `midi-input-flush` | `( -- )` | Discard all pending messages |
 
 The `midi-input@` word returns:
+
 - `status`: MIDI status byte (e.g., 0x90 = note on channel 1)
 - `data1`: First data byte (pitch for notes, CC number for CCs)
 - `data2`: Second data byte (velocity for notes, CC value for CCs)
@@ -105,7 +107,7 @@ midi-input-close
 Format: `[note][accidental][octave]`
 
 | Component | Values |
-|-----------|--------|
+| ----------- | -------- |
 | Note | `c`, `d`, `e`, `f`, `g`, `a`, `b` (case insensitive) |
 | Accidental | `#` (sharp), `b` (flat), or omitted (natural) |
 | Octave | `0` - `9` (middle C = C4 = MIDI 60) |
@@ -179,7 +181,7 @@ Sequences support generative operations like `shuffle`, `reverse`, `pick`, and m
 Set defaults to avoid repetition:
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `ch!` | `( n -- )` | Set default channel (1-16) |
 | `vel!` | `( n -- )` | Set default velocity (0-127) |
 | `dur!` | `( n -- )` | Set default duration (ms) |
@@ -203,7 +205,7 @@ c4,                     \ Uses ch=2, vel=100, dur=250, gate=50
 Use `=` for one-shot (next note only) or `:=` for persistent (change default):
 
 | Syntax | Effect |
-|--------|--------|
+| -------- | -------- |
 | `vel=100` | Set velocity for next note only |
 | `vel:=100` | Change default velocity |
 | `ch=2` | Set channel for next note only |
@@ -229,7 +231,7 @@ ch=2 dur=250 e4,        \ E4 on channel 2, 250ms duration
 Velocity presets using standard musical terms:
 
 | Word | Velocity | Dynamic |
-|------|----------|---------|
+| ------ | ---------- | --------- |
 | `ppp` | 16 | Pianississimo |
 | `pp` | 32 | Pianissimo |
 | `p` | 48 | Piano |
@@ -251,7 +253,7 @@ pp (c4 e4 g4),          \ Soft chord
 Articulation suffixes modify note playback:
 
 | Suffix | Effect | Description |
-|--------|--------|-------------|
+| -------- | -------- | ------------- |
 | `.` | Staccato | 50% duration |
 | `>` | Accent | +20 velocity |
 | `-` | Tenuto | Full duration |
@@ -268,7 +270,7 @@ mf c4., ff e4>,         \ Combined with dynamics
 ## Rests
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `r` | `( -- )` | Rest marker (silence for default duration) |
 
 ```forth
@@ -281,7 +283,7 @@ r 250,                  \ Rest with explicit duration (ms)
 ## Stack Operations
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `dup` | `( a -- a a )` | Duplicate top |
 | `drop` | `( a -- )` | Discard top |
 | `swap` | `( a b -- b a )` | Swap top two |
@@ -295,7 +297,7 @@ r 250,                  \ Rest with explicit duration (ms)
 ## Arithmetic
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `+` | `( a b -- a+b )` | Addition |
 | `-` | `( a b -- a-b )` | Subtraction |
 | `*` | `( a b -- a*b )` | Multiplication (also block repeat) |
@@ -306,7 +308,7 @@ r 250,                  \ Rest with explicit duration (ms)
 ## Bitwise Operations
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `and` | `( a b -- a&b )` | Bitwise AND |
 | `or` | `( a b -- a\|b )` | Bitwise OR |
 | `xor` | `( a b -- a^b )` | Bitwise XOR |
@@ -317,7 +319,7 @@ r 250,                  \ Rest with explicit duration (ms)
 ## Comparison
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `=` | `( a b -- flag )` | Equal (-1 true, 0 false) |
 | `<` | `( a b -- flag )` | Less than |
 | `>` | `( a b -- flag )` | Greater than |
@@ -327,7 +329,7 @@ r 250,                  \ Rest with explicit duration (ms)
 ## Output
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `.` | `( n -- )` | Print number |
 | `cr` | `( -- )` | Print newline |
 | `space` | `( -- )` | Print space |
@@ -337,7 +339,7 @@ r 250,                  \ Rest with explicit duration (ms)
 ## Timing & Tempo
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `ms` | `( n -- )` | Sleep for n milliseconds |
 | `bpm!` | `( n -- )` | Set tempo (20-300 BPM) |
 | `bpm@` | `( -- n )` | Get current tempo |
@@ -347,7 +349,7 @@ r 250,                  \ Rest with explicit duration (ms)
 Based on 480 ticks per quarter note:
 
 | Word | Ticks | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `quarter` | 480 | Quarter note |
 | `half` | 960 | Half note |
 | `whole` | 1920 | Whole note |
@@ -366,10 +368,11 @@ Based on 480 ticks per quarter note:
 ### Control Change
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `cc` | `( ch cc val -- )` | Send Control Change |
 
 Common CC numbers:
+
 - 1: Modulation wheel
 - 7: Channel volume
 - 10: Pan
@@ -387,7 +390,7 @@ Common CC numbers:
 ### Program Change
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `pc` | `( ch program -- )` | Send Program Change |
 
 ```forth
@@ -398,7 +401,7 @@ Common CC numbers:
 ### Pitch Bend
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `pb` | `( ch bend -- )` | Send pitch bend (0-16383, center=8192) |
 
 ```forth
@@ -414,7 +417,7 @@ Common CC numbers:
 All take a root pitch and push the chord notes onto the stack:
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `major` | `( root -- p1 p2 p3 )` | Major triad |
 | `minor` | `( root -- p1 p2 p3 )` | Minor triad |
 | `dim` | `( root -- p1 p2 p3 )` | Diminished triad |
@@ -432,7 +435,7 @@ g4 dom7                 \ Pushes 67 71 74 77 (G B D F)
 ### Playing Chords
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `play-chord` | `( p1...pN N vel dur -- )` | Play N notes as chord |
 
 ```forth
@@ -444,7 +447,7 @@ c4 major 3 80 500 play-chord    \ Play C major, 3 notes, vel 80, 500ms
 ## Octave Shifts
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `^` | `( -- pitch )` | Push current pitch up one octave |
 | `v` | `( -- pitch )` | Push current pitch down one octave |
 
@@ -472,7 +475,7 @@ g4, -2, -2,             \ G F Eb (down)
 Polymorphic operation that works on packed notes and bracket sequences.
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `transpose` | `( value semitones -- value )` | Transpose pitches (packed notes or sequences) |
 
 ```forth
@@ -487,7 +490,7 @@ c4 7 transpose .            \ 67 (G4) - packed note
 Encode pitch, velocity, channel, and duration in a single 32-bit value:
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `note` | `( pitch vel ch dur -- packed )` | Create packed note |
 | `pitch@` | `( packed -- pitch )` | Extract pitch |
 | `vel@` | `( packed -- vel )` | Extract velocity |
@@ -511,7 +514,7 @@ note!                   \ Play it
 ### Diatonic Modes
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-major` | Major (Ionian) |
 | `scale-dorian` | Dorian |
 | `scale-phrygian` | Phrygian |
@@ -525,7 +528,7 @@ note!                   \ Play it
 ### Pentatonic & Blues
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-pentatonic` | Major pentatonic |
 | `scale-pentatonic-minor` | Minor pentatonic |
 | `scale-blues` | Blues |
@@ -533,7 +536,7 @@ note!                   \ Play it
 ### Symmetric Scales
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-whole-tone` | Whole tone |
 | `scale-chromatic` | Chromatic |
 | `scale-diminished-hw` | Diminished half-whole |
@@ -543,7 +546,7 @@ note!                   \ Play it
 ### Bebop Scales
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-bebop-dominant` | Bebop dominant |
 | `scale-bebop-major` | Bebop major |
 | `scale-bebop-minor` | Bebop minor |
@@ -551,7 +554,7 @@ note!                   \ Play it
 ### World Scales
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-hungarian-minor` | Hungarian minor |
 | `scale-double-harmonic` | Byzantine/Arabic |
 | `scale-neapolitan-major` | Neapolitan major |
@@ -571,7 +574,7 @@ note!                   \ Play it
 ### Arabic Maqamat (12-TET)
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-maqam-hijaz` | Maqam Hijaz |
 | `scale-maqam-nahawand` | Maqam Nahawand |
 | `scale-maqam-nikriz` | Maqam Nikriz |
@@ -582,7 +585,7 @@ note!                   \ Play it
 ### Indian Ragas (12-TET)
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-raga-bhairav` | Raga Bhairav |
 | `scale-raga-todi` | Raga Todi |
 | `scale-raga-marwa` | Raga Marwa |
@@ -597,7 +600,7 @@ note!                   \ Play it
 ## Scale Operations
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `scale` | `( root scale-id -- p1...pN N )` | Build scale, push pitches and count |
 | `degree` | `( root scale-id degree -- pitch )` | Get specific scale degree (1-based) |
 | `in-scale?` | `( pitch root scale-id -- flag )` | Check if pitch is in scale |
@@ -616,7 +619,7 @@ c#4 c4 scale-major quantize .   \ 60 or 62 (snapped)
 ## Microtonal Support
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `cents>bend` | `( cents -- bend )` | Convert cents to pitch bend value |
 | `pb-cents` | `( cents ch -- )` | Send pitch bend in cents |
 
@@ -636,7 +639,7 @@ Non-blocking MIDI patterns with timing.
 ### Sequence Management
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seq-new` | `( -- id )` | Create new sequence, returns id |
 | `seq` | `( id -- )` | Select sequence by id |
 | `seq@` | `( -- id )` | Get current sequence id |
@@ -646,7 +649,7 @@ Non-blocking MIDI patterns with timing.
 ### Adding Events
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seq-note` | `( time pitch vel dur -- )` | Add note (default channel) |
 | `seq-note-ch` | `( time ch pitch vel dur -- )` | Add note with channel |
 | `seq-add` | `( packed time -- )` | Add packed note |
@@ -654,14 +657,14 @@ Non-blocking MIDI patterns with timing.
 ### Playback & Display
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seq-play` | `( -- )` | Play sequence (blocking) |
 | `seq-show` | `( -- )` | Print all events |
 
 ### Transformations
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seq-transpose` | `( semitones -- )` | Transpose all notes |
 | `seq-reverse` | `( -- )` | Reverse timing |
 | `seq-stretch` | `( factor -- )` | Scale timing (100=normal) |
@@ -669,7 +672,7 @@ Non-blocking MIDI patterns with timing.
 ### Chord/Arp to Sequence
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `chord>seq` | `( p1...pN vel dur time N -- )` | Add N-note chord at time |
 | `arp>seq` | `( p1...pN vel note-dur spacing start N -- )` | Add arpeggio |
 
@@ -691,7 +694,7 @@ seq-play
 ### Probability
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `%` | `( pitch probability -- pitch\|rest )` | Play with probability |
 | `random` | `( -- n )` | Random number 0-99 (system rand) |
 | `chance` | `( probability -- flag )` | Probability gate using seed |
@@ -705,7 +708,7 @@ random 50 > if c4, else e4, then   \ Conditional
 ### Alternatives
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `\|` | (syntax) | Separate equal-probability alternatives |
 
 ```forth
@@ -718,7 +721,7 @@ c4|r,                   \ 50% C4, 50% rest
 ### Seeded Random (Reproducible)
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seed!` | `( n -- )` | Set PRNG seed |
 | `seed@` | `( -- n )` | Get current seed |
 | `next-random` | `( -- n )` | Get next random number |
@@ -735,7 +738,7 @@ next-random .           \ Deterministic random number
 These operations work on bracket sequences `[ ... ]`:
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `shuffle` | `( seq -- seq )` | Fisher-Yates shuffle in place |
 | `reverse` | `( seq -- seq )` | Reverse sequence in place |
 | `pick` | `( seq -- value )` | Pick one random element |
@@ -761,7 +764,7 @@ These operations work on bracket sequences `[ ... ]`:
 ### Random Walks
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `random-walk` | `( start max-step n -- seq )` | Generate random walk sequence |
 | `drunk-walk` | `( scale-seq start max-degrees n -- seq )` | Drunk walk within scale |
 
@@ -773,7 +776,7 @@ These operations work on bracket sequences `[ ... ]`:
 ### Weighted Selection
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `weighted-pick` | `( seq -- value )` | Pick from value/weight pairs |
 
 ```forth
@@ -784,7 +787,7 @@ These operations work on bracket sequences `[ ... ]`:
 ### Euclidean Rhythms
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `euclidean` | `( hits steps -- b1...bn )` | Bjorklund's algorithm |
 
 ```forth
@@ -823,7 +826,7 @@ melody                  \ Play melody
 ### Loops
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `times` | `( n -- )` | Repeat last word n times |
 
 ```forth
@@ -836,7 +839,7 @@ phrase 4 times          \ Play phrase 4 times
 Standard Forth counted loops with index access:
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `do` | `( limit start -- )` | Start counted loop |
 | `loop` | `( -- )` | Increment index by 1, continue if < limit |
 | `+loop` | `( n -- )` | Increment index by n, continue if < limit |
@@ -881,7 +884,7 @@ loop
 Loops that continue until a condition is met:
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `begin` | `( -- )` | Start indefinite loop |
 | `until` | `( flag -- )` | Exit if flag is true (post-test) |
 | `while` | `( flag -- )` | Continue if flag is true (pre-test) |
@@ -923,7 +926,7 @@ until drop
 Use `{ }` for deferred execution:
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `{ ... }` | `( -- block-ref )` | Capture block |
 | `*` | `( block n -- )` | Execute block n times |
 
@@ -941,7 +944,7 @@ Use `{ }` for deferred execution:
 Record input commands for replay:
 
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `rec` | Start recording input commands |
 | `stop` | Stop recording (and MIDI capture) |
 | `save filename` | Save recorded commands to .4th file |
@@ -960,7 +963,7 @@ load melody.4th         \ Load and execute later
 Record MIDI events with timing for export:
 
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `rec-midi` | Start recording MIDI events |
 | `stop` | Stop recording |
 | `save-midi filename` | Save as Forth sequence file |
@@ -980,7 +983,7 @@ write-mid song.mid      \ Save as standard MIDI file
 ## Utility Commands
 
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `help` | Display command reference |
 | `quit` | Exit interpreter |
 | `words` | List all defined words |

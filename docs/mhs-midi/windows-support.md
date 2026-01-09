@@ -49,6 +49,7 @@ cc MyProgram.c path\to\runtime\*.c -o MyProgram.exe
 ```
 
 You'll need to link against:
+
 - `libremidi` (build from thirdparty/libremidi)
 - `winmm.lib` (Windows Multimedia API)
 

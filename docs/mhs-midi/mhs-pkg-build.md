@@ -330,7 +330,7 @@ Error messages and debugging information are functionally identical across all b
 
 The only difference is in errors originating from Prelude/library code:
 
-```
+```sh
 # Source embedding mode (VFS path):
 "/mhs-embedded/lib/Data/List.hs",389:11: head: empty list
 
@@ -358,6 +358,7 @@ cmake --build build --target mhs-midi-pkg-zstd
 ```
 
 **Variant Summary:**
+
 - **`mhs-midi-src`**: Embeds .hs source files, ~20s cold start, ~3.3MB
 - **`mhs-midi-src-zstd`**: Compressed source, ~20s cold start, ~1.3MB (smallest)
 - **`mhs-midi-pkg`**: Precompiled packages, ~1s cold start, ~4.8MB
@@ -373,6 +374,7 @@ make
 ```
 
 The CMake build handles everything else automatically:
+
 - Builds `base-0.15.2.0.pkg` locally in `build/mhs-base-src/dist-mcabal/`
 - Installs packages to `build/mcabal/` (not `~/.mcabal`)
 - Generates module mapping `.txt` files that `mhs-embed.c --pkg-mode` reads

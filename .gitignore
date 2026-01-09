@@ -66,6 +66,7 @@ dkms.conf
 
 # agents
 .claude
+.cursorrules
 CLAUDE.md
 AGENTS.md
 GEMINI.md
