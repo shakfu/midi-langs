@@ -52,7 +52,7 @@ with midi.open() as m:
 ./build/pktpy_midi --help
 ```
 
-```
+```text
 Usage: ./build/pktpy_midi [options] [file.py]
 
 Options:

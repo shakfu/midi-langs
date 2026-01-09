@@ -40,7 +40,6 @@ Type `help` for command reference, `quit` to exit.
 - [Scales](scales.md) - 49 built-in scales and scale operations
 - [Sequences](sequences.md) - Non-blocking sequence playback
 - [Data Structures](data_structures.md) - Packed notes, sequences
-- [New Features](new_features.md) - Recent additions
 
 ## Example: Generative Pattern
 

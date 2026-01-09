@@ -380,7 +380,7 @@ This is preferred for:
 ## Comparison with Other Implementations
 
 | Aspect | s7-midi | pktpy-midi | forth-midi |
-|--------|---------|------------|------------|
+| -------- | --------- | ------------ | ------------ |
 | Language | Scheme | Python | Forth |
 | Paradigm | Functional | Object-oriented | Stack-based |
 | FFI Style | s7_define_function | py_bindfunc | Direct C calls |

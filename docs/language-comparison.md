@@ -5,7 +5,7 @@ This guide helps you choose the right MIDI language implementation for your need
 ## Quick Comparison
 
 | Feature | alda-midi | forth-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
-|---------|-----------|------------|----------|---------|------------|----------|
+| --------- | ----------- | ------------ | ---------- | --------- | ------------ | ---------- |
 | **Language** | Alda | Forth-like | Lua 5.5 | Scheme (s7) | Python (PocketPy) | Haskell (MicroHs) |
 | **Paradigm** | Declarative | Stack-based | Imperative | Functional/Lisp | Object-oriented | Pure functional |
 | **Binary size** | ~300KB | ~200KB | ~400KB | ~350KB | ~500KB | ~1.5MB |
@@ -29,6 +29,7 @@ o3 c1~1
 ```
 
 **Strengths:**
+
 - Familiar music notation (`c4` = C quarter note, `g2` = G half note)
 - Part-based composition (piano:, violin:, etc.)
 - 128 GM instruments with natural names
@@ -38,6 +39,7 @@ o3 c1~1
 - Ties (`~`), dotted notes (`.`), chords (`c/e/g`)
 
 **Weaknesses:**
+
 - Less programmable than other languages
 - No general-purpose programming features
 - Limited to Alda language constructs
@@ -59,6 +61,7 @@ melody 4 times
 ```
 
 **Strengths:**
+
 - Most concise notation (`c4,` plays a note)
 - Immediate feedback - every line executes instantly
 - Stack-based operations for algorithmic composition
@@ -67,6 +70,7 @@ melody 4 times
 - Anonymous blocks with `{ ... } N *`
 
 **Weaknesses:**
+
 - Unfamiliar syntax for most programmers
 - Stack manipulation can be confusing
 - Limited data structures
@@ -88,6 +92,7 @@ m:close()
 ```
 
 **Strengths:**
+
 - Familiar syntax for most programmers
 - Full Lua 5.5 standard library
 - Object-oriented API with methods
@@ -96,6 +101,7 @@ m:close()
 - REPL with convenience functions (`n()`, `ch()`, `arp()`)
 
 **Weaknesses:**
+
 - More verbose than forth-midi
 - No built-in probability syntax
 
@@ -116,6 +122,7 @@ m:close()
 ```
 
 **Strengths:**
+
 - Full Scheme with macros and continuations
 - Excellent for algorithmic/generative music
 - First-class functions everywhere
@@ -124,6 +131,7 @@ m:close()
 - Minimal, elegant syntax once learned
 
 **Weaknesses:**
+
 - Parentheses-heavy syntax
 - Steeper learning curve for non-Lispers
 - Less mainstream documentation
@@ -147,6 +155,7 @@ with midi.open() as m:
 ```
 
 **Strengths:**
+
 - Python 3 syntax (subset via PocketPy)
 - Context managers for resource handling
 - List comprehensions and generators
@@ -154,6 +163,7 @@ with midi.open() as m:
 - Easy integration with algorithms
 
 **Weaknesses:**
+
 - PocketPy is a subset, not full CPython
 - Slightly more verbose
 - No NumPy/SciPy (embedded interpreter)
@@ -179,6 +189,7 @@ main = do
 ```
 
 **Strengths:**
+
 - Pure functional with IO separation
 - Strong types catch errors at compile time
 - Powerful Music DSL with combinators (`+:+`, `|||`)
@@ -187,6 +198,7 @@ main = do
 - 55 built-in scales including microtonal
 
 **Weaknesses:**
+
 - Slowest startup (MicroHs compilation)
 - Steepest learning curve
 - Largest binary size
@@ -201,7 +213,7 @@ main = do
 ### Pitch Notation
 
 | Language | Example | Notes |
-|----------|---------|-------|
+| ---------- | --------- | ------- |
 | alda-midi | `c4` `c#4` `db4` | Duration suffix (4=quarter) |
 | forth-midi | `c4,` `C#4,` `Db4,` | Comma triggers, case-insensitive |
 | lua-midi | `midi.c4` or `midi.note("C4")` | Constants or string parsing |
@@ -212,7 +224,7 @@ main = do
 ### Chord Building
 
 | Language | Major Triad | Dominant 7th |
-|----------|-------------|--------------|
+| ---------- | ------------- | -------------- |
 | alda-midi | `c/e/g` | `c/e/g/b-` |
 | forth-midi | `(c4 e4 g4),` | `(c4 e4 g4 bb4),` |
 | lua-midi | `midi.major(c4)` | `midi.dom7(c4)` |
@@ -223,7 +235,7 @@ main = do
 ### Repetition
 
 | Language | Play 4 times |
-|----------|--------------|
+| ---------- | -------------- |
 | alda-midi | `c4 c c c` or `[c4 c]*2` (limited) |
 | forth-midi | `melody 4 times` or `{ c4, } 4 *` |
 | lua-midi | `for i=1,4 do m:note(c4,mf,quarter) end` |
@@ -234,7 +246,7 @@ main = do
 ### Probability/Randomness
 
 | Language | 50% chance | Random selection |
-|----------|------------|------------------|
+| ---------- | ------------ | ------------------ |
 | alda-midi | N/A | N/A |
 | forth-midi | `c4 50%,` | `c4\|e4\|g4,` |
 | lua-midi | `if math.random() < 0.5 then ... end` | `midi.pick({c4,e4,g4})` |
@@ -247,7 +259,7 @@ main = do
 All implementations support MIDI event recording:
 
 | Language | Start | Stop | Save |
-|----------|-------|------|------|
+| ---------- | ------- | ------ | ------ |
 | alda-midi | N/A | N/A | N/A (file-based) |
 | forth-midi | `rec-midi` | `stop` | `save-midi file.4th` |
 | lua-midi | `record_midi()` | `record_stop()` | `save_midi("file.lua")` |
@@ -260,36 +272,43 @@ All implementations support MIDI event recording:
 ## Use Case Recommendations
 
 ### Musicians / Quick Sketching
+
 **Recommended:** alda-midi
 
 Traditional music notation is instantly familiar. Write `c4 d e f | g2` and hear a melody without learning programming concepts.
 
 ### Live Performance
+
 **Recommended:** forth-midi or alda-midi
 
 Both offer immediate feedback. forth-midi for programmers who want stack manipulation; alda-midi for musicians who think in notes.
 
 ### Teaching/Learning
+
 **Recommended:** lua-midi, pktpy-midi, or alda-midi
 
 lua-midi and pktpy-midi use familiar syntax for programmers. alda-midi is ideal for teaching music concepts without programming overhead.
 
 ### Algorithmic Composition
+
 **Recommended:** s7-midi or mhs-midi
 
 Functional programming excels at algorithmic music. s7 for Lisp macros, mhs-midi for type-safe pure functions.
 
 ### Quick Prototyping
+
 **Recommended:** lua-midi or alda-midi
 
 lua-midi for programmers; alda-midi for musicians. Both offer fast iteration.
 
 ### Production Code
+
 **Recommended:** mhs-midi
 
 Type safety catches errors early. Pure functional style makes code easier to reason about and test.
 
 ### Integration with DAWs
+
 **All implementations** create virtual MIDI ports that DAWs can receive. Choose based on your comfort with the language.
 
 ---
@@ -297,7 +316,7 @@ Type safety catches errors early. Pure functional style makes code easier to rea
 ## Performance Comparison
 
 | Metric | alda-midi | forth-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
-|--------|-----------|------------|----------|---------|------------|----------|
+| -------- | ----------- | ------------ | ---------- | --------- | ------------ | ---------- |
 | Startup | <1ms | <1ms | <1ms | <1ms | <1ms | ~500ms |
 | Note latency | <1ms | <1ms | <1ms | <1ms | <1ms | <1ms |
 | Memory usage | ~3MB | ~2MB | ~4MB | ~3MB | ~5MB | ~10MB |
@@ -314,7 +333,7 @@ This section analyzes each implementation's ability to create complex multi-voic
 ### Capability Matrix
 
 | Feature | alda-midi | forth-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
-|---------|-----------|------------|----------|---------|------------|----------|
+| --------- | ----------- | ------------ | ---------- | --------- | ------------ | ---------- |
 | **MIDI Channels** | 16 | 16 | 16 | 16 | 16 | 16 |
 | **Simultaneous Notes** | Chords/Voices | Chords | Chords/Arpeggio | Chords/Arpeggio | Chords/Arpeggio | Chords/Melody |
 | **Sequence System** | Tick-based events | Yes (64 seq, 256 events) | No | No | No | No |
@@ -326,6 +345,7 @@ This section analyzes each implementation's ability to create complex multi-voic
 All implementations support 16 MIDI channels, enabling multi-voice compositions. However, the approaches differ:
 
 **alda-midi** uses parts and voices for natural multi-voice composition:
+
 ```alda
 piano:
 V1: c4 d e f     # Voice 1: melody
@@ -337,6 +357,7 @@ c4 d e f
 ```
 
 **forth-midi** has structured sequence support:
+
 ```forth
 \ Explicit channel per note in sequences
 0 1 60 100 480 seq-note-ch   \ time=0, ch=1, C4, vel=100, dur=480
@@ -346,6 +367,7 @@ seq-play
 ```
 
 **lua-midi**, **pktpy-midi**, **s7-midi** use method calls with channel parameters:
+
 ```lua
 -- Lua
 m:note_on(60, 100, 1)  -- C4 on channel 1
@@ -353,6 +375,7 @@ m:note_on(64, 100, 2)  -- E4 on channel 2
 ```
 
 **mhs-midi** uses Haskell's type system:
+
 ```haskell
 -- Haskell
 melody [c4, e4, g4]  -- Sequential
@@ -373,6 +396,7 @@ All implementations now support non-blocking async playback:
 The underlying libremidi library recommends two approaches for non-blocking MIDI (see [queue.md](https://celtera.github.io/libremidi/queue.html)):
 
 1. **Callback-based queue**: Build event processing on the callback mechanism, integrating with the application's event loop. Example in `thirdparty/libremidi/examples/qmidiin.cpp`:
+
    ```cpp
    // Ring buffer queue with callback
    conf.on_message = [this](libremidi::message m) {
@@ -387,6 +411,7 @@ The underlying libremidi library recommends two approaches for non-blocking MIDI
    ```
 
 2. **Async runtime with coroutines**: Use C++20 coroutines for imperative-style non-blocking code. Example in `thirdparty/libremidi/examples/coroutines.cpp`:
+
    ```cpp
    // Boost.Cobalt coroutines
    cobalt::channel<libremidi::message> channel_impl{64};
@@ -411,7 +436,7 @@ All implementations now use one or more of these patterns:
 For complex multi-voice compositions:
 
 | Approach | Recommended Implementation |
-|----------|---------------------------|
+| ---------- | --------------------------- |
 | **Multi-part scores** | alda-midi with parts (piano:, violin:) and voices (V1:, V2:) |
 | **Interleaved timeline** | forth-midi sequences with manual time offsets |
 | **Polyphonic chords** | Any implementation using chord functions |
@@ -423,11 +448,13 @@ For complex multi-voice compositions:
 ## Getting Started
 
 All implementations are built with:
+
 ```bash
 make
 ```
 
 Run any implementation:
+
 ```bash
 ./build/alda_midi     # Alda
 ./build/forth_midi    # Forth

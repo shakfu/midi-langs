@@ -15,7 +15,7 @@ MIDI Forth is a Forth-like language for MIDI sequencing and live performance. Th
 Format: `[note][accidental][octave]`
 
 | Component | Values |
-|-----------|--------|
+| ----------- | -------- |
 | Note | `c`, `d`, `e`, `f`, `g`, `a`, `b` (case insensitive) |
 | Accidental | `#` (sharp), `b` (flat), or omitted (natural) |
 | Octave | `0` - `9` (middle C = C4 = MIDI 60) |
@@ -215,7 +215,7 @@ mf c4, e4, ff g4,       \ Dynamics change mid-phrase
 ```
 
 | Symbol | Velocity | Meaning |
-|--------|----------|---------|
+| -------- | ---------- | --------- |
 | `ppp`  | 16       | pianississimo |
 | `pp`   | 32       | pianissimo |
 | `p`    | 48       | piano |
@@ -260,7 +260,7 @@ c4|r,                   \ 50% C4, 50% silence (equivalent to c4 50%,)
 #### Summary
 
 | Syntax | Meaning |
-|--------|---------|
+| -------- | --------- |
 | `c4,` | Always play |
 | `c4 75%,` | 75% play, 25% silence |
 | `c4\|e4,` | 50/50 between C4 and E4 |
@@ -446,7 +446,7 @@ The `,` word inspects the stack to determine mode:
 ## Defaults
 
 | Parameter | Default | Range |
-|-----------|---------|-------|
+| ----------- | --------- | ------- |
 | Channel   | 1       | 1-16 |
 | Velocity  | 80      | 0-127 |
 | Duration  | 500ms   | 1-60000 |
@@ -502,7 +502,7 @@ This section demonstrates advanced composition techniques using nested definitio
 ## Bracket Reference
 
 | Bracket | Purpose | Example |
-|---------|---------|---------|
+| --------- | --------- | --------- |
 | `( )` | Chord grouping | `(c4 e4 g4),` |
 | `[ ]` | Sequences | `[ c4 e4 g4 ] shuffle,` |
 | `{ }` | Anonymous blocks | `{ c4, e4, } 4 *` |

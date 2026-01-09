@@ -637,7 +637,7 @@ scale-shruti-cents         ; 22 intervals in cents
 Based on 120 BPM by default. Use `set-tempo!` to change.
 
 | Constant    | Milliseconds | Musical Value |
-|-------------|--------------|---------------|
+| ------------- | -------------- | --------------- |
 | `whole`     | 2000         | Whole note    |
 | `half`      | 1000         | Half note     |
 | `quarter`   | 500          | Quarter note  |
@@ -706,7 +706,7 @@ Calculate quarter note duration for a given tempo (without changing global tempo
 ## Velocity Constants (Dynamics)
 
 | Constant | Value | Dynamic        |
-|----------|-------|----------------|
+| ---------- | ------- | ---------------- |
 | `ppp`    | 16    | Pianississimo  |
 | `pp`     | 33    | Pianissimo     |
 | `p`      | 49    | Piano          |
@@ -896,6 +896,7 @@ Save recorded events to a Scheme replay script. The generated file can be loaded
 ```
 
 The generated file contains:
+
 - Event data as a Scheme list
 - Replay code that recreates the timing
 
@@ -988,6 +989,7 @@ Read a standard MIDI file and return its contents as an association list with me
 ```
 
 Event types (in the type field):
+
 - `144` (`#x90`) = Note On
 - `128` (`#x80`) = Note Off
 - `176` (`#xB0`) = Control Change
@@ -1007,6 +1009,7 @@ The scheduler provides non-blocking concurrent playback using a thunk-based coop
 ```
 
 Create a new voice from a procedure. The procedure takes no arguments and should return:
+
 - A number (milliseconds to wait before next call)
 - `#f` (voice is complete)
 
@@ -1078,6 +1081,7 @@ Return scheduler status as an association list.
 ```
 
 The alist contains:
+
 - `voices` - List of `(id name waiting?)` for each active voice
 - `active` - Count of active voices
 - `running` - Whether the scheduler is currently running

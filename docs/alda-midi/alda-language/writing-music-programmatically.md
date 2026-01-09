@@ -70,7 +70,7 @@ Loop).
 > to this list. It's surprisingly easy!
 
 | Language | Library       | Author         |
-|----------|---------------|----------------|
+| ---------- | --------------- | ---------------- |
 | Clojure  | [alda-clj]    | Dave Yarwood   |
 | Ruby     | [alda-rb]     | Ulysses Zhan   |
 | Julia    | [Alda.jl]     | Ismael Venegas |

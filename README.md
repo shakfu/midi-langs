@@ -5,7 +5,7 @@ A collection of minimalist yet powerful language implementations designed to gen
 Each implementation leverages [libremidi](https://github.com/celtera/libremidi) for seamless cross-platform MIDI I/O:
 
 | Implementation | Language| Style & Approach |
-|----------|----------|-------|
+| ---------- | ---------- | ------- |
 | **alda-midi** | [Alda](https://alda.io/) | Music-first notation--compose with elegant, human-readable syntax. |
 | **forth-midi** | Custom Forth | Concise stack-based programming for minimalist control over MIDI events. |
 | **lua-midi** | [Lua 5.5](https://www.lua.org/) | Lightweight scripting with tables, closures, and event-driven workflows. |
@@ -173,12 +173,14 @@ Commands:
 ```
 
 **Interactive REPL:**
+
 ```sh
 ./scripts/mhs-midi              # Start REPL
 ./scripts/mhs-midi repl         # Same, explicit
 ```
 
 **Standalone binaries** (no external files needed):
+
 ```sh
 make mhs-midi-pkg-zstd  # Recommended (3MB, fast startup)
 ./build/mhs-midi-pkg-zstd -r MyFile.hs
@@ -194,6 +196,7 @@ cmake --build build --target mhs-midi-pkg-zstd
 ```
 
 **Write and compile a program:**
+
 ```haskell
 -- DemoMhs.hs
 module DemoMhs(main) where
@@ -299,7 +302,7 @@ midi.run()
 Most implementations share functionality from a common C library (`projects/common/music_theory.c`):
 
 | Implementation | Uses music_theory.c |
-|----------------|---------------------|
+| ---------------- | --------------------- |
 | forth-midi | Yes |
 | lua-midi | Yes |
 | mhs-midi | Yes |
@@ -380,7 +383,7 @@ python scripts/fluidsynth-gm.py ~/Music/sf2/FluidR3_GM.sf2
 Install [FluidSynth](https://www.fluidsynth.org) and a SoundFont:
 
 | Platform | Install |
-|----------|---------|
+| ---------- | --------- |
 | macOS | `brew install fluidsynth` |
 | Ubuntu/Debian | `sudo apt install fluidsynth` |
 | Fedora | `sudo dnf install fluidsynth` |
@@ -396,7 +399,7 @@ Download a GM SoundFont like [FluidR3_GM.sf2](https://musical-artifacts.com/arti
 ## Documentation
 
 | Language | Docs |
-|----------|------|
+| ---------- | ------ |
 | alda-midi | [README](docs/alda-midi/README.md), [Language](docs/alda-midi/language-reference.md), [Examples](docs/alda-midi/examples.md) |
 | forth-midi | [README](docs/forth-midi/README.md), [API](docs/forth-midi/api-reference.md), [Tutorial](docs/forth-midi/tutorial.md) |
 | lua-midi | [README](docs/lua-midi/README.md), [API](docs/lua-midi/api-reference.md), [Examples](docs/lua-midi/examples.md) |
@@ -412,7 +415,7 @@ This is not a comprehensive list:
 
 - [abcmidi](https://abcmidi.sourceforge.io) - Abc2midi is a program that converts an abc music notation file to a MIDI file.
 
-- [alda](https://alda.io) - a text-based programming language for music composition. Designed for musicians who don’t know how to program, as well as programmers who don’t know how to music. 
+- [alda](https://alda.io) - a text-based programming language for music composition. Designed for musicians who don’t know how to program, as well as programmers who don’t know how to music.
 
 - [chuck](https://chuck.cs.princeton.edu) - a strongly-timed programming language for real-time sound synthesis and music creation.
 
@@ -433,4 +436,3 @@ This is not a comprehensive list:
 - [scamp](https://github.com/MarcTheSpark/scamp) - Suite for Computer-Assisted Music in Python - a computer-assisted composition framework in Python designed to act as a hub, flexibly connecting the composer-programmer to a wide variety of resources for playback and notation.
 
 - [textbeat](https://github.com/flipcoder/textbeat) - Compose music in a plaintext format or type music directly in the shell. The format is vertical and column-based, similar to early music trackers, but with syntax inspired by jazz/music theory.
-

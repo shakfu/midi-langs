@@ -15,11 +15,13 @@ Sequences can hold both musical elements (pitches, chords, rests, dynamics, dura
 ### Current Syntax Pain Points
 
 1. **Trailing comma requirement:**
+
    ```forth
    c4, e4, g4,           \ Trailing comma feels redundant
    ```
 
 2. **Visual noise for melodies:**
+
    ```forth
    c4, +2, +2, +1, +2, +2, +2, -12,    \ Hard to read
    ```
@@ -46,7 +48,7 @@ Currently `[ ]` is used for explicit parameter grouping:
 [(c4 e4 g4) 1 80 500], \ chord with explicit params
 ```
 
-This proposal repurposes `[ ]` for sequences. See [Backwards Compatibility](#backwards-compatibility) for migration path.
+This proposal repurposes `[ ]` for sequences.
 
 ## Proposed Syntax
 
@@ -95,6 +97,7 @@ Dynamics apply to subsequent notes until changed:
 ```
 
 Equivalent to:
+
 - `mf` sets velocity to 80
 - `c4` plays at velocity 80
 - `e4` plays at velocity 80
@@ -128,6 +131,7 @@ Parentheses still group simultaneous notes:
 ```
 
 Interpretation:
+
 - `c4 major` pushes C4, E4, G4 onto stack, plays as chord
 - `(f4 a4 c5)` plays as chord
 - `g4 dom7` pushes G4, B4, D5, F5, plays as chord
@@ -172,7 +176,7 @@ Where duration words set the default for subsequent notes.
 ## Sequences vs Single Notes
 
 | Syntax | Meaning |
-|--------|---------|
+| -------- | --------- |
 | `[ c4 e4 g4 ]` | Create sequence object (on stack) |
 | `[ c4 e4 g4 ],` | Create sequence and play it |
 | `c4,` | Play single note |
@@ -197,12 +201,13 @@ c4 ch=1 vel=100 dur=500,
 **Named Parameter Syntax:**
 
 | Parameter | Syntax | Example |
-|-----------|--------|---------|
+| ----------- | -------- | --------- |
 | Channel | `ch=N` | `ch=2` |
 | Velocity | `vel=N` | `vel=100` |
 | Duration | `dur=N` | `dur=500` |
 
 **Benefits:**
+
 - Self-documenting (no memorizing parameter order)
 - Partial specification (only override what you need)
 - Order-independent
@@ -230,7 +235,7 @@ c4 vel=127,                     \ Override just this note (one-shot)
 **Comparison:**
 
 | Syntax | Scope | Example |
-|--------|-------|---------|
+| -------- | ------- | --------- |
 | `vel=100` | One-shot (next note only) | `c4 vel=100,` |
 | `vel:=100` | Persistent (until changed) | `vel:=100 c4, e4,` |
 
@@ -241,7 +246,7 @@ The `=` and `:=` syntax extends to all musical parameters:
 **Note Parameters:**
 
 | Parameter | One-shot | Persistent | Range | Description |
-|-----------|----------|------------|-------|-------------|
+| ----------- | ---------- | ------------ | ------- | ------------- |
 | Channel | `ch=2` | `ch:=2` | 1-16 | MIDI channel |
 | Velocity | `vel=100` | `vel:=100` | 0-127 | Note velocity |
 | Duration | `dur=500` | `dur:=500` | ms | Note duration |
@@ -250,7 +255,7 @@ The `=` and `:=` syntax extends to all musical parameters:
 **Global Parameters (persistent only):**
 
 | Parameter | Syntax | Old Syntax | Description |
-|-----------|--------|------------|-------------|
+| ----------- | -------- | ------------ | ------------- |
 | Tempo | `bpm:=120` | `120 bpm!` | Beats per minute |
 | Program | `prog:=25` | `1 25 pc` | Instrument (0-127) |
 | Pan | `pan:=64` | `1 10 64 cc` | Stereo position (0-127, 64=center) |
@@ -258,13 +263,14 @@ The `=` and `:=` syntax extends to all musical parameters:
 **Generic CC:**
 
 | Syntax | Description |
-|--------|-------------|
+| -------- | ------------- |
 | `cc1:=64` | Set CC 1 (mod wheel) to 64 |
 | `cc10:=0` | Set CC 10 (pan) to 0 (left) |
 | `cc64:=127` | Set CC 64 (sustain) to 127 (on) |
 | `cc7:=100` | Set CC 7 (volume) to 100 |
 
 Common CC numbers:
+
 - `cc1` - Modulation wheel
 - `cc7` - Volume
 - `cc10` - Pan
@@ -344,11 +350,13 @@ note-play     = (pitch | chord) named-param* "," ;
 ### Execution Model
 
 **When `]` is encountered:**
+
 1. Collect all elements since matching `[`
 2. Create sequence object containing these elements
 3. Push sequence object onto stack
 
 **When `,` is applied to a sequence:**
+
 1. Pop sequence from stack
 2. For each element in order:
    - If dynamic: update current velocity
@@ -360,6 +368,7 @@ note-play     = (pitch | chord) named-param* "," ;
 ### State Within Sequences
 
 Sequences have their own local state for:
+
 - Current pitch (for relative intervals)
 - Current velocity (for dynamics)
 - Current duration (for duration words)
@@ -387,6 +396,7 @@ melody,                    \ Play anytime
 ### Before and After
 
 **Simple melody:**
+
 ```forth
 \ Before
 c4, d4, e4, f4, g4, a4, b4, c5,
@@ -396,6 +406,7 @@ c4, d4, e4, f4, g4, a4, b4, c5,
 ```
 
 **Melody with dynamics:**
+
 ```forth
 \ Before
 mf c4, e4, ff g4, p c5,
@@ -405,6 +416,7 @@ mf c4, e4, ff g4, p c5,
 ```
 
 **Scale using intervals:**
+
 ```forth
 \ Before
 c4, +2, +2, +1, +2, +2, +2, +1,
@@ -414,6 +426,7 @@ c4, +2, +2, +1, +2, +2, +2, +1,
 ```
 
 **Mixed melody and chords:**
+
 ```forth
 \ Before
 c4, e4, (g4 c5),
@@ -423,6 +436,7 @@ c4, e4, (g4 c5),
 ```
 
 **With rests:**
+
 ```forth
 \ Before
 c4, r, e4, r, g4,
@@ -432,6 +446,7 @@ c4, r, e4, r, g4,
 ```
 
 **Explicit parameters:**
+
 ```forth
 \ Before
 [1 c4 100 500],
@@ -443,6 +458,7 @@ c4 ch=1 vel=100 dur=500,
 ```
 
 **Partial parameter override:**
+
 ```forth
 \ Before (not possible - had to specify all 4)
 [1 c4 100 500],
@@ -770,6 +786,7 @@ Cons: `|` already used for alternatives
 The bracket sequence syntax `[ ... ]` provides a cleaner, more readable way to express melodies and sequences. Sequences are first-class values that can be manipulated before playback with `,`.
 
 Key benefits:
+
 - Reduces visual noise (no comma per note inside sequences)
 - Enables sequence manipulation (transpose, reverse, concat)
 - Consistent model: `,` always means "play"

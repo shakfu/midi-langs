@@ -245,7 +245,7 @@ seq-deep-clone ( seq -- seq2 )      \ copies events too
 ## Comparison Matrix
 
 | Approach | Stack-friendly | Polyphony | Transforms | Live Coding | Complexity |
-|----------|---------------|-----------|------------|-------------|------------|
+| ---------- | --------------- | ----------- | ------------ | ------------- | ------------ |
 | Packed Integer | Yes | Limited | Easy | Medium | Low |
 | Heap Events | No | Yes | Medium | Medium | Medium |
 | Linked List | Partial | Yes | Medium | Good | Medium |

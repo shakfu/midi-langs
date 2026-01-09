@@ -191,7 +191,7 @@ The `examples/` directory contains 40 Alda files:
 ### Basic
 
 | File | Description |
-|------|-------------|
+| ------ | ------------- |
 | `hello_world.alda` | Simple scale |
 | `simple.alda` | Basic note sequences |
 | `twinkle.alda` | Twinkle Twinkle Little Star |
@@ -199,7 +199,7 @@ The `examples/` directory contains 40 Alda files:
 ### Notation Features
 
 | File | Description |
-|------|-------------|
+| ------ | ------------- |
 | `chords.alda` | Chord notation with `/` |
 | `dynamics.alda` | Dynamic markings (ppp-fff) |
 | `repeats.alda` | Repeat syntax |
@@ -210,7 +210,7 @@ The `examples/` directory contains 40 Alda files:
 ### Multiple Instruments
 
 | File | Description |
-|------|-------------|
+| ------ | ------------- |
 | `duet.alda` | Violin and cello duet |
 | `orchestra.alda` | Full orchestral arrangement |
 | `all-instruments.alda` | All 128 GM instruments |
@@ -219,7 +219,7 @@ The `examples/` directory contains 40 Alda files:
 ### Classical Pieces
 
 | File | Description |
-|------|-------------|
+| ------ | ------------- |
 | `bach_cello_suite_no_1.alda` | Bach Cello Suite No. 1 |
 | `bach-prelude.alda` | Bach prelude |
 | `debussy_quartet.alda` | Debussy string quartet excerpt |
@@ -229,7 +229,7 @@ The `examples/` directory contains 40 Alda files:
 ### Advanced Features
 
 | File | Description |
-|------|-------------|
+| ------ | ------------- |
 | `poly.alda` | Polyphonic writing |
 | `multi-poly.alda` | Multi-voice polyphony |
 | `modes.alda` | Musical modes |
@@ -243,7 +243,7 @@ The `examples/` directory contains 40 Alda files:
 ### MIDI Features
 
 | File | Description |
-|------|-------------|
+| ------ | ------------- |
 | `midi-channel-management.alda` | Channel assignment |
 | `midi-channel-management-2.alda` | Advanced channel control |
 

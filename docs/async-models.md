@@ -7,7 +7,7 @@ This document compares the concurrent playback implementations across all six mi
 All six languages now support concurrent voice playback, but each uses a different underlying model suited to the language's strengths:
 
 | Language | Model | Threading | Blocking | Non-blocking |
-|----------|-------|-----------|----------|--------------|
+| ---------- | ------- | ----------- | ---------- | -------------- |
 | **alda-midi** | libuv event loop | Background thread | N/A | Always async |
 | **forth-midi** | libuv event loop | Background thread | N/A | `seq-play&` (always async) |
 | **lua-midi** | libuv + Lua coroutines | Background thread | `run()` | `poll()` |
@@ -30,25 +30,29 @@ c2~2          # Sustained bass
 ```
 
 **Concurrent mode** (default):
-```
+
+```text
 > piano: c4 e g
 > violin: c2~2    # Plays simultaneously with piano
 ```
 
 **Sequential mode**:
-```
+
+```text
 > sequential
 > piano: c4 e g   # Waits for this to finish
 > violin: c2~2    # Then plays this
 ```
 
 **REPL commands**:
+
 - `concurrent` - Enable concurrent playback (multiple parts play together)
 - `sequential` - Enable sequential playback (wait for each input)
 - `stop` - Stop all playback immediately
 - `panic` - All notes off on all channels
 
 **Key characteristics**:
+
 - Always non-blocking: REPL stays responsive during playback
 - Tick-based timing (480 ticks per quarter note)
 - Concurrent mode enables polyphonic playback across REPL inputs
@@ -77,6 +81,7 @@ seq-stop-all       \ Stop everything
 ```
 
 **Key characteristics**:
+
 - Non-blocking: REPL stays responsive during playback
 - Up to 8 concurrent sequences
 - Sequence-oriented (not voice/function-oriented)
@@ -103,6 +108,7 @@ run()  -- Blocks until all voices complete
 ```
 
 **Non-blocking mode with `poll()`**:
+
 ```lua
 spawn(melody_voice)
 spawn(bass_voice)
@@ -113,6 +119,7 @@ end
 ```
 
 **Key characteristics**:
+
 - `yield_ms(n)` for explicit timing control
 - `play()`, `play_chord()`, `play_arp()` are non-blocking within voices
 - Up to 16 concurrent voices
@@ -143,6 +150,7 @@ midi.run()  # Blocks until complete
 ```
 
 **Non-blocking mode with `poll()`**:
+
 ```python
 midi.spawn(melody)
 midi.spawn(bass)
@@ -152,6 +160,7 @@ while midi.poll():
 ```
 
 **Key characteristics**:
+
 - Generator-based: voice functions must contain `yield`
 - Use `for ms in midi.play(...): yield ms` pattern (not `yield from`)
 - Up to 16 concurrent voices
@@ -163,6 +172,7 @@ while midi.poll():
 **Model**: Thunk-based cooperative multitasking with libuv
 
 S7-midi uses a unique thunk-based model. Each voice is a closure that returns either:
+
 - A number (milliseconds to wait before next call)
 - `#f` (voice is complete)
 
@@ -184,6 +194,7 @@ S7-midi uses a unique thunk-based model. Each voice is a closure that returns ei
 ```
 
 **Non-blocking mode with `(poll)`**:
+
 ```scheme
 (spawn melody-voice "melody")
 (spawn bass-voice "bass")
@@ -194,6 +205,7 @@ S7-midi uses a unique thunk-based model. Each voice is a closure that returns ei
 ```
 
 **Key characteristics**:
+
 - Thunk-based: voice is a procedure called repeatedly
 - Return value controls timing (number = wait, `#f` = done)
 - Prelude provides voice builders: `make-sequence-voice`, `make-repeat-voice`, etc.
@@ -221,6 +233,7 @@ main = do
 ```
 
 **Key characteristics**:
+
 - True parallelism via `forkIO`
 - No special yield/thunk pattern needed - use normal Haskell IO
 - Thread-safe via `MVar` synchronization
@@ -232,7 +245,7 @@ main = do
 ### Ease of Use
 
 | Simplest | Medium | Most Complex |
-|----------|--------|--------------|
+| ---------- | -------- | -------------- |
 | alda-midi (music notation) | lua-midi (yield_ms) | s7-midi (thunks) |
 | mhs-midi (normal IO) | pktpy-midi (generators) | |
 | forth-midi (seq-play&) | | |
@@ -240,7 +253,7 @@ main = do
 ### Performance
 
 | Most Efficient | Medium | Least Efficient |
-|----------------|--------|-----------------|
+| ---------------- | -------- | ----------------- |
 | mhs-midi (native threads) | alda-midi (libuv) | s7-midi (main thread) |
 | | forth-midi (libuv) | |
 | | lua-midi/pktpy-midi | |
@@ -248,7 +261,7 @@ main = do
 ### REPL Responsiveness
 
 | Always Non-blocking | Non-blocking via `poll()` | Blocking only |
-|---------------------|---------------------------|---------------|
+| --------------------- | --------------------------- | --------------- |
 | alda-midi | lua-midi | mhs-midi |
 | forth-midi | pktpy-midi | |
 | | s7-midi | |
@@ -258,6 +271,7 @@ main = do
 Here's the same musical idea in all six languages:
 
 ### alda-midi
+
 ```alda
 piano:
 (volume 80) c4 e g c5
@@ -267,6 +281,7 @@ violin:
 ```
 
 ### forth-midi
+
 ```forth
 midi-virtual
 seq-new
@@ -278,6 +293,7 @@ seq-play&
 ```
 
 ### lua-midi
+
 ```lua
 open()
 spawn(function()
@@ -293,6 +309,7 @@ close()
 ```
 
 ### pktpy-midi
+
 ```python
 out = midi.open()
 def melody():
@@ -309,6 +326,7 @@ out.close()
 ```
 
 ### s7-midi
+
 ```scheme
 (open)
 (spawn (make-melody-voice (list c4 e4 g4 c5) mf quarter) "melody")
@@ -318,6 +336,7 @@ out.close()
 ```
 
 ### mhs-midi
+
 ```haskell
 import MusicPerform
 

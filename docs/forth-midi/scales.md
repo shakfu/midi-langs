@@ -17,7 +17,7 @@ Outputs all 49 available scales with their IDs.
 ### Diatonic Modes
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-major` | Major (Ionian) |
 | `scale-dorian` | Dorian mode |
 | `scale-phrygian` | Phrygian mode |
@@ -31,7 +31,7 @@ Outputs all 49 available scales with their IDs.
 ### Pentatonic & Blues
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-pentatonic` | Major pentatonic |
 | `scale-pentatonic-minor` | Minor pentatonic |
 | `scale-blues` | Blues scale |
@@ -39,7 +39,7 @@ Outputs all 49 available scales with their IDs.
 ### Symmetric Scales
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-whole-tone` | Whole tone |
 | `scale-chromatic` | Chromatic (all 12 notes) |
 | `scale-diminished-hw` | Diminished (half-whole) |
@@ -49,7 +49,7 @@ Outputs all 49 available scales with their IDs.
 ### Bebop Scales
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-bebop-dominant` | Bebop dominant |
 | `scale-bebop-major` | Bebop major |
 | `scale-bebop-minor` | Bebop minor |
@@ -57,7 +57,7 @@ Outputs all 49 available scales with their IDs.
 ### World Scales
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-hungarian-minor` | Hungarian minor |
 | `scale-double-harmonic` | Byzantine/Arabic |
 | `scale-neapolitan-major` | Neapolitan major |
@@ -77,7 +77,7 @@ Outputs all 49 available scales with their IDs.
 ### Arabic Maqamat (12-TET)
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-maqam-hijaz` | Maqam Hijaz |
 | `scale-maqam-nahawand` | Maqam Nahawand |
 | `scale-maqam-nikriz` | Maqam Nikriz |
@@ -88,7 +88,7 @@ Outputs all 49 available scales with their IDs.
 ### Indian Ragas (12-TET)
 
 | Word | Scale |
-|------|-------|
+| ------ | ------- |
 | `scale-raga-bhairav` | Raga Bhairav |
 | `scale-raga-todi` | Raga Todi |
 | `scale-raga-marwa` | Raga Marwa |

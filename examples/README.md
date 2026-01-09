@@ -24,7 +24,7 @@ Runnable examples demonstrating each language's unique strengths.
 ## What Each Example Demonstrates
 
 | File | Language | Key Features |
-|------|----------|--------------|
+| ------ | ---------- | -------------- |
 | `melody_forth.4th` | Forth | Concise notation, word definitions, dynamics |
 | `concurrent_lua.lua` | Lua | Coroutines, `spawn`/`run`, `play()` helpers |
 | `generative_pktpy.py` | PocketPy | Generators, `yield` pattern, concurrent voices |

@@ -251,7 +251,7 @@ midi.c5   # 72
 ```
 
 | Pitch | MIDI | Pitch | MIDI | Pitch | MIDI |
-|-------|------|-------|------|-------|------|
+| ------- | ------ | ------- | ------ | ------- | ------ |
 | c4    | 60   | d4    | 62   | e4    | 64   |
 | f4    | 65   | g4    | 67   | a4    | 69   |
 | b4    | 71   | c5    | 72   | cs4   | 61   |
@@ -263,7 +263,7 @@ midi.c5   # 72
 Based on 120 BPM by default. Use `midi.set_tempo()` to change.
 
 | Constant          | Milliseconds | Musical Value |
-|-------------------|--------------|---------------|
+| ------------------- | -------------- | --------------- |
 | `midi.whole`      | 2000         | Whole note    |
 | `midi.half`       | 1000         | Half note     |
 | `midi.quarter`    | 500          | Quarter note  |
@@ -294,6 +294,7 @@ midi.set_tempo(bpm: int)
 ```
 
 Set tempo in BPM. This affects:
+
 - Duration constants (`midi.quarter`, `midi.half`, etc.)
 - All durations passed to `MidiOut.note()` and `MidiOut.chord()`
 
@@ -338,7 +339,7 @@ midi.bpm(60)   # 1000
 ## Velocities (Dynamics)
 
 | Constant   | Value | Dynamic        |
-|------------|-------|----------------|
+| ------------ | ------- | ---------------- |
 | `midi.ppp` | 16    | Pianississimo  |
 | `midi.pp`  | 33    | Pianissimo     |
 | `midi.p`   | 49    | Piano          |
@@ -536,7 +537,7 @@ All scales are available as tuples of semitone intervals from the root.
 ### Diatonic Modes
 
 | Constant | Intervals |
-|----------|-----------|
+| ---------- | ----------- |
 | `midi.SCALE_MAJOR` | (0, 2, 4, 5, 7, 9, 11) |
 | `midi.SCALE_MINOR` | (0, 2, 3, 5, 7, 8, 10) |
 | `midi.SCALE_DORIAN` | (0, 2, 3, 5, 7, 9, 10) |
@@ -550,7 +551,7 @@ All scales are available as tuples of semitone intervals from the root.
 ### Pentatonic & Blues
 
 | Constant | Intervals |
-|----------|-----------|
+| ---------- | ----------- |
 | `midi.SCALE_PENTATONIC` | (0, 2, 4, 7, 9) |
 | `midi.SCALE_PENTATONIC_MAJOR` | (0, 2, 4, 7, 9) |
 | `midi.SCALE_PENTATONIC_MINOR` | (0, 3, 5, 7, 10) |
@@ -560,7 +561,7 @@ All scales are available as tuples of semitone intervals from the root.
 ### Harmonic & Melodic
 
 | Constant | Intervals |
-|----------|-----------|
+| ---------- | ----------- |
 | `midi.SCALE_HARMONIC_MINOR` | (0, 2, 3, 5, 7, 8, 11) |
 | `midi.SCALE_MELODIC_MINOR` | (0, 2, 3, 5, 7, 9, 11) |
 | `midi.SCALE_HARMONIC_MAJOR` | (0, 2, 4, 5, 7, 8, 11) |
@@ -568,7 +569,7 @@ All scales are available as tuples of semitone intervals from the root.
 ### World Scales
 
 | Constant | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | `midi.SCALE_MAQAM_HIJAZ` | Arabic Hijaz (12-TET) |
 | `midi.SCALE_MAQAM_NAHAWAND` | Arabic Nahawand |
 | `midi.SCALE_RAGA_BHAIRAV` | Indian Bhairav |
@@ -578,7 +579,7 @@ All scales are available as tuples of semitone intervals from the root.
 ### Other Scales
 
 | Constant | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | `midi.SCALE_CHROMATIC` | All 12 semitones |
 | `midi.SCALE_WHOLE_TONE` | Whole-tone scale |
 | `midi.SCALE_DIMINISHED` | Whole-half diminished |
@@ -636,7 +637,7 @@ midi.cents_to_note(60, 350)   # (63, 50)  - 350 cents = Eb plus 50 cents
 For scales with quarter-tones and other microtonal intervals:
 
 | Constant | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | `midi.SCALE_MAQAM_BAYATI_CENTS` | Authentic Bayati with 3/4 tones |
 | `midi.SCALE_MAQAM_RAST_CENTS` | Authentic Rast with 3/4 tones |
 | `midi.SCALE_MAQAM_SABA_CENTS` | Authentic Saba |
@@ -742,7 +743,7 @@ midi.rest(midi.half)     # Half note rest
 Common Control Change numbers:
 
 | Constant             | Value | Description      |
-|---------------------|-------|------------------|
+| --------------------- | ------- | ------------------ |
 | `midi.CC_MODULATION` | 1     | Modulation wheel |
 | `midi.CC_BREATH`     | 2     | Breath controller|
 | `midi.CC_VOLUME`     | 7     | Channel volume   |
@@ -798,6 +799,7 @@ midi.save_midi("my_song.py")
 ```
 
 The generated file contains:
+
 - Event data as a Python list of tuples
 - Replay code that recreates the timing
 
@@ -887,6 +889,7 @@ for event in data["events"]:
 ```
 
 Event types (in the `type` field):
+
 - `0x90` = Note On
 - `0x80` = Note Off
 - `0xB0` = Control Change
@@ -1150,3 +1153,4 @@ midi.spawn(drums, "Drums")
 # Run until all complete
 midi.run()
 print("Done!")
+```

@@ -7,6 +7,7 @@ This document catalogs features that standard Forth implementations provide but 
 forth-midi is a Forth-flavored DSL, not a full Forth. Several missing features would genuinely enhance musical expressiveness (variables, recursion). Others are implementation machinery that would add complexity without clear benefit for the target users (musicians, not language implementers).
 
 **Recently implemented**:
+
 - `DO`/`LOOP` with `I`, `J`, `+LOOP`, `LEAVE` - counted loops with index access
 - `BEGIN`/`UNTIL` and `BEGIN`/`WHILE`/`REPEAT` - indefinite loops
 
@@ -168,7 +169,7 @@ However, anonymous blocks (`{ ... }`) already provide deferred execution:
 **Available words**:
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `do` | `( limit start -- )` | Start counted loop |
 | `loop` | `( -- )` | Increment by 1, continue if < limit |
 | `+loop` | `( n -- )` | Increment by n |
@@ -210,6 +211,7 @@ repeat drop
 ```
 
 **Implementation notes**:
+
 - Uses return stack for DO/LOOP index pairs
 - Captures loop body as string, re-interprets each iteration
 - Supports nesting up to 8 levels
@@ -284,7 +286,7 @@ S" filename.mid" SAVE-MIDI
 ## Implementation Priority Matrix
 
 | Feature | Value for Musicians | Implementation Effort | Status |
-|---------|--------------------|-----------------------|--------|
+| --------- | -------------------- | ----------------------- | -------- |
 | `DO`/`LOOP` with `I`, `J`, `+LOOP`, `LEAVE` | High | Medium | **Done** |
 | `BEGIN`/`UNTIL`/`WHILE`/`REPEAT` | Medium-High | Medium | **Done** |
 | `VARIABLE`/`CONSTANT` | High | Medium | **1** |

@@ -61,7 +61,7 @@ seq-play            \ Play the sequence
 Timing uses ticks, not milliseconds. Constants are provided:
 
 | Word | Ticks | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `quarter` | 480 | Quarter note |
 | `half` | 960 | Half note |
 | `whole` | 1920 | Whole note |
@@ -80,7 +80,7 @@ bpm@                \ Get current tempo
 ### Sequence Management
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seq-new` | `( -- id )` | Create new sequence, select it, push id |
 | `seq` | `( id -- )` | Select sequence by id |
 | `seq@` | `( -- id )` | Get current sequence id |
@@ -90,7 +90,7 @@ bpm@                \ Get current tempo
 ### Adding Events
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seq-note` | `( time pitch vel dur -- )` | Add note at time (uses default channel) |
 | `seq-note-ch` | `( time ch pitch vel dur -- )` | Add note with specific channel |
 | `seq-add` | `( packed-note time -- )` | Add packed note at time |
@@ -98,14 +98,14 @@ bpm@                \ Get current tempo
 ### Playback and Display
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seq-play` | `( -- )` | Play current sequence (blocking) |
 | `seq-show` | `( -- )` | Print all events in sequence |
 
 ### Transformations
 
 | Word | Stack | Description |
-|------|-------|-------------|
+| ------ | ------- | ------------- |
 | `seq-transpose` | `( semitones -- )` | Transpose all notes |
 | `seq-reverse` | `( -- )` | Reverse timing (play backwards) |
 | `seq-stretch` | `( factor -- )` | Scale timing (100=normal, 200=double, 50=half) |

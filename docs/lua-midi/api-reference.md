@@ -17,7 +17,7 @@ db4, eb4, gb4, ab4, bb4   -- D-flat, E-flat, G-flat, A-flat, B-flat
 ### Dynamics (Velocity)
 
 | Constant | Value | Dynamic        |
-|----------|-------|----------------|
+| ---------- | ------- | ---------------- |
 | `ppp`    | 16    | Pianississimo  |
 | `pp`     | 33    | Pianissimo     |
 | `p`      | 49    | Piano          |
@@ -32,7 +32,7 @@ db4, eb4, gb4, ab4, bb4   -- D-flat, E-flat, G-flat, A-flat, B-flat
 Based on 120 BPM by default. Use `midi.set_tempo()` to change.
 
 | Constant    | Milliseconds | Musical Value |
-|-------------|--------------|---------------|
+| ------------- | -------------- | --------------- |
 | `whole`     | 2000         | Whole note    |
 | `half`      | 1000         | Half note     |
 | `quarter`   | 500          | Quarter note  |
@@ -696,6 +696,7 @@ save_midi("my_song.lua")
 ```
 
 The generated file contains:
+
 - Event data as a Lua table
 - Replay code that recreates the timing
 
@@ -786,6 +787,7 @@ end
 ```
 
 Event types (in the `type` field):
+
 - `0x90` = Note On
 - `0x80` = Note Off
 - `0xB0` = Control Change
