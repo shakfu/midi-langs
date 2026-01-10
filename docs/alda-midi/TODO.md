@@ -1,93 +1,14 @@
 # alda-midi TODO
 
-## Unimplemented Features
+## Shared Test Suite Status
 
-Features listed by priority, based on frequency of use in real Alda scores.
-
-### Priority 1: High Impact
-
-(All high priority features implemented)
-
----
-
-### Priority 2: Medium Impact
-
-#### On-Repetitions (ON_REPS)
-**Why:** Enables alternate endings and variations in repeated sections. Common in structured music.
-
-**Syntax:**
-```alda
-[ c d e f [g4]'1-3 [g a b > c]'4 ]*4
-```
-
-**Implementation notes:**
-- Parser creates `ALDA_NODE_ON_REPS` with repetition spec string
-- Need to parse the spec: `'1,3` means "on repeats 1 and 3", `'1-3` means "on repeats 1 through 3"
-- During repeat execution, track current iteration count
-- Only visit ON_REPS children when current iteration matches the spec
-
-**Estimated complexity:** Medium
-
----
-
-#### Markers (MARKER, AT_MARKER)
-**Why:** Enables synchronization between parts in multi-instrument scores.
-
-**Syntax:**
-```alda
-guitar: r1 %verse
-piano: @verse c d e f
-```
-
-**Implementation notes:**
-- Parser creates `ALDA_NODE_MARKER` and `ALDA_NODE_AT_MARKER` nodes
-- Need a marker table in `AldaContext`: name -> tick position
-- On MARKER: store current tick position with the marker name
-- On AT_MARKER: set current tick position to the stored value
-- Error if AT_MARKER references undefined marker
-
-**Estimated complexity:** Low-Medium
-
----
-
-### Priority 3: Low Impact
-
-#### Key Signature
-**Why:** Convenience feature - accidentals can be written explicitly.
-
-**Syntax:**
-```alda
-(key-sig "f+ c+")   # F# and C# in key signature
-(key-sig '(f :sharp c :sharp))
-```
-
-**Implementation notes:**
-- Store active accidentals in part state
-- When parsing note letters, apply key signature accidentals unless explicitly overridden
-- Would require changes to note interpretation, not just a new visitor
-
-**Estimated complexity:** Medium (touches note parsing)
-
----
-
-#### Transposition
-**Why:** Convenience feature - can transpose manually or in post-processing.
-
-**Syntax:**
-```alda
-(transpose 2)   # transpose up 2 semitones
-```
-
-**Implementation notes:**
-- Store transposition offset in part state
-- Add offset to all note pitches during scheduling
-
-**Estimated complexity:** Low
+**20/20 tests passing** - All shared test suite tests now pass.
 
 ---
 
 ## Implemented Features
 
+### Core Features
 - Notes, rests, chords (`c/e/g`)
 - Durations (`c4`, `c8.`, ties `c4~4`)
 - Octaves (`o4`, `>`, `<`)
@@ -104,13 +25,62 @@ piano: @verse c d e f
 - Part aliases (`piano "melody":`)
 - Variables (`motif = c d e f`, `piano: motif`)
 - Cram expressions (`{c d e f g}2` - fit notes into duration)
+- Multi-instrument parts (`violin/viola/cello:`)
+
+### Recently Implemented
+- **Key Signatures**: `(key-sig '(g major))`, `(key-sig "f+ c+")`
+  - Supports major, minor, and modal scales
+  - Natural sign `_` overrides key signature
+- **Transposition**: `(transpose 5)`, `(transpose -7)`
+  - Applied after key signature calculation
+- **Markers**: `%marker-name` and `@marker-name`
+  - Synchronize parts at specific positions
+- **On-Repetitions**: `'1`, `'1,3`, `'1-3`, `'1,3-5,7`
+  - Conditional playback within repeat blocks
+  - Enables alternate endings
+
+---
+
+## Potential Future Enhancements
+
+### Barline Timing (Low Priority)
+**Why:** Currently barlines are visual-only. Could optionally enforce timing alignment.
+
+**Current behavior:** `|` is parsed and ignored.
+
+**Potential enhancement:** Add strict mode that validates measure boundaries.
+
+---
+
+### MIDI File Export (Low Priority)
+**Why:** Convenience for sharing compositions.
+
+**Current:** Can output to MIDI ports.
+
+**Enhancement:** Add `--midi-out file.mid` option to write Standard MIDI File.
+
+---
 
 ## Testing Notes
 
-When implementing new features, test with these example files:
-- `variables.alda` - Variable definitions
-- `cram.alda` - Cram expressions
-- `alternate-endings.alda` - On-repetitions
-- `markers.alda` - Marker synchronization
-- `bach-prelude.alda` - Complex cram usage
-- `nicechord-alda-demo.alda` - Mix of features
+All tests in the shared test suite pass:
+- `01_notes_basic.alda` - Basic note playback
+- `02_notes_accidentals.alda` - Sharps and flats
+- `03_notes_durations.alda` - Note lengths
+- `04_octaves.alda` - Octave changes
+- `05_rests.alda` - Rest handling
+- `06_chords.alda` - Chord notation
+- `07_ties.alda` - Tied notes and slurs
+- `08_tempo.alda` - Tempo changes
+- `09_volume.alda` - Volume control
+- `10_dynamics.alda` - Dynamic markings
+- `11_parts.alda` - Part declarations and multi-instrument groups
+- `12_variables.alda` - Variable definitions
+- `13_markers.alda` - Marker synchronization
+- `14_voices.alda` - Voice polyphony
+- `15_repeats.alda` - Repeats with on-repetitions
+- `16_cram.alda` - Cram expressions (tuplets)
+- `17_key_signature.alda` - Key signatures
+- `18_transpose.alda` - Transposition
+- `19_quantization.alda` - Quantization/articulation
+- `20_panning.alda` - Pan control

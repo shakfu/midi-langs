@@ -6,6 +6,32 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **alda-midi transpose**: Transposition support for shifting pitch by semitones
+  - `(transpose 5)` shifts all notes up 5 semitones
+  - `(transpose -7)` shifts all notes down 7 semitones
+  - `(transpose 0)` resets transposition
+  - Works with key signatures (transposition applied after key signature)
+
+- **alda-midi markers**: Marker definition and jump for part synchronization
+  - `%marker-name` defines a marker at the current tick position
+  - `@marker-name` jumps to the marker's tick position
+  - Enables synchronization between parts in multi-instrument scores
+  - Example: `piano: c d e %chorus g a b` then `violin: @chorus e f g a`
+
+- **alda-midi on-repetitions**: Conditional playback within repeat blocks
+  - `'1` plays only on repetition 1
+  - `'1,3` plays on repetitions 1 and 3
+  - `'1-3` plays on repetitions 1 through 3
+  - `'1,3-5,7` mixed syntax supported
+  - Example: `[c4 d4'1 e4'2]*2` plays c,d on rep 1, c,e on rep 2
+
+- **alda-midi key signatures**: Key signature support for automatic accidentals
+  - `(key-sig '(g major))` sets G major key signature
+  - `(key-sig '(d minor))` sets D minor key signature
+  - `(key-sig "f+ c+")` string format for explicit accidentals
+  - Supports major, minor, and modal scales (dorian, phrygian, lydian, mixolydian, locrian)
+  - Natural sign `_` overrides key signature for individual notes
+
 - **Unified CI workflow**: New `build-all.yml` combines all build workflows into a single workflow
   - `build-unix` job: Linux and macOS builds (from build-test.yml)
   - `build-windows` job: Windows builds for all languages except mhs-midi
@@ -23,6 +49,24 @@ All notable changes to midi-langs are documented in this file.
   - Used by Windows CI to skip mhs-midi in `build-windows` job (separate `build-windows-mhs` handles it)
 
 ### Fixed
+
+- **alda-midi cram timing**: Fixed nested cram expressions and notes with explicit durations inside cram
+  - Nested crams now use allocated duration from parent instead of recalculating
+  - Notes with explicit durations (e.g., `{c8 d8 e4}2`) now have correct weights
+  - Added `duration_weight()` support for `ALDA_NODE_DURATION` container nodes
+
+- **alda-midi multi-instrument parts**: Fixed multi-instrument group handling
+  - Groups like `violin/viola/cello:` now create new parts for each instrument
+  - Previously, instruments in groups would reuse existing parts incorrectly
+  - Single instrument declarations still reuse existing parts as before
+
+- **alda-midi slur quantization**: Slurred notes now skip quantization
+  - Notes followed by `~` (slur to next note) play at full duration
+  - Fixes legato phrasing in melodies with slurs
+
+- **alda-midi chord duration**: All chord notes now use the maximum duration
+  - Previously, each note used its own duration
+  - Now `c4/e2/g` plays all notes for half note duration
 
 - **alda-midi global attributes before parts**: Fixed parser exiting early when global attributes appear before part declarations
   - Files starting with `(tempo! 90)` or `(quant! 95)` before `piano:` now parse correctly
