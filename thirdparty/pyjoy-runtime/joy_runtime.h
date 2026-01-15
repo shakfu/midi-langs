@@ -176,6 +176,9 @@ typedef struct {
     size_t count;
 } JoyDict;
 
+/* Callback for handling undefined symbols (returns true if handled) */
+typedef bool (*JoyUndefHandler)(JoyContext* ctx, const char* name);
+
 /* Execution context */
 struct JoyContext {
     JoyStack* stack;
@@ -184,6 +187,8 @@ struct JoyContext {
     int autoput;      /* 0=off, 1=on (auto-print stack after each line) */
     int undeferror;   /* 0=off (undefined symbols are errors), 1=on (allow undefined) */
     int echo;         /* 0=none, 1=echo input, 2=echo output, 3=echo both */
+    JoyUndefHandler undef_handler;  /* custom handler for undefined symbols */
+    void* user_data;                /* user data (e.g., MusicContext*) */
 };
 
 /* ---------- Dictionary Operations ---------- */

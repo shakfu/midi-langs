@@ -5,6 +5,7 @@
 #include "joy_runtime.h"
 #include "midi_primitives.h"
 #include "music_theory.h"
+#include "music_context.h"
 #include <libremidi/libremidi-c.h>
 #include <stdio.h>
 #include <string.h>
@@ -400,6 +401,60 @@ void pitch_(JoyContext* ctx) {
     }
 
     PUSH(joy_integer(midi_num));
+}
+
+void tempo_(JoyContext* ctx) {
+    REQUIRE(1, "tempo");
+
+    JoyValue bpm_v = POP();
+    EXPECT_TYPE(bpm_v, JOY_INTEGER, "tempo");
+
+    int bpm = (int)bpm_v.data.integer;
+    if (bpm < 1) bpm = 1;
+    if (bpm > 999) bpm = 999;
+
+    MusicContext* mctx = (MusicContext*)ctx->user_data;
+    if (mctx) {
+        mctx->tempo = bpm;
+        /* Recalculate duration based on new tempo */
+        /* Default to quarter note duration */
+        mctx->duration_ms = music_duration_to_ms(4, bpm);
+    }
+}
+
+void quant_(JoyContext* ctx) {
+    REQUIRE(1, "quant");
+
+    JoyValue q_v = POP();
+    EXPECT_TYPE(q_v, JOY_INTEGER, "quant");
+
+    int q = (int)q_v.data.integer;
+    if (q < 0) q = 0;
+    if (q > 100) q = 100;
+
+    MusicContext* mctx = (MusicContext*)ctx->user_data;
+    if (mctx) {
+        mctx->quantization = q;
+    }
+}
+
+void vol_(JoyContext* ctx) {
+    REQUIRE(1, "vol");
+
+    JoyValue vol_v = POP();
+    EXPECT_TYPE(vol_v, JOY_INTEGER, "vol");
+
+    int vol = (int)vol_v.data.integer;
+    if (vol < 0) vol = 0;
+    if (vol > 100) vol = 100;
+
+    /* Scale 0-100 to 0-127 */
+    int velocity = vol * 127 / 100;
+
+    MusicContext* mctx = (MusicContext*)ctx->user_data;
+    if (mctx) {
+        mctx->velocity = velocity;
+    }
 }
 
 /* ============================================================================

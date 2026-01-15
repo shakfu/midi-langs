@@ -67,10 +67,12 @@ c_              \ Natural (override key signature)
 
 ```joy
 o4 c d e        \ Set octave 4, play C D E
-> c             \ Octave up, then C
-< c             \ Octave down, then C
-o4 g a b > c    \ G A B in octave 4, C in octave 5
+>> c            \ Octave up, then C
+<< c            \ Octave down, then C
+o4 g a b >> c   \ G A B in octave 4, C in octave 5
 ```
+
+Note: Joy-MIDI uses `>>` and `<<` for octave up/down to avoid conflicts with Joy's `>` and `<` comparison operators.
 
 ### Rests
 
@@ -137,9 +139,9 @@ Fit N notes into a duration (Alda's `{...}` syntax):
 ## Voices (Polyphony)
 
 ```joy
-V1: c8 d e f g a b > c1
-V2: e8 f g a b > c d e1
-V3: g8 a b > c d e f g1
+V1: c8 d e f g a b >> c1
+V2: e8 f g a b >> c d e1
+V3: g8 a b >> c d e f g1
 V0:             \ End voices, merge
 
 \ After V0:, playback continues from longest voice endpoint
@@ -212,9 +214,9 @@ riff*4          \ Play riff four times
 ### Key Signature
 
 ```joy
-(key c:maj) c d e f g a b > c    \ C major (no accidentals)
-(key g:maj) c d e f g a b > c    \ G major (F is sharp)
-(key d:min) c d e f g a b > c    \ D minor
+(key c:maj) c d e f g a b >> c   \ C major (no accidentals)
+(key g:maj) c d e f g a b >> c   \ G major (F is sharp)
+(key d:min) c d e f g a b >> c   \ D minor
 
 \ Notes automatically use key signature accidentals
 \ Use natural (_) to override
@@ -226,7 +228,7 @@ riff*4          \ Play riff four times
 
 ```joy
 piano:
-  c8 d e f g a b > c4
+  c8 d e f g a b >> c4
 
 trumpet:
   o5 c4 d e f g2
@@ -247,7 +249,7 @@ melody [7 +] map    \ Transpose up a fifth (Joy-style transformation)
 
 \ Markers for synchronization
 %chorus c d e f
-@chorus g a b > c   \ Jump to chorus marker
+@chorus g a b >> c  \ Jump to chorus marker
 ```
 
 ## Time Signatures (Display/Structure)
@@ -280,7 +282,7 @@ piano:
   f+4 f+ g a | a g f+ e | d d e f+ | e4. d8 d2 |
 
   \ Bridge
-  e4 e f+ d | e f+8 g f+4 d | e f+8 g f+4 e | d e < a4 > |
+  e4 e f+ d | e f+8 g f+4 d | e f+8 g f+4 e | d e << a4 >> |
 
   \ Return
   (f)
@@ -329,8 +331,8 @@ piano:
 | `c+` | `c+` | C sharp |
 | `c-` | `c-` | C flat |
 | `o4` | `o4` | Set octave 4 |
-| `>` | `>` | Octave up |
-| `<` | `<` | Octave down |
+| `>` | `>>` | Octave up |
+| `<` | `<<` | Octave down |
 | `r` | `r` | Rest |
 | `c/e/g` | `c/e/g` | C major chord |
 | `c4~4` | `c4~4` | Tied quarters |
@@ -362,7 +364,7 @@ phrase [dup] map            \ Double each note (tremolo effect)
 
 ```joy
 c d e f                     \ Build melody on stack implicitly
-[c d e f] [g a b > c] concat  \ Concatenate phrases
+[c d e f] [g a b >> c] concat \ Concatenate phrases
 ```
 
 ### Combinators for Variation

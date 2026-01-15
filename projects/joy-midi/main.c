@@ -7,6 +7,7 @@
 #include "joy_runtime.h"
 #include "joy_parser.h"
 #include "joy_midi.h"
+#include "music_notation.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -71,6 +72,9 @@ int main(int argc, char** argv) {
     /* Initialize Joy runtime (registers builtin primitives) */
     joy_runtime_init(ctx);
 
+    /* Initialize music notation system (Alda-like syntax) */
+    music_notation_init(ctx);
+
     /* Register MIDI primitives */
     joy_midi_register_primitives(ctx);
 
@@ -96,6 +100,7 @@ int main(int argc, char** argv) {
     }
 
     /* Cleanup */
+    music_notation_cleanup(ctx);
     joy_midi_cleanup();
     joy_context_free(ctx);
 

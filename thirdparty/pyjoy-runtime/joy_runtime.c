@@ -778,6 +778,8 @@ JoyContext* joy_context_new(void) {
     ctx->autoput = 1;      /* on by default (matches Joy42) */
     ctx->undeferror = 0;   /* undefined symbols are errors by default */
     ctx->echo = 0;         /* no echo by default */
+    ctx->undef_handler = NULL;
+    ctx->user_data = NULL;
     return ctx;
 }
 
@@ -815,6 +817,10 @@ void joy_execute_quotation(JoyContext* ctx, JoyQuotation* quotation) {
 void joy_execute_symbol(JoyContext* ctx, const char* name) {
     JoyWord* word = joy_dict_lookup(ctx->dictionary, name);
     if (!word) {
+        /* Try custom handler first */
+        if (ctx->undef_handler && ctx->undef_handler(ctx, name)) {
+            return;  /* Handler processed it */
+        }
         fprintf(stderr, "Undefined word: %s\n", name);
         joy_error("Undefined word");
     }

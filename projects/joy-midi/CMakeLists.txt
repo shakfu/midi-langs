@@ -5,6 +5,8 @@ add_executable(joy_midi
     main.c
     joy_midi.c
     midi_primitives.c
+    music_context.c
+    music_notation.c
 )
 
 # Link against pyjoy_runtime

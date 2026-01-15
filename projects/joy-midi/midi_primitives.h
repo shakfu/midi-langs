@@ -27,6 +27,9 @@ void midi_panic_(JoyContext* ctx);
 /* Utilities */
 void midi_sleep_(JoyContext* ctx);
 void pitch_(JoyContext* ctx);
+void tempo_(JoyContext* ctx);
+void quant_(JoyContext* ctx);
+void vol_(JoyContext* ctx);
 
 /* Music theory */
 void major_chord_(JoyContext* ctx);

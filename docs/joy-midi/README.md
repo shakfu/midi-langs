@@ -31,7 +31,39 @@ Type 'quit' to exit, 'midi-list' to list MIDI ports
 [60 64 67]
 ```
 
-### Playing Notes
+### Playing Notes (Alda-like Notation)
+
+Joy-MIDI supports concise Alda-like musical notation:
+
+```joy
+\ Create a virtual MIDI port and play a scale
+midi-virtual
+o4 c d e f g a b >> c
+
+\ Duration suffixes (4=quarter, 8=eighth, etc.)
+c4 d8 e8 f4 g2
+
+\ Accidentals (+ sharp, - flat)
+c c+ d d- e f+ g
+
+\ Chords (slash notation)
+c/e/g d/f/a e/g/b
+
+\ Named chords
+c:maj d:min e:min f:maj g:7
+
+\ Dynamics
+mf c d e f
+ff g a b >> c
+
+\ Tempo and quantization
+120 tempo 50 quant
+c d e f
+```
+
+### Playing Notes (Verbose)
+
+For more control, use explicit MIDI primitives:
 
 ```joy
 \ Create a virtual MIDI port
@@ -128,6 +160,9 @@ rot         \ Rotate top three
 |------|--------------|-------------|
 | `midi-sleep` | `( ms -- )` | Sleep for milliseconds |
 | `pitch` | `( "name" -- n )` | Parse pitch name to MIDI number |
+| `tempo` | `( bpm -- )` | Set tempo in BPM |
+| `quant` | `( pct -- )` | Set note gate time (0-100%) |
+| `vol` | `( pct -- )` | Set velocity (0-100%) |
 
 ### Music Theory
 

@@ -29,6 +29,9 @@ void joy_midi_register_primitives(JoyContext* ctx) {
     /* Utilities */
     joy_dict_define_primitive(dict, "midi-sleep", midi_sleep_);
     joy_dict_define_primitive(dict, "pitch", pitch_);
+    joy_dict_define_primitive(dict, "tempo", tempo_);
+    joy_dict_define_primitive(dict, "quant", quant_);
+    joy_dict_define_primitive(dict, "vol", vol_);
 
     /* Music theory */
     joy_dict_define_primitive(dict, "major", major_chord_);
