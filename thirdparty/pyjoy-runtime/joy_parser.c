@@ -8,6 +8,12 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <setjmp.h>
+
+#ifdef HAVE_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
 
 /* ---------- Tokenizer ---------- */
 
@@ -402,6 +408,64 @@ void joy_eval_line(JoyContext* ctx, const char* line) {
 }
 
 void joy_repl(JoyContext* ctx) {
+    jmp_buf error_recovery;
+
+    /* Set up error recovery for REPL */
+    ctx->error_jmp = &error_recovery;
+    joy_set_current_context(ctx);
+
+#ifdef HAVE_READLINE
+    char* input;
+
+    while (1) {
+        input = readline("> ");
+
+        if (!input) {
+            printf("\n");
+            break;
+        }
+
+        /* Skip empty lines */
+        if (input[0] == '\0') {
+            free(input);
+            continue;
+        }
+
+        /* Add to history */
+        add_history(input);
+
+        /* Check for quit */
+        if (strcmp(input, "quit") == 0 || strcmp(input, "exit") == 0) {
+            free(input);
+            break;
+        }
+
+        /* Set up error recovery point - errors longjmp here */
+        if (setjmp(error_recovery) == 0) {
+            /* Parse and execute */
+            JoyQuotation* quot = joy_parse(input);
+
+            /* Execute each term */
+            for (size_t i = 0; i < quot->length; i++) {
+                joy_execute_value(ctx, quot->terms[i]);
+            }
+
+            joy_quotation_free(quot);
+
+            /* Print stack if autoput is enabled */
+            if (ctx->autoput && ctx->stack->depth > 0) {
+                for (size_t i = 0; i < ctx->stack->depth; i++) {
+                    if (i > 0) printf(" ");
+                    joy_value_print(ctx->stack->items[i]);
+                }
+                printf("\n");
+            }
+        }
+        /* If setjmp returned non-zero, an error occurred - just continue */
+
+        free(input);
+    }
+#else
     char line[4096];
 
     while (1) {
@@ -428,25 +492,34 @@ void joy_repl(JoyContext* ctx) {
             continue;
         }
 
-        /* Parse and execute */
-        JoyQuotation* quot = joy_parse(line);
+        /* Set up error recovery point - errors longjmp here */
+        if (setjmp(error_recovery) == 0) {
+            /* Parse and execute */
+            JoyQuotation* quot = joy_parse(line);
 
-        /* Execute each term */
-        for (size_t i = 0; i < quot->length; i++) {
-            joy_execute_value(ctx, quot->terms[i]);
-        }
-
-        joy_quotation_free(quot);
-
-        /* Print stack if autoput is enabled */
-        if (ctx->autoput && ctx->stack->depth > 0) {
-            for (size_t i = 0; i < ctx->stack->depth; i++) {
-                if (i > 0) printf(" ");
-                joy_value_print(ctx->stack->items[i]);
+            /* Execute each term */
+            for (size_t i = 0; i < quot->length; i++) {
+                joy_execute_value(ctx, quot->terms[i]);
             }
-            printf("\n");
+
+            joy_quotation_free(quot);
+
+            /* Print stack if autoput is enabled */
+            if (ctx->autoput && ctx->stack->depth > 0) {
+                for (size_t i = 0; i < ctx->stack->depth; i++) {
+                    if (i > 0) printf(" ");
+                    joy_value_print(ctx->stack->items[i]);
+                }
+                printf("\n");
+            }
         }
+        /* If setjmp returned non-zero, an error occurred - just continue */
     }
+#endif
+
+    /* Clear error recovery */
+    ctx->error_jmp = NULL;
+    joy_set_current_context(NULL);
 }
 
 int joy_load_file(JoyContext* ctx, const char* filename) {

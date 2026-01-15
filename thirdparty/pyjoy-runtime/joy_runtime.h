@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <setjmp.h>
 
 /* ---------- Joy Type System ---------- */
 
@@ -189,6 +190,7 @@ struct JoyContext {
     int echo;         /* 0=none, 1=echo input, 2=echo output, 3=echo both */
     JoyUndefHandler undef_handler;  /* custom handler for undefined symbols */
     void* user_data;                /* user data (e.g., MusicContext*) */
+    jmp_buf* error_jmp;             /* error recovery point (NULL = exit on error) */
 };
 
 /* ---------- Dictionary Operations ---------- */
@@ -213,6 +215,7 @@ void joy_execute_symbol(JoyContext* ctx, const char* name);
 void joy_error(const char* message);
 void joy_error_type(const char* op, const char* expected, JoyType got);
 void joy_error_underflow(const char* op, size_t required, size_t actual);
+void joy_set_current_context(JoyContext* ctx);  /* Set context for error recovery */
 
 /* ---------- Runtime Initialization ---------- */
 

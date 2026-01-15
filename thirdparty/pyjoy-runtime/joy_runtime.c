@@ -35,9 +35,23 @@ static char* joy_strdup(const char* s) {
 
 /* ---------- Error Handling ---------- */
 
+/* Current context for error recovery (thread-local would be better for MT) */
+static JoyContext* g_current_ctx = NULL;
+
+void joy_set_current_context(JoyContext* ctx) {
+    g_current_ctx = ctx;
+}
+
+static void joy_do_error(void) {
+    if (g_current_ctx && g_current_ctx->error_jmp) {
+        longjmp(*g_current_ctx->error_jmp, 1);
+    }
+    exit(1);
+}
+
 void joy_error(const char* message) {
     fprintf(stderr, "Joy error: %s\n", message);
-    exit(1);
+    joy_do_error();
 }
 
 void joy_error_type(const char* op, const char* expected, JoyType got) {
@@ -47,13 +61,13 @@ void joy_error_type(const char* op, const char* expected, JoyType got) {
     };
     fprintf(stderr, "Joy type error in '%s': expected %s, got %s\n",
             op, expected, type_names[got]);
-    exit(1);
+    joy_do_error();
 }
 
 void joy_error_underflow(const char* op, size_t required, size_t actual) {
     fprintf(stderr, "Joy stack underflow in '%s': need %zu, have %zu\n",
             op, required, actual);
-    exit(1);
+    joy_do_error();
 }
 
 /* ---------- Value Constructors ---------- */
@@ -780,6 +794,7 @@ JoyContext* joy_context_new(void) {
     ctx->echo = 0;         /* no echo by default */
     ctx->undef_handler = NULL;
     ctx->user_data = NULL;
+    ctx->error_jmp = NULL; /* NULL = exit on error, set for REPL recovery */
     return ctx;
 }
 
