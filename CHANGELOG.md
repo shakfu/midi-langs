@@ -19,8 +19,18 @@ All notable changes to midi-langs are documented in this file.
   - Test runner: `tests/joy-midi/run_single_joy_test.sh`
   - CMake integration with `joy_unit` label
   - Makefile targets: `test-joy`, `test-joy-passing`, `test-joy-failing`, `test-joy-verbose`
-  - Current status: 187/211 passing (89%)
+  - Current status: 236/260 passing (91%)
   - Test runner now handles smoke tests (no assertions, just checking for no crash)
+
+- **joy-midi LIBRA and CONST keywords**: Definition keywords from standard Joy
+  - `LIBRA` and `CONST` work identically to `DEFINE` and `def`
+  - Enables loading of pyjoy stdlib files (numlib.joy, agglib.joy, etc.)
+  - Example: `LIBRA pi == 3.14159; e == 1.0 exp .`
+
+- **joy-midi bare definitions**: Define words without DEFINE keyword
+  - Standard Joy syntax: `name == body .`
+  - Example: `double == 2 * .` then `5 double` yields `10`
+  - DEFINE/def/LIBRA/CONST keywords still work for multi-definition blocks
 
 - **joy-midi new primitives**: `round`, `typeof`, `sametype`, `pick`, `assign`, `unassign`
   - `round`: Round float to nearest integer
@@ -76,6 +86,12 @@ All notable changes to midi-langs are documented in this file.
 - **joy-midi parser**: Fixed semicolon tokenization for multi-line DEFINE
   - `;` now correctly separates multiple definitions in a single DEFINE block
   - Example: `DEFINE a == 1; b == 2.` now correctly defines both `a` and `b`
+
+- **joy-midi parser**: User definitions now override note name transformations
+  - Dictionary is checked before the symbol transformer at parse time
+  - Allows defining symbols like `e`, `a`, `b` that would otherwise become MIDI notes
+  - Example: `CONST e == 2.71828 .` now works (e is 2.71828, not MIDI note 64)
+  - Undefined note names still convert to MIDI numbers as expected
 
 - **joy-midi character arithmetic**: Added character support to arithmetic operations
   - `+`: char + int -> char, int + char -> char

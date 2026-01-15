@@ -393,6 +393,12 @@ static JoyValue parse_value(Lexer* lex) {
             return v;
 
         case TOK_SYMBOL:
+            /* Check dictionary first - user definitions override transformers */
+            if (g_parser_dict && joy_dict_lookup(g_parser_dict, lex->current.value.string)) {
+                v = joy_symbol(lex->current.value.string);
+                lexer_next(lex);
+                return v;
+            }
             /* Check if symbol transformer wants to convert this */
             if (g_symbol_transformer &&
                 g_symbol_transformer(lex->current.value.string, &v)) {
@@ -420,10 +426,14 @@ static JoyValue parse_value(Lexer* lex) {
 /* ---------- DEFINE Parsing ---------- */
 
 /*
- * Check if symbol is DEFINE or def keyword
+ * Check if symbol is a definition keyword (DEFINE, def, LIBRA, CONST)
+ * All have the same semantics: name == body ; or name == body .
  */
 static bool is_define_keyword(const char* sym) {
-    return strcmp(sym, "DEFINE") == 0 || strcmp(sym, "def") == 0;
+    return strcmp(sym, "DEFINE") == 0 ||
+           strcmp(sym, "def") == 0 ||
+           strcmp(sym, "LIBRA") == 0 ||
+           strcmp(sym, "CONST") == 0;
 }
 
 /*
@@ -503,6 +513,30 @@ static void parse_define_block(Lexer* lex) {
 
 /* ---------- Public API ---------- */
 
+/*
+ * Check if current position starts a bare definition: name == body .
+ * Returns true if current token is a symbol and next token is ==
+ */
+static bool is_bare_definition(Lexer* lex) {
+    if (lex->current.type != TOK_SYMBOL) return false;
+
+    /* Save current position to peek ahead */
+    size_t saved_pos = lex->pos;
+
+    /* Skip whitespace and comments to find next token */
+    skip_whitespace_and_comments(lex);
+
+    /* Check if next chars are == */
+    bool is_def = (lex->pos + 1 < lex->length &&
+                   lex->source[lex->pos] == '=' &&
+                   lex->source[lex->pos + 1] == '=');
+
+    /* Restore position */
+    lex->pos = saved_pos;
+
+    return is_def;
+}
+
 JoyQuotation* joy_parse(const char* source) {
     Lexer lex;
     lexer_init(&lex, source);
@@ -511,9 +545,16 @@ JoyQuotation* joy_parse(const char* source) {
     JoyQuotation* quot = joy_quotation_new(16);
 
     while (lex.current.type != TOK_EOF) {
-        /* Check for DEFINE/def keyword */
+        /* Check for DEFINE/def/LIBRA/CONST keyword */
         if (lex.current.type == TOK_SYMBOL && is_define_keyword(lex.current.value.string)) {
             parse_define_block(&lex);
+            continue;
+        }
+
+        /* Check for bare definition: name == body . */
+        if (is_bare_definition(&lex)) {
+            /* parse_single_definition expects to be AT the name token */
+            parse_single_definition(&lex);
             continue;
         }
 
