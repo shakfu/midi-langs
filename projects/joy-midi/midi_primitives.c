@@ -77,7 +77,7 @@ static void enumerate_ports(void) {
     libremidi_midi_observer_enumerate_output_ports(midi_observer, NULL, on_output_port_found);
 }
 
-static void send_note_on(int pitch, int velocity) {
+void send_note_on(int pitch, int velocity) {
     if (!midi_out) return;
     unsigned char msg[3];
     msg[0] = 0x90 | ((current_channel - 1) & 0x0F);
@@ -86,7 +86,7 @@ static void send_note_on(int pitch, int velocity) {
     libremidi_midi_out_send_message(midi_out, msg, 3);
 }
 
-static void send_note_off(int pitch) {
+void send_note_off(int pitch) {
     if (!midi_out) return;
     unsigned char msg[3];
     msg[0] = 0x80 | ((current_channel - 1) & 0x0F);

@@ -30,4 +30,8 @@ bool music_handle_symbol(JoyContext* ctx, const char* name);
 /* Get the music context from a Joy context */
 MusicContext* music_get_context(JoyContext* ctx);
 
+/* Play primitives - pop notes/lists and play them */
+void music_play_(JoyContext* ctx);   /* sequential playback */
+void music_chord_(JoyContext* ctx);  /* simultaneous playback */
+
 #endif /* MUSIC_NOTATION_H */

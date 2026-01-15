@@ -8,12 +8,13 @@
 #include "joy_parser.h"
 #include "joy_midi.h"
 #include "music_notation.h"
+#include "midi_primitives.h"
 #include <string.h>
 #include <stdlib.h>
 
 static void banner(void) {
     printf("Joy-MIDI  -  Joy interpreter with MIDI extensions\n");
-    printf("Type 'quit' to exit, 'midi-list' to list MIDI ports\n");
+    printf("Type 'quit' to exit, 'help' for MIDI words\n");
     fflush(stdout);
 }
 
@@ -94,6 +95,9 @@ int main(int argc, char** argv) {
         if (show_banner) {
             banner();
         }
+
+        /* Auto-create virtual MIDI port for convenience */
+        midi_virtual_(ctx);
 
         /* Run REPL */
         joy_repl(ctx);

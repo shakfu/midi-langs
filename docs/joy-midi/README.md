@@ -22,7 +22,8 @@ cmake -B build && cmake --build build --target joy_midi
 ```
 $ ./build/joy_midi
 Joy-MIDI  -  Joy interpreter with MIDI extensions
-Type 'quit' to exit, 'midi-list' to list MIDI ports
+Type 'quit' to exit, 'help' for MIDI words
+Created virtual MIDI output: JoyMIDI
 > 3 4 + .
 7
 > "C4" pitch .
@@ -31,42 +32,71 @@ Type 'quit' to exit, 'midi-list' to list MIDI ports
 [60 64 67]
 ```
 
-### Playing Notes (Alda-like Notation)
+### Musical Notation (Alda-like)
 
-Joy-MIDI supports concise Alda-like musical notation:
+Joy-MIDI supports concise Alda-like notation where **notes push MIDI pitches onto the stack**. Use `play` for sequential playback or `chord` for simultaneous notes.
+
+A virtual MIDI port is created automatically when starting the REPL.
 
 ```joy
-\ Create a virtual MIDI port and play a scale
-midi-virtual
-o4 c d e f g a b >> c
+\ Notes push pitches onto the stack
+c d e           \ Stack: 60 62 64
 
-\ Duration suffixes (4=quarter, 8=eighth, etc.)
-c4 d8 e8 f4 g2
+\ Use play for sequential playback
+c play          \ Plays middle C
+[c d e] i stack play    \ Play C D E sequentially
 
-\ Accidentals (+ sharp, - flat)
-c c+ d d- e f+ g
+\ Use chord for simultaneous playback
+[c e g] i stack chord   \ Play C major chord
+c:maj chord             \ Same thing using named chord syntax
 
-\ Chords (slash notation)
-c/e/g d/f/a e/g/b
-
-\ Named chords
-c:maj d:min e:min f:maj g:7
-
-\ Dynamics
-mf c d e f
-ff g a b >> c
-
-\ Tempo and quantization
-120 tempo 50 quant
-c d e f
+\ Named chords push pitch lists
+c:maj           \ Stack: [60 64 67]
+d:min           \ Stack: [62 65 69]
+g:7             \ Stack: [67 71 74 77]
 ```
 
-### Playing Notes (Verbose)
+### Notation Reference
+
+| Notation | Example | Description |
+|----------|---------|-------------|
+| Note | `c`, `d`, `e` | Push pitch in current octave |
+| Duration | `c4`, `c8` | Set duration (4=quarter, 8=eighth) |
+| Dotted | `c4.`, `c4..` | Add 50%/75% to duration |
+| Sharp | `c+`, `f+` | Raise by semitone |
+| Flat | `b-`, `e-` | Lower by semitone |
+| Octave set | `o4`, `o5` | Set current octave |
+| Octave up | `>>` | Raise octave by 1 |
+| Octave down | `<<` | Lower octave by 1 |
+| Rest | `r`, `r4` | Push rest marker |
+| Named chord | `c:maj`, `d:min7` | Push chord as pitch list |
+| Dynamics | `pp`, `mf`, `ff` | Set velocity (state change) |
+
+### Full Example
+
+```joy
+120 tempo
+mf
+
+\ Play a scale
+o4 c d e f g a b >> c
+[c d e f g a b >> c] i stack play
+
+\ Play chord progression (I-IV-V-I)
+c:maj chord
+f:maj chord
+g:maj chord
+c:maj chord
+
+\ Transpose a melody up a fifth
+[c d e] i [7 +] map stack play
+```
+
+### Verbose MIDI Primitives
 
 For more control, use explicit MIDI primitives:
 
 ```joy
-\ Create a virtual MIDI port
 midi-virtual
 
 \ Play middle C (pitch 60, velocity 80, duration 500ms)
@@ -137,6 +167,13 @@ rot         \ Rotate top three
 | `midi-open` | `( n -- )` | Open port by index |
 | `midi-close` | `( -- )` | Close current port |
 
+### Musical Notation Playback
+
+| Word | Stack Effect | Description |
+|------|--------------|-------------|
+| `play` | `( pitch -- )` or `( [pitches] -- )` | Play note(s) sequentially |
+| `chord` | `( pitch -- )` or `( [pitches] -- )` | Play note(s) simultaneously |
+
 ### Note Operations
 
 | Word | Stack Effect | Description |
@@ -179,12 +216,44 @@ rot         \ Rotate top three
 
 ## Examples
 
-### Simple Melody
+### Simple Melody with Notation
+
+```joy
+120 tempo
+mf
+
+\ Notes push pitches, play consumes them
+c play d play e play f play
+g play a play b play >> c play
+```
+
+### Chord Progression
+
+```joy
+\ Named chords push pitch lists
+c:maj chord     \ I
+f:maj chord     \ IV
+g:maj chord     \ V
+c:maj chord     \ I
+```
+
+### Using Joy Combinators
+
+```joy
+\ Transpose a melody using map
+[c d e f g] i stack [7 +] map play
+
+\ Generate chord sequence
+[c d e f] i [[0] dip major] map
+\ Now have list of chord lists
+```
+
+### Verbose API
 
 ```joy
 midi-virtual
 
-\ Play C major scale
+\ Play C major scale with explicit control
 60 80 250 midi-note
 62 80 250 midi-note
 64 80 250 midi-note
@@ -193,34 +262,12 @@ midi-virtual
 69 80 250 midi-note
 71 80 250 midi-note
 72 80 500 midi-note
-```
 
-### Chord Progression
-
-```joy
-midi-virtual
-
-\ I-IV-V-I in C major
+\ Chord progression with explicit control
 60 major 80 500 midi-chord
 65 major 80 500 midi-chord
 67 major 80 500 midi-chord
 60 major 80 1000 midi-chord
-```
-
-### Using Transpose
-
-```joy
-midi-virtual
-
-\ Play a pattern, then transpose up a fifth
-60 80 250 midi-note
-64 80 250 midi-note
-67 80 500 midi-note
-
-\ Same pattern, transposed up 7 semitones
-60 7 transpose 80 250 midi-note
-64 7 transpose 80 250 midi-note
-67 7 transpose 80 500 midi-note
 ```
 
 ## Architecture
@@ -232,6 +279,8 @@ projects/joy-midi/
   main.c              - Entry point, REPL setup
   joy_midi.c/h        - Primitive registration
   midi_primitives.c/h - MIDI implementations
+  music_notation.c/h  - Alda-like notation parser
+  music_context.c/h   - Musical state (octave, tempo, etc.)
 
 thirdparty/pyjoy-runtime/
   joy_runtime.c/h     - Core Joy runtime
@@ -239,8 +288,21 @@ thirdparty/pyjoy-runtime/
   joy_parser.c/h      - Tokenizer and parser
 ```
 
+### Design Philosophy
+
+Notes in Joy-MIDI push MIDI pitch integers onto the stack rather than playing immediately. This enables Joy's compositional model:
+
+```joy
+\ Notes are data - can be transformed before playing
+[c d e] i       \ Execute quotation, push 60 62 64
+[7 +] map       \ Transpose up a fifth: 67 69 71
+stack play      \ Collect and play
+```
+
+This design separates *what* to play (data) from *when* to play (action), allowing full use of Joy's combinators for musical transformations.
+
 ## See Also
 
 - [Next Steps](next-steps.md) - Design ideas for more expressive musical primitives
 - [Joy Language](https://hypercubed.github.io/joy/html/j00rat.html) - Original Joy documentation
-- [Alda](https://alda.io/) - Music composition language that inspires future Joy-MIDI features
+- [Alda](https://alda.io/) - Music composition language that inspires Joy-MIDI's notation

@@ -5,6 +5,7 @@
 #include "joy_runtime.h"
 #include "joy_midi.h"
 #include "midi_primitives.h"
+#include "music_notation.h"
 
 void joy_midi_register_primitives(JoyContext* ctx) {
     JoyDict* dict = ctx->dictionary;
@@ -42,6 +43,10 @@ void joy_midi_register_primitives(JoyContext* ctx) {
     joy_dict_define_primitive(dict, "maj7", maj7_chord_);
     joy_dict_define_primitive(dict, "min7", min7_chord_);
     joy_dict_define_primitive(dict, "transpose", transpose_);
+
+    /* Musical notation playback */
+    joy_dict_define_primitive(dict, "play", music_play_);
+    joy_dict_define_primitive(dict, "chord", music_chord_);
 
     /* Initialize MIDI observer */
     midi_init();

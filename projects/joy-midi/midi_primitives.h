@@ -45,4 +45,8 @@ void transpose_(JoyContext* ctx);
 void midi_init(void);
 void midi_cleanup(void);
 
+/* Low-level MIDI send (used by music_notation.c) */
+void send_note_on(int pitch, int velocity);
+void send_note_off(int pitch);
+
 #endif /* MIDI_PRIMITIVES_H */
