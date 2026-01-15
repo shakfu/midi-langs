@@ -73,6 +73,9 @@ int main(int argc, char** argv) {
     /* Initialize Joy runtime (registers builtin primitives) */
     joy_runtime_init(ctx);
 
+    /* Enable DEFINE/def syntax for user-defined words */
+    joy_set_parser_dict(ctx->dictionary);
+
     /* Initialize music notation system (Alda-like syntax) */
     music_notation_init(ctx);
 

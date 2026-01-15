@@ -20,6 +20,9 @@ typedef bool (*JoySymbolTransformer)(const char* symbol, JoyValue* out_value);
 /* Set the symbol transformer (NULL to disable) */
 void joy_set_symbol_transformer(JoySymbolTransformer transformer);
 
+/* Set dictionary for DEFINE/def handling (NULL to disable definitions) */
+void joy_set_parser_dict(JoyDict* dict);
+
 /* Parse a line of Joy source code and execute it */
 void joy_eval_line(JoyContext* ctx, const char* line);
 

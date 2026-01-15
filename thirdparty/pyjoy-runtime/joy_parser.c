@@ -23,6 +23,14 @@ void joy_set_symbol_transformer(JoySymbolTransformer transformer) {
     g_symbol_transformer = transformer;
 }
 
+/* ---------- Parser Dictionary for DEFINE ---------- */
+
+static JoyDict* g_parser_dict = NULL;
+
+void joy_set_parser_dict(JoyDict* dict) {
+    g_parser_dict = dict;
+}
+
 /* ---------- Tokenizer ---------- */
 
 typedef enum {
@@ -392,6 +400,90 @@ static JoyValue parse_value(Lexer* lex) {
     }
 }
 
+/* ---------- DEFINE Parsing ---------- */
+
+/*
+ * Check if symbol is DEFINE or def keyword
+ */
+static bool is_define_keyword(const char* sym) {
+    return strcmp(sym, "DEFINE") == 0 || strcmp(sym, "def") == 0;
+}
+
+/*
+ * Parse a single definition: name == term1 term2 ... (terminated by ; or .)
+ * Returns true if more definitions follow (;), false if done (.)
+ */
+static bool parse_single_definition(Lexer* lex) {
+    /* Expect name */
+    if (lex->current.type != TOK_SYMBOL) {
+        fprintf(stderr, "DEFINE: expected name, got token type %d\n", lex->current.type);
+        return false;
+    }
+
+    char* name = strdup(lex->current.value.string);
+    lexer_next(lex);
+
+    /* Expect == */
+    if (lex->current.type != TOK_SYMBOL ||
+        strcmp(lex->current.value.string, "==") != 0) {
+        fprintf(stderr, "DEFINE: expected '==' after '%s'\n", name);
+        free(name);
+        return false;
+    }
+    lexer_next(lex);
+
+    /* Parse terms until ; or . */
+    JoyQuotation* body = joy_quotation_new(8);
+    bool more_defs = false;
+
+    while (lex->current.type != TOK_EOF) {
+        /* Check for terminators */
+        if (lex->current.type == TOK_SYMBOL) {
+            if (strcmp(lex->current.value.string, ";") == 0) {
+                lexer_next(lex);
+                more_defs = true;
+                break;
+            }
+            if (strcmp(lex->current.value.string, ".") == 0) {
+                lexer_next(lex);
+                more_defs = false;
+                break;
+            }
+        }
+
+        /* Parse term */
+        JoyValue term = parse_value(lex);
+        joy_quotation_push(body, term);
+    }
+
+    /* Register definition if we have a dictionary */
+    if (g_parser_dict) {
+        joy_dict_define_quotation(g_parser_dict, name, body);
+    } else {
+        /* No dictionary - just free the body */
+        joy_quotation_free(body);
+    }
+
+    free(name);
+    return more_defs;
+}
+
+/*
+ * Parse DEFINE block: DEFINE name == prog . or DEFINE n1 == p1 ; n2 == p2 .
+ */
+static void parse_define_block(Lexer* lex) {
+    /* Skip past DEFINE/def keyword */
+    lexer_next(lex);
+
+    /* Parse definitions until . terminator */
+    while (lex->current.type != TOK_EOF) {
+        if (!parse_single_definition(lex)) {
+            break;  /* . terminator or error */
+        }
+        /* ; terminator - continue with next definition */
+    }
+}
+
 /* ---------- Public API ---------- */
 
 JoyQuotation* joy_parse(const char* source) {
@@ -402,6 +494,12 @@ JoyQuotation* joy_parse(const char* source) {
     JoyQuotation* quot = joy_quotation_new(16);
 
     while (lex.current.type != TOK_EOF) {
+        /* Check for DEFINE/def keyword */
+        if (lex.current.type == TOK_SYMBOL && is_define_keyword(lex.current.value.string)) {
+            parse_define_block(&lex);
+            continue;
+        }
+
         JoyValue v = parse_value(&lex);
         joy_quotation_push(quot, v);
     }

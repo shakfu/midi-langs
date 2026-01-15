@@ -220,6 +220,69 @@ dup play
 ] times
 ```
 
+## Looping
+
+```joy
+\ times - repeat N times
+5 [c play] times
+
+\ step - iterate over a list
+[c d e f g] [play] step
+
+\ map - transform each element
+[c d e] [12 +] map    \ -> [72 74 76]
+
+\ fold - reduce a list
+[1 2 3 4] 0 [+] fold  \ -> 10
+
+\ while - loop with condition
+0 [dup 5 <] [dup . succ] while pop
+```
+
+For music, step and times are most useful:
+
+```
+\ Play a scale
+[c d e f g a b c5] [play] step
+
+\ Play a chord 4 times
+4 [[c e g] chord] times
+
+\ Play 8 random notes
+8 [[c d e f g a b] dup size rand swap rem at play] times
+```
+
+## User Definitions
+
+Define your own words using `DEFINE` or `def`:
+
+```joy
+\ Single definition
+def double == 2 * .
+5 double              \ -> 10
+
+\ Multiple definitions
+DEFINE
+  pick == dup size rand swap rem at ;
+  cmaj == [c e g] .
+
+\ Use them
+[c d e f g a b] pick play    \ Random note
+cmaj chord                    \ C major chord
+
+\ Musical patterns
+def arp == [play] step .
+def loop4 == 4 swap times .
+
+[c e g] arp                   \ Arpeggio
+[[c e g] chord] loop4         \ Chord 4 times
+```
+
+Syntax:
+- `def name == body .` - define a single word
+- `DEFINE name == body .` - same as def
+- `DEFINE n1 == b1 ; n2 == b2 .` - multiple definitions
+
 ## Architecture
 
 Joy-MIDI is built on the pyjoy-runtime, a clean C implementation of the Joy language:
