@@ -9,6 +9,9 @@ build/
 out.comb
 .cache
 
+# app history
+.joy_history
+
 # Prerequisites
 *.d
 

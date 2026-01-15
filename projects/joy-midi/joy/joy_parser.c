@@ -764,6 +764,9 @@ static bool ends_definition(const char* input) {
     return (len > 0 && input[len-1] == '.');
 }
 
+/* History file in current directory */
+#define JOY_HISTORY_FILE ".joy_history"
+
 void joy_repl(JoyContext* ctx) {
     jmp_buf error_recovery;
 
@@ -772,6 +775,9 @@ void joy_repl(JoyContext* ctx) {
     joy_set_current_context(ctx);
 
 #ifdef HAVE_READLINE
+    /* Load history from current directory */
+    read_history(JOY_HISTORY_FILE);
+
     char* input;
     char* accumulated = NULL;
     size_t accum_len = 0;
@@ -867,6 +873,9 @@ void joy_repl(JoyContext* ctx) {
 
         free(input);
     }
+
+    /* Save history to current directory */
+    write_history(JOY_HISTORY_FILE);
 #else
     char line[4096];
     char accumulated[16384];

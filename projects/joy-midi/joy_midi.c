@@ -52,6 +52,9 @@ void joy_midi_register_primitives(JoyContext* ctx) {
     joy_dict_define_primitive(dict, "channel", channel_);
     joy_dict_define_primitive(dict, "chan", chan_);
 
+    /* Debug */
+    joy_dict_define_primitive(dict, "midi-debug", midi_debug_);
+
     /* Initialize MIDI observer */
     midi_init();
 

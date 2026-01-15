@@ -100,4 +100,8 @@ void accumulator_advance(int ms);  /* Advance offset for next sequence */
 MidiSchedule* get_current_schedule(void);
 void clear_current_schedule(void);
 
+/* Debug */
+void schedule_set_debug(bool enable);
+void midi_debug_(JoyContext* ctx);
+
 #endif /* MIDI_PRIMITIVES_H */

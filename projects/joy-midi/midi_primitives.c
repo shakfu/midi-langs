@@ -792,12 +792,37 @@ static int compare_events(const void* a, const void* b) {
     return ea->time_ms - eb->time_ms;
 }
 
+/* Debug flag - set to true to see scheduled events */
+static bool g_schedule_debug = false;
+
+void schedule_set_debug(bool enable) {
+    g_schedule_debug = enable;
+}
+
+/* midi-debug primitive - toggle debug mode */
+void midi_debug_(JoyContext* ctx) {
+    (void)ctx;
+    g_schedule_debug = !g_schedule_debug;
+    printf("Schedule debug: %s\n", g_schedule_debug ? "ON" : "OFF");
+}
+
 /* Play a schedule - sorts events and plays them with proper timing */
 void schedule_play(MidiSchedule* sched) {
     if (!sched || sched->count == 0 || !midi_out) return;
 
     /* Sort events by time */
     qsort(sched->events, sched->count, sizeof(ScheduledEvent), compare_events);
+
+    if (g_schedule_debug) {
+        printf("=== Schedule: %zu events, duration %d ms ===\n",
+               sched->count, sched->total_duration_ms);
+        for (size_t i = 0; i < sched->count && i < 20; i++) {
+            ScheduledEvent* ev = &sched->events[i];
+            printf("  t=%4d ch=%d pitch=%3d vel=%3d dur=%d\n",
+                   ev->time_ms, ev->channel, ev->pitch, ev->velocity, ev->duration_ms);
+        }
+        if (sched->count > 20) printf("  ... (%zu more)\n", sched->count - 20);
+    }
 
     /* Track active notes for note-off scheduling */
     typedef struct { int pitch; int channel; int off_time; } ActiveNote;
@@ -1016,9 +1041,12 @@ void joy_execute_seq(JoyContext* ctx, SeqDefinition* seq) {
                         if (val.data.list->items[k].type == JOY_INTEGER) {
                             int pitch = (int)val.data.list->items[k].data.integer;
                             int play_dur = mctx->duration_ms * mctx->quantization / 100;
-                            schedule_add_event(sched, get_schedule_time(),
-                                              get_schedule_channel(), pitch,
-                                              mctx->velocity, play_dur);
+                            /* Skip rests (pitch=-1), just advance time */
+                            if (pitch != -1) {
+                                schedule_add_event(sched, get_schedule_time(),
+                                                  get_schedule_channel(), pitch,
+                                                  mctx->velocity, play_dur);
+                            }
                             advance_schedule_time(mctx->duration_ms);
                         }
                     }
@@ -1027,9 +1055,12 @@ void joy_execute_seq(JoyContext* ctx, SeqDefinition* seq) {
                     /* Single note - play it */
                     int pitch = (int)val.data.integer;
                     int play_dur = mctx->duration_ms * mctx->quantization / 100;
-                    schedule_add_event(sched, get_schedule_time(),
-                                      get_schedule_channel(), pitch,
-                                      mctx->velocity, play_dur);
+                    /* Skip rests (pitch=-1), just advance time */
+                    if (pitch != -1) {
+                        schedule_add_event(sched, get_schedule_time(),
+                                          get_schedule_channel(), pitch,
+                                          mctx->velocity, play_dur);
+                    }
                     advance_schedule_time(mctx->duration_ms);
                 }
             }
