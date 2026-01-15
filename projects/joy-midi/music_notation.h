@@ -34,4 +34,7 @@ MusicContext* music_get_context(JoyContext* ctx);
 void music_play_(JoyContext* ctx);   /* sequential playback */
 void music_chord_(JoyContext* ctx);  /* simultaneous playback */
 
+/* notes - execute quotation and collect results into a list */
+void music_notes_(JoyContext* ctx);
+
 #endif /* MUSIC_NOTATION_H */

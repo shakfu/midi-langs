@@ -43,17 +43,20 @@ A virtual MIDI port is created automatically when starting the REPL.
 c d e           \ Stack: 60 62 64
 
 \ Use play for sequential playback
-c play          \ Plays middle C
-[c d e] i stack play    \ Play C D E sequentially
+c play              \ Plays middle C
+[c d e] notes play  \ Play C D E sequentially
 
 \ Use chord for simultaneous playback
-[c e g] i stack chord   \ Play C major chord
-c:maj chord             \ Same thing using named chord syntax
+[c e g] notes chord \ Play C major chord
+c:maj chord         \ Same thing using named chord syntax
 
 \ Named chords push pitch lists
 c:maj           \ Stack: [60 64 67]
 d:min           \ Stack: [62 65 69]
 g:7             \ Stack: [67 71 74 77]
+
+\ Transform notes before playing
+[c d e] notes [7 +] map play  \ Transpose up a fifth
 ```
 
 ### Notation Reference
@@ -79,8 +82,7 @@ g:7             \ Stack: [67 71 74 77]
 mf
 
 \ Play a scale
-o4 c d e f g a b >> c
-[c d e f g a b >> c] i stack play
+[o4 c d e f g a b >> c] notes play
 
 \ Play chord progression (I-IV-V-I)
 c:maj chord
@@ -89,7 +91,7 @@ g:maj chord
 c:maj chord
 
 \ Transpose a melody up a fifth
-[c d e] i [7 +] map stack play
+[c d e] notes [7 +] map play
 ```
 
 ### Verbose MIDI Primitives
@@ -173,6 +175,7 @@ rot         \ Rotate top three
 |------|--------------|-------------|
 | `play` | `( pitch -- )` or `( [pitches] -- )` | Play note(s) sequentially |
 | `chord` | `( pitch -- )` or `( [pitches] -- )` | Play note(s) simultaneously |
+| `notes` | `( [symbols] -- [pitches] )` | Execute list, collect results into list |
 
 ### Note Operations
 
@@ -241,11 +244,14 @@ c:maj chord     \ I
 
 ```joy
 \ Transpose a melody using map
-[c d e f g] i stack [7 +] map play
+[c d e f g] notes [7 +] map play
 
-\ Generate chord sequence
-[c d e f] i [[0] dip major] map
-\ Now have list of chord lists
+\ Filter to just high notes
+[c d e f g] notes [64 >] filter play
+
+\ Generate chord sequence from root notes
+[c d e f] notes [major] map
+\ Now have list of chord lists: [[60 64 67] [62 65 69] ...]
 ```
 
 ### Verbose API
@@ -294,9 +300,9 @@ Notes in Joy-MIDI push MIDI pitch integers onto the stack rather than playing im
 
 ```joy
 \ Notes are data - can be transformed before playing
-[c d e] i       \ Execute quotation, push 60 62 64
-[7 +] map       \ Transpose up a fifth: 67 69 71
-stack play      \ Collect and play
+[c d e] notes     \ Collect into list: [60 62 64]
+[7 +] map         \ Transpose up a fifth: [67 69 71]
+play              \ Play the result
 ```
 
 This design separates *what* to play (data) from *when* to play (action), allowing full use of Joy's combinators for musical transformations.

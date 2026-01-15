@@ -415,6 +415,58 @@ void music_chord_(JoyContext* ctx) {
     }
 }
 
+/* notes - execute quotation/list and collect results into a list */
+void music_notes_(JoyContext* ctx) {
+    if (ctx->stack->depth < 1) {
+        joy_error_underflow("notes", 1, ctx->stack->depth);
+        return;
+    }
+
+    JoyValue val = joy_stack_pop(ctx->stack);
+
+    /* Record stack depth before execution */
+    size_t depth_before = ctx->stack->depth;
+
+    /* Execute based on type */
+    if (val.type == JOY_QUOTATION) {
+        joy_execute_quotation(ctx, val.data.quotation);
+        joy_value_free(&val);
+    } else if (val.type == JOY_LIST) {
+        /* Execute each item in the list */
+        JoyList* list = val.data.list;
+        for (size_t i = 0; i < list->length; i++) {
+            joy_execute_value(ctx, joy_value_copy(list->items[i]));
+        }
+        joy_value_free(&val);
+    } else {
+        joy_value_free(&val);
+        joy_error("notes: expected list or quotation");
+        return;
+    }
+
+    /* Collect new values into a list */
+    size_t new_count = ctx->stack->depth - depth_before;
+    JoyList* list = joy_list_new(new_count > 0 ? new_count : 1);
+
+    /* Pop new values in reverse order and prepend to build correct order */
+    for (size_t i = 0; i < new_count; i++) {
+        JoyValue item = joy_stack_pop(ctx->stack);
+        /* Insert at beginning to maintain order */
+        joy_list_push(list, item);
+    }
+
+    /* Reverse the list to get correct order (first pushed = first in list) */
+    for (size_t i = 0; i < list->length / 2; i++) {
+        JoyValue tmp = list->items[i];
+        list->items[i] = list->items[list->length - 1 - i];
+        list->items[list->length - 1 - i] = tmp;
+    }
+
+    /* Push the list */
+    JoyValue list_val = {.type = JOY_LIST, .data.list = list};
+    joy_stack_push(ctx->stack, list_val);
+}
+
 /* ============================================================================
  * Public API
  * ============================================================================ */

@@ -47,6 +47,7 @@ void joy_midi_register_primitives(JoyContext* ctx) {
     /* Musical notation playback */
     joy_dict_define_primitive(dict, "play", music_play_);
     joy_dict_define_primitive(dict, "chord", music_chord_);
+    joy_dict_define_primitive(dict, "notes", music_notes_);
 
     /* Initialize MIDI observer */
     midi_init();
