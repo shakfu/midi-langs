@@ -31,6 +31,13 @@ void tempo_(JoyContext* ctx);
 void quant_(JoyContext* ctx);
 void vol_(JoyContext* ctx);
 
+/* Note durations */
+void whole_(JoyContext* ctx);
+void half_(JoyContext* ctx);
+void quarter_(JoyContext* ctx);
+void eighth_(JoyContext* ctx);
+void sixteenth_(JoyContext* ctx);
+
 /* Music theory */
 void major_chord_(JoyContext* ctx);
 void minor_chord_(JoyContext* ctx);

@@ -21,9 +21,10 @@ void music_context_free(MusicContext* mctx) {
 
 void music_context_reset(MusicContext* mctx) {
     mctx->octave = 4;           /* Default octave 4 (middle C = C4 = MIDI 60) */
-    mctx->duration_ms = 500;    /* Default quarter note at 120 BPM */
-    mctx->velocity = 80;        /* Default mezzo-forte */
+    mctx->duration_value = 4;   /* Default quarter note */
     mctx->tempo = 120;          /* Default tempo */
+    mctx->duration_ms = music_duration_to_ms(4, 120);  /* 500ms at 120 BPM */
+    mctx->velocity = 80;        /* Default mezzo-forte */
     mctx->quantization = 90;    /* Default 90% gate time (legato) */
     mctx->last_pitch = -1;      /* No last pitch */
     mctx->in_chord = false;

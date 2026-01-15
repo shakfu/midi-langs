@@ -419,11 +419,54 @@ void tempo_(JoyContext* ctx) {
     MusicContext* mctx = (MusicContext*)ctx->user_data;
     if (mctx) {
         mctx->tempo = bpm;
-        /* Recalculate duration based on new tempo */
-        /* Default to quarter note duration */
-        mctx->duration_ms = music_duration_to_ms(4, bpm);
+        /* Recalculate duration based on current note value and new tempo */
+        mctx->duration_ms = music_duration_to_ms(mctx->duration_value, bpm);
     }
 }
+
+/* Helper to play with a specific duration */
+static void play_with_duration(JoyContext* ctx, int value, const char* name) {
+    MusicContext* mctx = (MusicContext*)ctx->user_data;
+    if (!mctx) return;
+
+    /* Save current duration */
+    int old_value = mctx->duration_value;
+    int old_ms = mctx->duration_ms;
+
+    /* Set new duration */
+    mctx->duration_value = value;
+    mctx->duration_ms = music_duration_to_ms(value, mctx->tempo);
+
+    /* Pop and play */
+    if (ctx->stack->depth < 1) {
+        joy_error_underflow(name, 1, ctx->stack->depth);
+        return;
+    }
+
+    JoyValue val = POP();
+    if (val.type == JOY_INTEGER) {
+        /* Single note */
+        PUSH(val);
+        music_play_(ctx);
+    } else if (val.type == JOY_LIST) {
+        /* List of notes */
+        PUSH(val);
+        music_play_(ctx);
+    } else {
+        joy_error_type(name, "integer or list", val.type);
+        joy_value_free(&val);
+    }
+
+    /* Restore duration */
+    mctx->duration_value = old_value;
+    mctx->duration_ms = old_ms;
+}
+
+void whole_(JoyContext* ctx) { play_with_duration(ctx, 1, "whole"); }
+void half_(JoyContext* ctx) { play_with_duration(ctx, 2, "half"); }
+void quarter_(JoyContext* ctx) { play_with_duration(ctx, 4, "quarter"); }
+void eighth_(JoyContext* ctx) { play_with_duration(ctx, 8, "eighth"); }
+void sixteenth_(JoyContext* ctx) { play_with_duration(ctx, 16, "sixteenth"); }
 
 void quant_(JoyContext* ctx) {
     REQUIRE(1, "quant");

@@ -6,6 +6,18 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **joy-midi note durations**: Postfix duration words for playing notes with specific lengths
+  - `[c4 d4 e4] quarter` - play list as quarter notes
+  - `c4 half` - play single note as half note
+  - `[g4 a4 g4 f4] eighth` - play as eighth notes (fast)
+  - Available durations: `whole`, `half`, `quarter`, `eighth`/`8th`, `sixteenth`/`16th`
+  - Duration is set temporarily for each operation, then restored (composes well)
+
+- **joy-midi REPL history**: Persistent command history across sessions
+  - History saved to `.joy_history` in current directory
+  - Loaded on startup, saved on exit
+  - Use arrow keys to navigate previous commands
+
 - **joy-midi standard library**: `prelude.joy` with functions from pyjoy-lang stdlib
   - Stack utilities: `pop2`, `dup2`, `dip2`, `shunt`
   - List operations: `reverse`, `conjoin`, `disjoin`, `unitlist`, `pairlist`
@@ -72,6 +84,13 @@ All notable changes to midi-langs are documented in this file.
   - `choose`: Select random element from list (renamed from `pick` to avoid conflict with stack primitive)
   - `from-to`: Build aggregate from lo to hi using linrec
   - `from-to-list`: Build list from lo to hi (e.g., `1 10 from-to-list` -> `[1 2 3 4 5 6 7 8 9 10]`)
+
+### Fixed
+
+- **joy-midi SEQ parallel parts timing**: Fixed multiple timing issues in scheduled playback
+  - Fixed LIFO stack order: notes pushed onto stack now play in correct order (not reversed)
+  - Rests (pitch=-1) no longer scheduled as events, just advance time
+  - Updated example files (ode_to_joy.joy, frere_jacques.joy) with correct beat counts
 
 ### Changed
 

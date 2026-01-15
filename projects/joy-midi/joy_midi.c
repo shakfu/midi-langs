@@ -34,6 +34,15 @@ void joy_midi_register_primitives(JoyContext* ctx) {
     joy_dict_define_primitive(dict, "quant", quant_);
     joy_dict_define_primitive(dict, "vol", vol_);
 
+    /* Note durations */
+    joy_dict_define_primitive(dict, "whole", whole_);
+    joy_dict_define_primitive(dict, "half", half_);
+    joy_dict_define_primitive(dict, "quarter", quarter_);
+    joy_dict_define_primitive(dict, "eighth", eighth_);
+    joy_dict_define_primitive(dict, "8th", eighth_);
+    joy_dict_define_primitive(dict, "sixteenth", sixteenth_);
+    joy_dict_define_primitive(dict, "16th", sixteenth_);
+
     /* Music theory */
     joy_dict_define_primitive(dict, "major", major_chord_);
     joy_dict_define_primitive(dict, "minor", minor_chord_);

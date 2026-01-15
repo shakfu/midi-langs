@@ -12,6 +12,7 @@
 typedef struct {
     int octave;           /* Current octave (0-9, default 4) */
     int duration_ms;      /* Current duration in ms (default 500) */
+    int duration_value;   /* Note value: 1=whole, 2=half, 4=quarter, 8=eighth, 16=sixteenth */
     int velocity;         /* Current velocity (0-127, default 80) */
     int tempo;            /* BPM (default 120) */
     int quantization;     /* Gate percentage (0-100, default 90) */
