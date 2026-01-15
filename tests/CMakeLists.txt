@@ -286,6 +286,59 @@ if(NOT WIN32)
     )
 endif()
 
+# joy_midi tests (shell-based, Unix only)
+if(NOT WIN32)
+    add_test(
+        NAME joy_midi_smoke
+        COMMAND sh -c "echo 'midi-list' | $<TARGET_FILE:joy_midi>"
+    )
+
+    add_test(
+        NAME joy_midi_arithmetic
+        COMMAND sh -c "echo '3 4 + .' | $<TARGET_FILE:joy_midi> | grep -q '7'"
+    )
+
+    add_test(
+        NAME joy_midi_pitch_parsing
+        COMMAND sh -c "echo '\"C4\" pitch .' | $<TARGET_FILE:joy_midi> | grep -q '60'"
+    )
+
+    add_test(
+        NAME joy_midi_major_chord
+        COMMAND sh -c "echo '60 major .' | $<TARGET_FILE:joy_midi> | grep -q '\\[60 64 67\\]'"
+    )
+
+    add_test(
+        NAME joy_midi_minor_chord
+        COMMAND sh -c "echo '60 minor .' | $<TARGET_FILE:joy_midi> | grep -q '\\[60 63 67\\]'"
+    )
+
+    add_test(
+        NAME joy_midi_transpose
+        COMMAND sh -c "echo '60 12 transpose .' | $<TARGET_FILE:joy_midi> | grep -q '72'"
+    )
+
+    add_test(
+        NAME joy_midi_virtual_port
+        COMMAND sh -c "echo 'midi-virtual' | $<TARGET_FILE:joy_midi> | grep -q 'JoyMIDI'"
+    )
+
+    set_tests_properties(
+        joy_midi_smoke
+        joy_midi_arithmetic
+        joy_midi_pitch_parsing
+        joy_midi_major_chord
+        joy_midi_minor_chord
+        joy_midi_transpose
+        PROPERTIES LABELS "quick"
+    )
+
+    set_tests_properties(
+        joy_midi_virtual_port
+        PROPERTIES LABELS "quick;midi"
+    )
+endif()
+
 # demo_example_mhs (shell script)
 add_test(
     NAME demo_example_mhs
@@ -355,11 +408,17 @@ add_test(
     COMMAND $<TARGET_FILE:s7_midi> ${CMAKE_CURRENT_SOURCE_DIR}/examples/demo_s7.scm
 )
 
+add_test(
+    NAME demo_example_joy
+    COMMAND $<TARGET_FILE:joy_midi> ${CMAKE_CURRENT_SOURCE_DIR}/examples/demo_joy.joy
+)
+
 set_tests_properties(
     demo_example_alda
     demo_example_forth
     demo_example_pktpy
     demo_example_s7
+    demo_example_joy
     PROPERTIES LABELS "quick"
 )
 

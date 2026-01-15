@@ -65,6 +65,9 @@ set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(thirdparty/libuv)
 
+# Build pyjoy runtime (Joy language runtime)
+add_subdirectory(thirdparty/pyjoy-runtime)
+
 # Build common music theory library
 add_subdirectory(projects/common)
 
@@ -77,6 +80,7 @@ add_subdirectory(projects/pktpy-midi)
 add_subdirectory(projects/s7-midi)
 add_subdirectory(projects/lua-midi)
 add_subdirectory(projects/alda-midi)
+add_subdirectory(projects/joy-midi)
 
 # ============================================
 # Alias targets for consistent naming
@@ -88,10 +92,11 @@ add_custom_target(lua-midi DEPENDS lua_midi)
 add_custom_target(pktpy-midi DEPENDS pktpy_midi)
 add_custom_target(s7-midi DEPENDS s7_midi)
 add_custom_target(alda-midi DEPENDS alda_midi)
+add_custom_target(joy-midi DEPENDS joy_midi)
 
 # Convenience target to build all midi-langs
 add_custom_target(all-midi-langs
-    DEPENDS forth_midi lua_midi pktpy_midi s7_midi alda_midi
+    DEPENDS forth_midi lua_midi pktpy_midi s7_midi alda_midi joy_midi
 )
 if(BUILD_MHS_MIDI)
     add_dependencies(all-midi-langs mhs-midi)
