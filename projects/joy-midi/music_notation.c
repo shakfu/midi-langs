@@ -1,20 +1,27 @@
 /*
  * music_notation.c - Alda-like musical notation parser for Joy-MIDI
  *
- * Notes push MIDI pitch integers onto the stack instead of playing directly.
- * Use 'play' to play notes sequentially or 'chord' to play simultaneously.
+ * Notes are converted to MIDI integers at PARSE TIME, not execution time.
+ * This means [c d e] directly becomes [60 62 64], enabling Joy combinators.
  *
  * Examples:
- *   c d e           - pushes 60, 62, 64 onto stack
- *   [c d e] play    - plays C D E sequentially
- *   [c e g] chord   - plays C major chord
- *   [c d e] reverse play - plays E D C
- *   [c d e] [7 +] map play - transpose up a fifth
+ *   c d e              - pushes 60, 62, 64 onto stack
+ *   [c d e]            - list [60 62 64] (no 'notes' needed!)
+ *   [c d e] [7 +] map  - transpose: [67 69 71]
+ *   [c e g] play       - plays C major arpeggio
+ *   [c e g] chord      - plays C major chord
+ *
+ * Notation:
+ *   c d e f g a b      - notes in octave 4 (c=60)
+ *   c5 d5 e5           - notes in octave 5 (c5=72)
+ *   c+ c-              - sharp/flat (c+=61, c-=59)
+ *   c+5                - C#5 (73)
  */
 
 #include "music_notation.h"
 #include "music_context.h"
 #include "midi_primitives.h"
+#include "joy_parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,12 +31,11 @@
 /* Special value for rest */
 #define REST_MARKER (-1)
 
-/* Forward declarations for MIDI functions */
-extern void midi_note_(JoyContext* ctx);
-extern void midi_chord_(JoyContext* ctx);
+/* Default octave for notes without explicit octave */
+#define DEFAULT_OCTAVE 4
 
 /* ============================================================================
- * Internal Helpers
+ * Note Pattern Parser (used at parse time)
  * ============================================================================ */
 
 /* Note offset from C within an octave */
@@ -46,65 +52,70 @@ static int note_offset(char note) {
     }
 }
 
-/* ============================================================================
- * Parsing Functions - Push data onto stack instead of playing
- * ============================================================================ */
+/*
+ * Parse a note pattern and return MIDI pitch.
+ * Patterns: c, c4, c5, c+, c-, c+5, c-4
+ * Returns -1 if not a valid note pattern.
+ */
+static int parse_note_pattern(const char* name) {
+    const char* p = name;
 
-/* Parse octave commands: o0-o9, >>, << */
-static bool parse_octave_command(MusicContext* mctx, const char* name) {
-    if (strcmp(name, ">>") == 0) {
-        if (mctx->octave < 9) mctx->octave++;
-        return true;
-    }
-    if (strcmp(name, "<<") == 0) {
-        if (mctx->octave > 0) mctx->octave--;
-        return true;
-    }
-    if (name[0] == 'o' && name[1] >= '0' && name[1] <= '9' && name[2] == '\0') {
-        mctx->octave = name[1] - '0';
-        return true;
-    }
-    return false;
-}
+    /* Must start with note letter */
+    int offset = note_offset(*p);
+    if (offset < 0) return -1;
+    p++;
 
-/* Parse rest: r, r4, r8, etc. - pushes REST_MARKER */
-static bool parse_rest(JoyContext* ctx, MusicContext* mctx, const char* name) {
-    if (name[0] != 'r') return false;
-
-    /* Check it's not a Joy word starting with 'r' */
-    if (name[1] != '\0' && !isdigit(name[1]) && name[1] != '.') return false;
-
-    const char* p = name + 1;
-    int duration = 0;
-    int dots = 0;
-
-    /* Duration: 1, 2, 4, 8, 16, 32 */
-    if (isdigit(*p)) {
-        duration = atoi(p);
-        while (isdigit(*p)) p++;
-        mctx->duration_ms = music_duration_to_ms(duration, mctx->tempo);
+    /* Optional accidentals: + (sharp), - (flat) */
+    int accidental = 0;
+    while (*p == '+' || *p == '-') {
+        if (*p == '+') accidental++;
+        else if (*p == '-') accidental--;
+        p++;
     }
 
-    /* Dots */
-    while (*p == '.') {
-        dots++;
+    /* Optional octave number (0-9) */
+    int octave = DEFAULT_OCTAVE;
+    if (*p >= '0' && *p <= '9') {
+        octave = *p - '0';
         p++;
     }
 
     /* Must have consumed entire string */
-    if (*p != '\0') return false;
+    if (*p != '\0') return -1;
 
-    /* Calculate actual duration with dots (stored for play to use) */
-    int dur = mctx->duration_ms;
-    for (int i = 0; i < dots; i++) {
-        dur = dur * 3 / 2;
-    }
-    mctx->duration_ms = dur;
+    /* Calculate MIDI pitch */
+    int pitch = (octave + 1) * 12 + offset + accidental;
+    if (pitch < 0) pitch = 0;
+    if (pitch > 127) pitch = 127;
 
-    /* Push rest marker */
-    joy_stack_push(ctx->stack, joy_integer(REST_MARKER));
-    return true;
+    return pitch;
 }
+
+/*
+ * Symbol transformer for the parser.
+ * Converts note patterns to integers at parse time.
+ */
+static bool note_transformer(const char* symbol, JoyValue* out_value) {
+    /* Try to parse as note pattern */
+    int pitch = parse_note_pattern(symbol);
+    if (pitch >= 0) {
+        *out_value = joy_integer(pitch);
+        return true;
+    }
+
+    /* Check for rest */
+    if (symbol[0] == 'r' && (symbol[1] == '\0' ||
+        (symbol[1] >= '0' && symbol[1] <= '9' && symbol[2] == '\0'))) {
+        *out_value = joy_integer(REST_MARKER);
+        return true;
+    }
+
+    return false;  /* Not a note pattern */
+}
+
+/* ============================================================================
+ * Runtime State Handlers (dynamics, etc.)
+ * ============================================================================ */
 
 /* Parse dynamics: ppp, pp, p, mp, mf, f, ff, fff - sets velocity state */
 static bool parse_dynamic(MusicContext* mctx, const char* name) {
@@ -126,152 +137,8 @@ static bool parse_dynamic(MusicContext* mctx, const char* name) {
     return false;
 }
 
-/* Parse note: c, c4, c+, c4., c+4. - pushes MIDI pitch */
-static bool parse_note(JoyContext* ctx, MusicContext* mctx, const char* name) {
-    const char* p = name;
-    int offset = -1;
-    int accidental = 0;
-    int duration = 0;
-    int dots = 0;
-
-    /* Note letter: c d e f g a b */
-    offset = note_offset(*p);
-    if (offset < 0) return false;
-    p++;
-
-    /* Accidentals: + (sharp), - (flat), _ (natural) */
-    while (*p == '+' || *p == '-' || *p == '_') {
-        if (*p == '+') accidental++;
-        else if (*p == '-') accidental--;
-        /* _ resets to natural (for future key signature support) */
-        p++;
-    }
-
-    /* Duration: 1, 2, 4, 8, 16, 32 */
-    if (isdigit(*p)) {
-        duration = atoi(p);
-        while (isdigit(*p)) p++;
-        /* Update default duration */
-        mctx->duration_ms = music_duration_to_ms(duration, mctx->tempo);
-    }
-
-    /* Dots: . or .. */
-    while (*p == '.') {
-        dots++;
-        p++;
-    }
-
-    /* Must have consumed entire string */
-    if (*p != '\0') return false;
-
-    /* Calculate MIDI pitch */
-    int pitch = (mctx->octave + 1) * 12 + offset + accidental;
-    if (pitch < 0) pitch = 0;
-    if (pitch > 127) pitch = 127;
-
-    /* Update duration with dots */
-    if (dots > 0) {
-        int dur = mctx->duration_ms;
-        for (int i = 0; i < dots; i++) {
-            dur = dur * 3 / 2;
-        }
-        mctx->duration_ms = dur;
-    }
-
-    /* Push the pitch onto the stack */
-    joy_stack_push(ctx->stack, joy_integer(pitch));
-
-    mctx->last_pitch = pitch;
-    return true;
-}
-
-/* Chord intervals for named chords */
-static const int CHORD_MAJ[] = {0, 4, 7};
-static const int CHORD_MIN[] = {0, 3, 7};
-static const int CHORD_DIM[] = {0, 3, 6};
-static const int CHORD_AUG[] = {0, 4, 8};
-static const int CHORD_DOM7[] = {0, 4, 7, 10};
-static const int CHORD_MAJ7[] = {0, 4, 7, 11};
-static const int CHORD_MIN7[] = {0, 3, 7, 10};
-static const int CHORD_DIM7[] = {0, 3, 6, 9};
-
-/* Parse named chord: c:maj, c:min7 - pushes list of pitches */
-static bool parse_named_chord(JoyContext* ctx, MusicContext* mctx, const char* name) {
-    /* Must contain a colon */
-    const char* colon = strchr(name, ':');
-    if (!colon) return false;
-
-    /* Get root note */
-    const char* p = name;
-    int offset = note_offset(*p);
-    if (offset < 0) return false;
-    p++;
-
-    /* Accidentals */
-    int accidental = 0;
-    while (*p == '+' || *p == '-' || *p == '_') {
-        if (*p == '+') accidental++;
-        else if (*p == '-') accidental--;
-        p++;
-    }
-
-    /* Duration before colon */
-    int duration = 0;
-    if (isdigit(*p)) {
-        duration = atoi(p);
-        while (isdigit(*p)) p++;
-        mctx->duration_ms = music_duration_to_ms(duration, mctx->tempo);
-    }
-
-    /* Should be at colon now */
-    if (*p != ':') return false;
-    p++;  /* Skip colon */
-
-    /* Parse chord type */
-    const int* intervals = NULL;
-    int chord_size = 0;
-
-    if (strcmp(p, "maj") == 0) {
-        intervals = CHORD_MAJ; chord_size = 3;
-    } else if (strcmp(p, "min") == 0 || strcmp(p, "m") == 0) {
-        intervals = CHORD_MIN; chord_size = 3;
-    } else if (strcmp(p, "dim") == 0) {
-        intervals = CHORD_DIM; chord_size = 3;
-    } else if (strcmp(p, "aug") == 0) {
-        intervals = CHORD_AUG; chord_size = 3;
-    } else if (strcmp(p, "7") == 0 || strcmp(p, "dom7") == 0) {
-        intervals = CHORD_DOM7; chord_size = 4;
-    } else if (strcmp(p, "maj7") == 0) {
-        intervals = CHORD_MAJ7; chord_size = 4;
-    } else if (strcmp(p, "min7") == 0 || strcmp(p, "m7") == 0) {
-        intervals = CHORD_MIN7; chord_size = 4;
-    } else if (strcmp(p, "dim7") == 0) {
-        intervals = CHORD_DIM7; chord_size = 4;
-    } else {
-        return false;
-    }
-
-    /* Calculate root pitch */
-    int root = (mctx->octave + 1) * 12 + offset + accidental;
-
-    /* Build list of pitches */
-    JoyList* list = joy_list_new(chord_size);
-    for (int i = 0; i < chord_size; i++) {
-        int pitch = root + intervals[i];
-        if (pitch < 0) pitch = 0;
-        if (pitch > 127) pitch = 127;
-        joy_list_push(list, joy_integer(pitch));
-    }
-
-    /* Push the list onto the stack */
-    JoyValue list_val = {.type = JOY_LIST, .data.list = list};
-    joy_stack_push(ctx->stack, list_val);
-
-    return true;
-}
-
 /* ============================================================================
- * Play and Chord Primitives
+ * Play Helpers
  * ============================================================================ */
 
 /* Helper: play a single note with current settings */
@@ -286,10 +153,6 @@ static void play_single_note(MusicContext* mctx, int pitch) {
     int play_dur = mctx->duration_ms * mctx->quantization / 100;
     int rest_dur = mctx->duration_ms - play_dur;
 
-    /* Use midi_primitives functions directly */
-    extern void send_note_on(int pitch, int velocity);
-    extern void send_note_off(int pitch);
-
     send_note_on(pitch, mctx->velocity);
     if (play_dur > 0) {
         usleep(play_dur * 1000);
@@ -300,6 +163,10 @@ static void play_single_note(MusicContext* mctx, int pitch) {
         usleep(rest_dur * 1000);
     }
 }
+
+/* ============================================================================
+ * Play and Chord Primitives
+ * ============================================================================ */
 
 /* play - pop and play notes sequentially */
 void music_play_(JoyContext* ctx) {
@@ -328,24 +195,9 @@ void music_play_(JoyContext* ctx) {
             }
         }
         joy_value_free(&val);
-    } else if (val.type == JOY_QUOTATION) {
-        /* Quotation - execute it first to get notes, then play them */
-        /* For now, just execute and let notes accumulate, then play from stack */
-        joy_execute_quotation(ctx, val.data.quotation);
-        joy_value_free(&val);
-        /* Play whatever is now on the stack */
-        while (ctx->stack->depth > 0) {
-            JoyValue note = joy_stack_pop(ctx->stack);
-            if (note.type == JOY_INTEGER) {
-                play_single_note(mctx, (int)note.data.integer);
-            } else {
-                joy_value_free(&note);
-                break;  /* Stop if we hit a non-integer */
-            }
-        }
     } else {
         joy_value_free(&val);
-        joy_error("play: expected integer, list, or quotation");
+        joy_error("play: expected integer or list");
     }
 }
 
@@ -363,9 +215,6 @@ void music_chord_(JoyContext* ctx) {
     }
 
     JoyValue val = joy_stack_pop(ctx->stack);
-
-    extern void send_note_on(int pitch, int velocity);
-    extern void send_note_off(int pitch);
 
     if (val.type == JOY_INTEGER) {
         /* Single note - just play it */
@@ -415,83 +264,23 @@ void music_chord_(JoyContext* ctx) {
     }
 }
 
-/* notes - execute quotation/list and collect results into a list */
-void music_notes_(JoyContext* ctx) {
-    if (ctx->stack->depth < 1) {
-        joy_error_underflow("notes", 1, ctx->stack->depth);
-        return;
-    }
-
-    JoyValue val = joy_stack_pop(ctx->stack);
-
-    /* Record stack depth before execution */
-    size_t depth_before = ctx->stack->depth;
-
-    /* Execute based on type */
-    if (val.type == JOY_QUOTATION) {
-        joy_execute_quotation(ctx, val.data.quotation);
-        joy_value_free(&val);
-    } else if (val.type == JOY_LIST) {
-        /* Execute each item in the list */
-        JoyList* list = val.data.list;
-        for (size_t i = 0; i < list->length; i++) {
-            joy_execute_value(ctx, joy_value_copy(list->items[i]));
-        }
-        joy_value_free(&val);
-    } else {
-        joy_value_free(&val);
-        joy_error("notes: expected list or quotation");
-        return;
-    }
-
-    /* Collect new values into a list */
-    size_t new_count = ctx->stack->depth - depth_before;
-    JoyList* list = joy_list_new(new_count > 0 ? new_count : 1);
-
-    /* Pop new values in reverse order and prepend to build correct order */
-    for (size_t i = 0; i < new_count; i++) {
-        JoyValue item = joy_stack_pop(ctx->stack);
-        /* Insert at beginning to maintain order */
-        joy_list_push(list, item);
-    }
-
-    /* Reverse the list to get correct order (first pushed = first in list) */
-    for (size_t i = 0; i < list->length / 2; i++) {
-        JoyValue tmp = list->items[i];
-        list->items[i] = list->items[list->length - 1 - i];
-        list->items[list->length - 1 - i] = tmp;
-    }
-
-    /* Push the list */
-    JoyValue list_val = {.type = JOY_LIST, .data.list = list};
-    joy_stack_push(ctx->stack, list_val);
-}
-
 /* ============================================================================
- * Public API
+ * Undefined Symbol Handler (for dynamics only now)
  * ============================================================================ */
 
 bool music_handle_symbol(JoyContext* ctx, const char* name) {
     MusicContext* mctx = (MusicContext*)ctx->user_data;
     if (!mctx) return false;
 
-    /* 1. Octave commands: o0-o9, >>, << (modify state, push nothing) */
-    if (parse_octave_command(mctx, name)) return true;
-
-    /* 2. Dynamic: ppp, pp, p, mp, mf, f, ff, fff (modify state, push nothing) */
+    /* Dynamic: ppp, pp, p, mp, mf, f, ff, fff (modify state, push nothing) */
     if (parse_dynamic(mctx, name)) return true;
 
-    /* 3. Rest: r, r4, r8, etc. (push REST_MARKER) */
-    if (parse_rest(ctx, mctx, name)) return true;
-
-    /* 4. Named chord: c:maj, c:min7 (push list of pitches) */
-    if (parse_named_chord(ctx, mctx, name)) return true;
-
-    /* 5. Note: c, c4, c+, c4., c+4. (push MIDI pitch) */
-    if (parse_note(ctx, mctx, name)) return true;
-
-    return false;  /* Not music notation */
+    return false;  /* Not handled */
 }
+
+/* ============================================================================
+ * Public API
+ * ============================================================================ */
 
 void music_notation_init(JoyContext* ctx) {
     /* Create music context */
@@ -504,6 +293,9 @@ void music_notation_init(JoyContext* ctx) {
     /* Store in Joy context */
     ctx->user_data = mctx;
     ctx->undef_handler = music_handle_symbol;
+
+    /* Set up parse-time note conversion */
+    joy_set_symbol_transformer(note_transformer);
 }
 
 void music_notation_cleanup(JoyContext* ctx) {
@@ -512,6 +304,7 @@ void music_notation_cleanup(JoyContext* ctx) {
         ctx->user_data = NULL;
     }
     ctx->undef_handler = NULL;
+    joy_set_symbol_transformer(NULL);
 }
 
 MusicContext* music_get_context(JoyContext* ctx) {

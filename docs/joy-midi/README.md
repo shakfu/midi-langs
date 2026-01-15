@@ -24,56 +24,52 @@ $ ./build/joy_midi
 Joy-MIDI  -  Joy interpreter with MIDI extensions
 Type 'quit' to exit, 'help' for MIDI words
 Created virtual MIDI output: JoyMIDI
-> 3 4 + .
-7
-> "C4" pitch .
-60
-> 60 major .
+> c d e
+60 62 64
+> [c e g]
 [60 64 67]
+> [c d e] [7 +] map
+[67 69 71]
 ```
 
-### Musical Notation (Alda-like)
+### Musical Notation
 
-Joy-MIDI supports concise Alda-like notation where **notes push MIDI pitches onto the stack**. Use `play` for sequential playback or `chord` for simultaneous notes.
-
-A virtual MIDI port is created automatically when starting the REPL.
+Notes are converted to MIDI integers at **parse time**. This means `[c d e]` directly becomes `[60 62 64]`, enabling seamless use of Joy combinators.
 
 ```joy
-\ Notes push pitches onto the stack
+\ Notes are just integers
 c d e           \ Stack: 60 62 64
+[c d e]         \ List: [60 62 64]
 
-\ Use play for sequential playback
-c play              \ Plays middle C
-[c d e] notes play  \ Play C D E sequentially
+\ Octaves (default is 4)
+c c5 c6         \ 60 72 84
+c3 c4 c5        \ 48 60 72
 
-\ Use chord for simultaneous playback
-[c e g] notes chord \ Play C major chord
-c:maj chord         \ Same thing using named chord syntax
+\ Accidentals
+c+ c- d+ d-     \ 61 59 63 61 (sharp/flat)
+c+5             \ 73 (C#5)
 
-\ Named chords push pitch lists
-c:maj           \ Stack: [60 64 67]
-d:min           \ Stack: [62 65 69]
-g:7             \ Stack: [67 71 74 77]
+\ Play notes
+c play          \ Play middle C
+[c e g] play    \ Play arpeggio
+[c e g] chord   \ Play chord
 
-\ Transform notes before playing
-[c d e] notes [7 +] map play  \ Transpose up a fifth
+\ Transform with Joy combinators
+[c d e] [7 +] map play      \ Transpose up a fifth
+[c d e] [12 +] map play     \ Transpose up an octave
+[c d e f g] [64 >] filter   \ Filter high notes
 ```
 
 ### Notation Reference
 
 | Notation | Example | Description |
 |----------|---------|-------------|
-| Note | `c`, `d`, `e` | Push pitch in current octave |
-| Duration | `c4`, `c8` | Set duration (4=quarter, 8=eighth) |
-| Dotted | `c4.`, `c4..` | Add 50%/75% to duration |
+| Note | `c`, `d`, `e` | Note in octave 4 |
+| Octave | `c5`, `d6` | Note in specific octave |
 | Sharp | `c+`, `f+` | Raise by semitone |
-| Flat | `b-`, `e-` | Lower by semitone |
-| Octave set | `o4`, `o5` | Set current octave |
-| Octave up | `>>` | Raise octave by 1 |
-| Octave down | `<<` | Lower octave by 1 |
-| Rest | `r`, `r4` | Push rest marker |
-| Named chord | `c:maj`, `d:min7` | Push chord as pitch list |
-| Dynamics | `pp`, `mf`, `ff` | Set velocity (state change) |
+| Flat | `c-`, `b-` | Lower by semitone |
+| Rest | `r` | Rest marker (-1) |
+| Dynamics | `pp`, `mf`, `ff` | Set velocity (runtime) |
 
 ### Full Example
 
@@ -81,17 +77,17 @@ g:7             \ Stack: [67 71 74 77]
 120 tempo
 mf
 
-\ Play a scale
-[o4 c d e f g a b >> c] notes play
+\ Play a scale - notes become integers in the list
+[c d e f g a b c5] play
 
-\ Play chord progression (I-IV-V-I)
-c:maj chord
-f:maj chord
-g:maj chord
-c:maj chord
+\ Chord progression
+[c e g] chord       \ C major
+[f a c5] chord      \ F major
+[g b d5] chord      \ G major
+[c e g] chord       \ C major
 
-\ Transpose a melody up a fifth
-[c d e] notes [7 +] map play
+\ Transpose a melody
+[c d e f g] [7 +] map play
 ```
 
 ### Verbose MIDI Primitives
@@ -99,8 +95,6 @@ c:maj chord
 For more control, use explicit MIDI primitives:
 
 ```joy
-midi-virtual
-
 \ Play middle C (pitch 60, velocity 80, duration 500ms)
 60 80 500 midi-note
 
@@ -109,8 +103,6 @@ midi-virtual
 
 \ Using pitch names
 "C4" pitch 80 500 midi-note
-"E4" pitch 80 500 midi-note
-"G4" pitch 80 500 midi-note
 ```
 
 ## Language Basics
@@ -120,12 +112,10 @@ Joy is a concatenative language where programs are built by composing functions.
 ### Stack Operations
 
 ```joy
-1 2 3       \ Push 1, 2, 3 onto stack: [1 2 3]
-dup         \ Duplicate top: [1 2 3 3]
-swap        \ Swap top two: [1 2 3 3] -> [1 2 3 3]
-pop         \ Remove top: [1 2 3]
-over        \ Copy second to top
-rot         \ Rotate top three
+1 2 3       \ Push 1, 2, 3 onto stack
+dup         \ Duplicate top
+swap        \ Swap top two
+pop         \ Remove top
 ```
 
 ### Arithmetic
@@ -134,25 +124,13 @@ rot         \ Rotate top three
 3 4 + .     \ 7
 10 3 - .    \ 7
 6 7 * .     \ 42
-20 4 / .    \ 5
-17 5 mod .  \ 2
 ```
 
-### Lists and Quotations
+### Lists and Combinators
 
 ```joy
-[1 2 3]           \ A list
-[1 2 3] first .   \ 1
-[1 2 3] rest .    \ [2 3]
-[1 2 3] size .    \ 3
-
-\ Quotations are executable code blocks
-[dup *] 5 swap i .  \ 25 (squares 5)
-```
-
-### Combinators
-
-```joy
+[1 2 3] first .            \ 1
+[1 2 3] rest .             \ [2 3]
 [1 2 3] [2 *] map .        \ [2 4 6]
 [1 2 3 4 5] [3 >] filter . \ [4 5]
 [1 2 3 4] 0 [+] fold .     \ 10
@@ -175,7 +153,6 @@ rot         \ Rotate top three
 |------|--------------|-------------|
 | `play` | `( pitch -- )` or `( [pitches] -- )` | Play note(s) sequentially |
 | `chord` | `( pitch -- )` or `( [pitches] -- )` | Play note(s) simultaneously |
-| `notes` | `( [symbols] -- [pitches] )` | Execute list, collect results into list |
 
 ### Note Operations
 
@@ -185,14 +162,6 @@ rot         \ Rotate top three
 | `midi-note-on` | `( pitch vel -- )` | Send note-on message |
 | `midi-note-off` | `( pitch -- )` | Send note-off message |
 | `midi-chord` | `( [pitches] vel dur -- )` | Play chord (blocking) |
-
-### Control Messages
-
-| Word | Stack Effect | Description |
-|------|--------------|-------------|
-| `midi-cc` | `( cc val -- )` | Send control change |
-| `midi-program` | `( prog -- )` | Send program change |
-| `midi-panic` | `( -- )` | All notes off (all channels) |
 
 ### Utilities
 
@@ -219,61 +188,36 @@ rot         \ Rotate top three
 
 ## Examples
 
-### Simple Melody with Notation
+### Melody with Transposition
 
 ```joy
-120 tempo
-mf
+\ Define a melody
+[c d e f g]
 
-\ Notes push pitches, play consumes them
-c play d play e play f play
-g play a play b play >> c play
+\ Play it, then transpose and play again
+dup play
+[12 +] map play   \ Up an octave
 ```
 
 ### Chord Progression
 
 ```joy
-\ Named chords push pitch lists
-c:maj chord     \ I
-f:maj chord     \ IV
-g:maj chord     \ V
-c:maj chord     \ I
+[c e g] chord       \ I   (C major)
+[f a c5] chord      \ IV  (F major)
+[g b d5] chord      \ V   (G major)
+[c e g] chord       \ I   (C major)
 ```
 
-### Using Joy Combinators
+### Generative Music
 
 ```joy
-\ Transpose a melody using map
-[c d e f g] notes [7 +] map play
+\ Random note from C major scale
+[c d e f g a b] dup size rand swap rem at play
 
-\ Filter to just high notes
-[c d e f g] notes [64 >] filter play
-
-\ Generate chord sequence from root notes
-[c d e f] notes [major] map
-\ Now have list of chord lists: [[60 64 67] [62 65 69] ...]
-```
-
-### Verbose API
-
-```joy
-midi-virtual
-
-\ Play C major scale with explicit control
-60 80 250 midi-note
-62 80 250 midi-note
-64 80 250 midi-note
-65 80 250 midi-note
-67 80 250 midi-note
-69 80 250 midi-note
-71 80 250 midi-note
-72 80 500 midi-note
-
-\ Chord progression with explicit control
-60 major 80 500 midi-chord
-65 major 80 500 midi-chord
-67 major 80 500 midi-chord
-60 major 80 1000 midi-chord
+\ Play 10 random notes
+10 [
+  [c d e f g a b] dup size rand swap rem at play
+] times
 ```
 
 ## Architecture
@@ -285,30 +229,31 @@ projects/joy-midi/
   main.c              - Entry point, REPL setup
   joy_midi.c/h        - Primitive registration
   midi_primitives.c/h - MIDI implementations
-  music_notation.c/h  - Alda-like notation parser
-  music_context.c/h   - Musical state (octave, tempo, etc.)
+  music_notation.c/h  - Note parsing, play/chord
+  music_context.c/h   - Musical state (tempo, velocity)
 
 thirdparty/pyjoy-runtime/
   joy_runtime.c/h     - Core Joy runtime
-  joy_primitives.c    - Standard Joy primitives (~200 words)
-  joy_parser.c/h      - Tokenizer and parser
+  joy_primitives.c    - Standard Joy primitives
+  joy_parser.c/h      - Tokenizer and parser (with note transformer)
 ```
 
 ### Design Philosophy
 
-Notes in Joy-MIDI push MIDI pitch integers onto the stack rather than playing immediately. This enables Joy's compositional model:
+Notes are converted to MIDI integers at **parse time**, not execution time. This enables Joy's compositional model without any special combinators:
 
 ```joy
-\ Notes are data - can be transformed before playing
-[c d e] notes     \ Collect into list: [60 62 64]
-[7 +] map         \ Transpose up a fifth: [67 69 71]
-play              \ Play the result
+[c d e]             \ Directly becomes [60 62 64]
+[c d e] [7 +] map   \ Transpose: [67 69 71]
+[c e g] chord       \ Play C major chord
 ```
 
-This design separates *what* to play (data) from *when* to play (action), allowing full use of Joy's combinators for musical transformations.
+Octave is explicit (default 4), not stateful:
+- `c` = C4 = 60
+- `c5` = C5 = 72
+- `c 12 +` = C5 = 72 (arithmetic works too)
 
 ## See Also
 
-- [Next Steps](next-steps.md) - Design ideas for more expressive musical primitives
 - [Joy Language](https://hypercubed.github.io/joy/html/j00rat.html) - Original Joy documentation
 - [Alda](https://alda.io/) - Music composition language that inspires Joy-MIDI's notation

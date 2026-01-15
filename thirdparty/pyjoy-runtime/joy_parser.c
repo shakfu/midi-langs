@@ -15,6 +15,14 @@
 #include <readline/history.h>
 #endif
 
+/* ---------- Symbol Transformer ---------- */
+
+static JoySymbolTransformer g_symbol_transformer = NULL;
+
+void joy_set_symbol_transformer(JoySymbolTransformer transformer) {
+    g_symbol_transformer = transformer;
+}
+
 /* ---------- Tokenizer ---------- */
 
 typedef enum {
@@ -360,6 +368,12 @@ static JoyValue parse_value(Lexer* lex) {
             return v;
 
         case TOK_SYMBOL:
+            /* Check if symbol transformer wants to convert this */
+            if (g_symbol_transformer &&
+                g_symbol_transformer(lex->current.value.string, &v)) {
+                lexer_next(lex);
+                return v;
+            }
             v = joy_symbol(lex->current.value.string);
             lexer_next(lex);
             return v;

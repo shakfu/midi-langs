@@ -10,6 +10,16 @@
 
 #include "joy_runtime.h"
 
+/*
+ * Symbol transformer callback for parse-time conversion.
+ * If returns true, *out_value is used instead of the symbol.
+ * Used by joy-midi to convert note patterns (c, d+, e5) to integers.
+ */
+typedef bool (*JoySymbolTransformer)(const char* symbol, JoyValue* out_value);
+
+/* Set the symbol transformer (NULL to disable) */
+void joy_set_symbol_transformer(JoySymbolTransformer transformer);
+
 /* Parse a line of Joy source code and execute it */
 void joy_eval_line(JoyContext* ctx, const char* line);
 
