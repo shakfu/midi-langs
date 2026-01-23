@@ -11,11 +11,12 @@ if [ ! -x "$JOY_MIDI" ] || [ ! -f "$TEST_FILE" ]; then
     exit 1
 fi
 
-# Extract code: remove multi-line comments (* ... *), error tests (#), libload
+# Extract code: remove multi-line comments (* ... *), error tests (#), libload, shell commands ($)
 # Keep everything else (definitions + tests) as a single program
 # Note: We keep trailing . since it's the Joy print/pop operator
 code=$(perl -0777 -pe 's/\(\*.*?\*\)//gs' "$TEST_FILE" | \
-       grep -v '^[[:space:]]*#' | \
+       sed 's/[[:space:]]*#.*$//' | \
+       grep -v '^[[:space:]]*\$' | \
        grep -v 'libload' | \
        grep -v '^[[:space:]]*$')
 
@@ -24,8 +25,11 @@ if [ -z "$code" ]; then
     exit 0
 fi
 
-# Run entire file as one program
-result=$(echo "$code" | timeout 5 "$JOY_MIDI" 2>&1 | \
+# Change to test file's directory so relative paths work
+TEST_DIR=$(dirname "$TEST_FILE")
+
+# Run entire file as one program (from the test directory)
+result=$(cd "$TEST_DIR" && echo "$code" | timeout 5 "$JOY_MIDI" 2>&1 | \
          grep -v "^Joy-MIDI" | \
          grep -v "^Type 'quit'" | \
          grep -v "^Created virtual" | \

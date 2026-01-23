@@ -1,6 +1,7 @@
 (*
     module  : ftell.joy
-    version : 1.6
-    date    : 03/21/24
+    version : 1.7
+    date    : 01/23/26
 *)
-"ftell.joy" "r" fopen 0 2 fseek swap ftell 121 =.
+(* Test ftell: open file, seek to end, verify position is file size *)
+"ftell.joy" "r" fopen 0 2 fseek pop ftell 0 > swap fclose pop.

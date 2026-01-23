@@ -2505,7 +2505,7 @@ static void prim_app11(JoyContext* ctx) {
 }
 
 static void prim_app12(JoyContext* ctx) {
-    /* X Y1 Y2 [P] -> Y1 Y2 R : apply P to X, Y1 Y2 unchanged */
+    /* X Y1 Y2 [P] -> R1 R2 : execute P twice, first with [X,Y1], then with [X,Y2] */
     REQUIRE(4, "app12");
     JoyValue quot = POP();
     JoyValue y2 = POP();
@@ -2515,18 +2515,28 @@ static void prim_app12(JoyContext* ctx) {
     /* Save current stack */
     JoyStack* saved = joy_stack_copy(ctx->stack);
 
-    /* Execute P on X */
+    /* Execute P on [X, Y1] */
+    joy_stack_clear(ctx->stack);
+    JoyValue x_copy = joy_value_copy(x);
+    PUSH(x_copy);
+    PUSH(y1);
+    JoyValue quot_copy = joy_value_copy(quot);
+    execute_quot(ctx, &quot_copy);
+    joy_value_free(&quot_copy);
+    JoyValue r1 = POP();
+
+    /* Execute P on [X, Y2] */
     joy_stack_clear(ctx->stack);
     PUSH(x);
+    PUSH(y2);
     execute_quot(ctx, &quot);
-    JoyValue r = POP();
+    JoyValue r2 = POP();
 
-    /* Restore original stack and push Y1, Y2, then result */
+    /* Restore original stack and push results */
     joy_stack_free(ctx->stack);
     ctx->stack = saved;
-    PUSH(y1);
-    PUSH(y2);
-    PUSH(r);
+    PUSH(r1);
+    PUSH(r2);
 
     joy_value_free(&quot);
 }
@@ -3372,15 +3382,21 @@ static void prim_fput(JoyContext* ctx) {
 }
 
 static void prim_fputch(JoyContext* ctx) {
-    /* S C -> S : write character to file */
+    /* S C -> S : write character to file (C can be char or integer code) */
     REQUIRE(2, "fputch");
     JoyValue c = POP();
     JoyValue v = PEEK();
     EXPECT_TYPE(v, JOY_FILE, "fputch");
-    EXPECT_TYPE(c, JOY_CHAR, "fputch");
 
     if (v.data.file) {
-        fputc(c.data.character, v.data.file);
+        if (c.type == JOY_CHAR) {
+            fputc(c.data.character, v.data.file);
+        } else if (c.type == JOY_INTEGER) {
+            fputc((int)c.data.integer, v.data.file);
+        } else {
+            joy_value_free(&c);
+            joy_error_type("fputch", "CHAR or INTEGER", c.type);
+        }
     }
     joy_value_free(&c);
 }
@@ -3494,14 +3510,31 @@ static void prim_frename(JoyContext* ctx) {
 }
 
 static void prim_finclude(JoyContext* ctx) {
-    /* S -> : read and execute Joy code from file handle S */
+    /* S|"filename" -> : read and execute Joy code from file handle or filename */
     REQUIRE(1, "finclude");
     JoyValue v = POP();
-    EXPECT_TYPE(v, JOY_FILE, "finclude");
 
-    FILE* f = v.data.file;
+    FILE* f = NULL;
+    bool close_file = false;
+
+    if (v.type == JOY_FILE) {
+        f = v.data.file;
+    } else if (v.type == JOY_STRING) {
+        f = fopen(v.data.string, "r");
+        close_file = true;
+        if (!f) {
+            /* File doesn't exist - silently ignore (like original Joy) */
+            joy_value_free(&v);
+            return;
+        }
+    } else {
+        joy_value_free(&v);
+        joy_error_type("finclude", "FILE or STRING", v.type);
+        return;
+    }
+
     if (!f) {
-        joy_error("finclude: invalid file handle");
+        joy_value_free(&v);
         return;
     }
 
@@ -3513,17 +3546,24 @@ static void prim_finclude(JoyContext* ctx) {
     fseek(f, start, SEEK_SET);
 
     if (size <= 0) {
+        if (close_file) fclose(f);
+        joy_value_free(&v);
         return;  /* Empty or at end */
     }
 
     char* content = malloc(size + 1);
     if (!content) {
+        if (close_file) fclose(f);
+        joy_value_free(&v);
         joy_error("finclude: out of memory");
         return;
     }
 
-    size_t read = fread(content, 1, size, f);
-    content[read] = '\0';
+    size_t read_size = fread(content, 1, size, f);
+    content[read_size] = '\0';
+
+    if (close_file) fclose(f);
+    joy_value_free(&v);
 
     /* Parse and execute */
     joy_eval_line(ctx, content);
@@ -3714,7 +3754,7 @@ static void prim_localtime(JoyContext* ctx) {
     joy_list_push(result, joy_integer(tm->tm_hour));
     joy_list_push(result, joy_integer(tm->tm_min));
     joy_list_push(result, joy_integer(tm->tm_sec));
-    joy_list_push(result, joy_boolean(tm->tm_isdst > 0));
+    joy_list_push(result, joy_integer(tm->tm_isdst));        /* -1=unknown, 0=no DST, >0=DST */
     joy_list_push(result, joy_integer(tm->tm_yday + 1));     /* 1-366 */
     joy_list_push(result, joy_integer(tm->tm_wday));         /* 0=Sun, 6=Sat */
 
@@ -3746,7 +3786,7 @@ static void prim_gmtime(JoyContext* ctx) {
     joy_list_push(result, joy_integer(tm->tm_hour));
     joy_list_push(result, joy_integer(tm->tm_min));
     joy_list_push(result, joy_integer(tm->tm_sec));
-    joy_list_push(result, joy_boolean(tm->tm_isdst > 0));
+    joy_list_push(result, joy_integer(tm->tm_isdst));        /* -1=unknown, 0=no DST, >0=DST */
     joy_list_push(result, joy_integer(tm->tm_yday + 1));     /* 1-366 */
     joy_list_push(result, joy_integer(tm->tm_wday));         /* 0=Sun, 6=Sat */
 
@@ -4800,6 +4840,20 @@ static void prim_gc(JoyContext* ctx) {
     (void)ctx;  /* no GC in compiled C code - memory is managed manually */
 }
 
+static void prim_memoryindex(JoyContext* ctx) {
+    /* -> I : push current memory usage index (stub for compatibility) */
+    (void)ctx;
+    /* Return a small value representing current "memory usage" */
+    PUSH(joy_integer(1000));
+}
+
+static void prim_memorymax(JoyContext* ctx) {
+    /* -> I : push maximum memory available (stub for compatibility) */
+    (void)ctx;
+    /* Return a large value representing "max memory" */
+    PUSH(joy_integer(1000000));
+}
+
 static void prim_setautoput(JoyContext* ctx) {
     /* I -> : set autoput flag (0=off, 1=on) */
     REQUIRE(1, "setautoput");
@@ -5136,6 +5190,8 @@ void joy_register_primitives(JoyContext* ctx) {
     joy_dict_define_primitive(d, "abort", prim_abort);
     joy_dict_define_primitive(d, "quit", prim_quit);
     joy_dict_define_primitive(d, "gc", prim_gc);
+    joy_dict_define_primitive(d, "__memoryindex", prim_memoryindex);
+    joy_dict_define_primitive(d, "__memorymax", prim_memorymax);
     joy_dict_define_primitive(d, "setautoput", prim_setautoput);
     joy_dict_define_primitive(d, "setundeferror", prim_setundeferror);
     joy_dict_define_primitive(d, "autoput", prim_autoput);
