@@ -15,7 +15,11 @@ Each implementation leverages [libremidi](https://github.com/celtera/libremidi) 
 | **pktpy-midi** | [PocketPy](https://pocketpy.dev) | Pythonic abstraction with context managers and expressive APIs. |
 | **s7-midi** | [s7 Scheme](https://ccrma.stanford.edu/software/snd/snd/s7.html) | Macros + Lisp for meta-programming and dynamic MIDI patterns. |
 
-Note: This is an evolving project—-expect API iterations as implementations mature.
+**Note**
+
+- This is an evolving project—-expect API iterations as implementations mature.
+
+- There is a sibling project, [psnd](https://github.com/shakfu/psnd), which embeds some of the midi-langs into a polyglot editor & REPL for music programming languages.
 
 ## Building
 
