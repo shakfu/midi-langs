@@ -75,6 +75,25 @@ Type `(help)` for available functions, `(quit)` to exit.
 ./build/guile_midi script.scm
 ```
 
+### Run Wisp File
+
+guile-midi supports [Wisp syntax](wisp-syntax.md) - an indentation-based alternative to S-expressions:
+
+```bash
+./build/guile_midi song.w
+```
+
+**song.w:**
+```wisp
+define m : midi-open
+midi-note m c4 mf quarter
+midi-chord m : major c4
+  . f half
+midi-close m
+```
+
+See [Wisp Syntax Guide](wisp-syntax.md) for details.
+
 ## Example Program
 
 ```scheme
@@ -166,6 +185,7 @@ Choose guile-midi if you need Guile's full features. Choose s7-midi for a smalle
 
 - [API Reference](api-reference.md) - Complete function documentation
 - [Examples](examples.md) - More code examples
+- [Wisp Syntax Guide](wisp-syntax.md) - Indentation-based syntax alternative
 - [Architecture](architecture.md) - How the Guile FFI works
 
 ## Requirements

@@ -13,7 +13,12 @@ All notable changes to midi-langs are documented in this file.
   - Recording and file I/O: `record-midi`, `save-midi`, `write-mid`, `read-mid`
   - Reuses prelude.scm from s7-midi (R5RS compatible)
   - Static linking on macOS by default (only system libraries required)
+  - **Wisp syntax support**: Run `.w` files with indentation-based syntax
+    - `./build/guile_midi song.w` loads and executes wisp files
+    - Uses `:` for inline nesting, `.` for argument continuation
+    - See `docs/guile-midi/wisp-syntax.md` for full guide
   - Build: `make guile-midi` (requires Guile 3.0 installed)
+  - Documentation: `docs/guile-midi/` with README, API reference, examples, architecture, and wisp guide
 
 - **joy-midi note durations**: Postfix duration words for playing notes with specific lengths
   - `[c4 d4 e4] quarter` - play list as quarter notes

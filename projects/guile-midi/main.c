@@ -203,12 +203,41 @@ static void init_readline_completion(void) {
 #endif /* USE_READLINE */
 
 static void print_usage(const char *prog) {
-    fprintf(stderr, "Usage: %s [options] [file.scm]\n", prog);
+    fprintf(stderr, "Usage: %s [options] [file.scm|file.w]\n", prog);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -e EXPR    Evaluate expression and print result\n");
     fprintf(stderr, "  --version  Show version\n");
     fprintf(stderr, "  --help     Show this help\n");
+    fprintf(stderr, "\nFile types:\n");
+    fprintf(stderr, "  .scm       Standard Scheme file\n");
+    fprintf(stderr, "  .w         Wisp syntax file (indentation-based)\n");
     fprintf(stderr, "\nWithout arguments, starts an interactive REPL.\n");
+}
+
+/* Check if filename ends with given suffix */
+static int ends_with(const char *str, const char *suffix) {
+    size_t str_len = strlen(str);
+    size_t suffix_len = strlen(suffix);
+    if (suffix_len > str_len) return 0;
+    return strcmp(str + str_len - suffix_len, suffix) == 0;
+}
+
+/* Load a wisp file using the wisp reader */
+static void load_wisp_file(const char *filename) {
+    /* Load wisp module and read file */
+    scm_c_eval_string("(use-modules (language wisp))");
+
+    /* Build the load expression */
+    char *escaped = scm_to_locale_string(
+        scm_object_to_string(scm_from_locale_string(filename), SCM_UNDEFINED));
+
+    char expr[2048];
+    snprintf(expr, sizeof(expr),
+        "(for-each (lambda (e) (eval e (current-module))) "
+        "(wisp-scheme-read-file %s))", escaped);
+
+    free(escaped);
+    scm_c_eval_string(expr);
 }
 
 /* Arguments passed to inner_main */
@@ -246,8 +275,12 @@ static void* inner_main(void *data) {
             } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
                 print_usage(argv[0]);
             } else {
-                /* Load file */
-                scm_c_primitive_load(argv[i]);
+                /* Load file - check for wisp syntax */
+                if (ends_with(argv[i], ".w") || ends_with(argv[i], ".wisp")) {
+                    load_wisp_file(argv[i]);
+                } else {
+                    scm_c_primitive_load(argv[i]);
+                }
             }
         }
     } else {
