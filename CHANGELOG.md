@@ -6,6 +6,15 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **guile-midi**: New GNU Guile Scheme implementation for MIDI
+  - Full MIDI bindings: `midi-open`, `midi-note`, `midi-chord`, `midi-cc`, etc.
+  - Async scheduler with `spawn`, `run`, `poll`, `stop` for concurrent voices
+  - Scale functions: `build-scale`, `scale-degree`, `in-scale?`, `quantize-to-scale`
+  - Recording and file I/O: `record-midi`, `save-midi`, `write-mid`, `read-mid`
+  - Reuses prelude.scm from s7-midi (R5RS compatible)
+  - Static linking on macOS by default (only system libraries required)
+  - Build: `make guile-midi` (requires Guile 3.0 installed)
+
 - **joy-midi note durations**: Postfix duration words for playing notes with specific lengths
   - `[c4 d4 e4] quarter` - play list as quarter notes
   - `c4 half` - play single note as half note

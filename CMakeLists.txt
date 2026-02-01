@@ -78,6 +78,7 @@ add_subdirectory(projects/s7-midi)
 add_subdirectory(projects/lua-midi)
 add_subdirectory(projects/alda-midi)
 add_subdirectory(projects/joy-midi)
+add_subdirectory(projects/guile-midi)
 
 # ============================================
 # Alias targets for consistent naming
@@ -91,10 +92,19 @@ add_custom_target(s7-midi DEPENDS s7_midi)
 add_custom_target(alda-midi DEPENDS alda_midi)
 add_custom_target(joy-midi DEPENDS joy_midi)
 
+# guile-midi alias (conditional on Guile being found)
+if(TARGET guile_midi)
+    add_custom_target(guile-midi DEPENDS guile_midi)
+endif()
+
 # Convenience target to build all midi-langs
 add_custom_target(all-midi-langs
     DEPENDS forth_midi lua_midi pktpy_midi s7_midi alda_midi joy_midi
 )
+# Add guile_midi to all-midi-langs if available
+if(TARGET guile_midi)
+    add_dependencies(all-midi-langs guile_midi)
+endif()
 if(BUILD_MHS_MIDI)
     add_dependencies(all-midi-langs mhs-midi)
     if(NOT WIN32)

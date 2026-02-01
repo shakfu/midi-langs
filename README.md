@@ -8,6 +8,7 @@ Each implementation leverages [libremidi](https://github.com/celtera/libremidi) 
 | ---------- | ---------- | ------- |
 | **alda-midi** | [Alda](https://alda.io/) | Music-first notation--compose with elegant, human-readable syntax. |
 | **forth-midi** | Custom Forth | Concise stack-based programming for minimalist control over MIDI events. |
+| **guile-midi** | [GNU Guile](https://www.gnu.org/software/guile/) | Full-featured Scheme with macros, modules, and powerful FFI. |
 | **joy-midi** | [Joy](https://hypercubed.github.io/joy/joy.html) | Concatenative functional programming with algebraic note composition. |
 | **lua-midi** | [Lua 5.5](https://www.lua.org/) | Lightweight scripting with tables, closures, and event-driven workflows. |
 | **mhs-midi** | [MicroHs](https://github.com/augustss/MicroHs) | Pure functional Haskell for compositions, algorithmic patterns, and type-safe transformations. |
@@ -30,6 +31,7 @@ make help         # Show all targets
 ```sh
 make alda-midi    # Alda interpreter
 make forth-midi   # Forth interpreter
+make guile-midi   # GNU Guile interpreter (requires Guile 3.0)
 make joy-midi     # Joy interpreter
 make lua-midi     # Lua interpreter
 make pktpy-midi   # PocketPy interpreter
@@ -129,6 +131,37 @@ seq-play&                    \ non-blocking playback
 ```
 
 [Full documentation](docs/forth-midi/README.md) | [API](docs/forth-midi/api-reference.md) | [Tutorial](docs/forth-midi/tutorial.md)
+
+### guile-midi
+
+```sh
+% ./build/guile_midi --help
+Usage: ./build/guile_midi [options] [file.scm]
+Options:
+  -e EXPR    Evaluate expression and print result
+  --version  Show version
+  --help     Show this help
+
+Without arguments, starts an interactive REPL.
+```
+
+GNU Guile Scheme with full MIDI support. Shares the same prelude as s7-midi (R5RS compatible):
+
+```scheme
+(open)
+;; Functional transformations
+(define melody (scale c4 'dorian))
+(define bass (map (lambda (p) (- p 12)) melody))
+
+;; Thunk-based concurrent voices
+(spawn (make-melody-voice melody mf eighth) "melody")
+(spawn (make-chord-voice (major c3) ff whole) "bass")
+
+(run)
+(close)
+```
+
+Note: guile-midi requires GNU Guile 3.0 to be installed. On macOS, Guile and its dependencies are statically linked (only system libraries required at runtime).
 
 ### joy-midi
 
@@ -346,13 +379,14 @@ Most implementations share functionality from a common C library (`projects/comm
 
 | Implementation | Uses music_theory.c |
 | ---------------- | --------------------- |
+| alda-midi | No (uses own parser/interpreter) |
 | forth-midi | Yes |
+| guile-midi | Yes |
 | joy-midi | No (uses pyjoy-runtime) |
 | lua-midi | Yes |
 | mhs-midi | Yes |
 | pktpy-midi | Yes |
 | s7-midi | Yes |
-| alda-midi | No (uses own parser/interpreter) |
 
 The shared library provides:
 
@@ -369,6 +403,7 @@ The shared library provides:
 Interpreted languages have prelude files in their native syntax:
 
 ```sh
+projects/guile-midi/prelude.scm -> Scheme constants and helpers (shared with s7)
 projects/s7-midi/prelude.scm    -> Scheme constants and helpers
 projects/lua-midi/prelude.lua   -> Lua constants and helpers
 projects/pktpy-midi/prelude.py  -> Python constants and helpers
@@ -387,6 +422,7 @@ projects/
   alda-midi/        # Alda interpreter (~3000 lines C)
   common/           # Shared music theory library
   forth-midi/       # Forth interpreter (~2700 lines C)
+  guile-midi/       # GNU Guile + MIDI bindings
   joy-midi/         # Joy interpreter with MIDI extensions
   lua-midi/         # Lua 5.5 + MIDI bindings
   mhs-midi/         # MicroHs + MIDI FFI
@@ -448,6 +484,7 @@ Download a GM SoundFont like [FluidR3_GM.sf2](https://musical-artifacts.com/arti
 | ---------- | ------ |
 | alda-midi | [README](docs/alda-midi/README.md), [Language](docs/alda-midi/language-reference.md), [Examples](docs/alda-midi/examples.md) |
 | forth-midi | [README](docs/forth-midi/README.md), [API](docs/forth-midi/api-reference.md), [Tutorial](docs/forth-midi/tutorial.md) |
+| guile-midi | See s7-midi (compatible API) |
 | joy-midi | [README](docs/joy-midi/README.md), [Next Steps](docs/joy-midi/next-steps.md) |
 | lua-midi | [README](docs/lua-midi/README.md), [API](docs/lua-midi/api-reference.md), [Examples](docs/lua-midi/examples.md) |
 | mhs-midi | [README](docs/mhs-midi/README.md), [API](docs/mhs-midi/api-reference.md), [Examples](docs/mhs-midi/examples.md) |
