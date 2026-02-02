@@ -61,7 +61,8 @@ test_number() {
     local expected="$3"
 
     TOTAL=$((TOTAL + 1))
-    output=$(echo "$input" | $MIDI_FORTH 2>&1 | grep -oE '\-?[0-9]+' | head -1)
+    # Extract number from the output line (contains " ok"), not from the echoed input
+    output=$(echo "$input" | $MIDI_FORTH 2>&1 | grep " ok" | grep -oE '\-?[0-9]+' | head -1)
 
     if [ "$output" = "$expected" ]; then
         echo -e "${GREEN}PASS${NC}: $name"
@@ -262,7 +263,8 @@ echo "--- Probability (Statistical) ---"
 # Test that 100% always executes (run 5 times in single session)
 prob_100_test() {
     TOTAL=$((TOTAL + 1))
-    output=$(echo "42 100% . 42 100% . 42 100% . 42 100% . 42 100% ." | $MIDI_FORTH 2>&1)
+    # Count 42s only in the output line (contains " ok"), not in the echoed input
+    output=$(echo "42 100% . 42 100% . 42 100% . 42 100% . 42 100% ." | $MIDI_FORTH 2>&1 | grep " ok")
     count=$(echo "$output" | grep -oE '\b42\b' | wc -l)
     if [ "$count" -eq 5 ]; then
         echo -e "${GREEN}PASS${NC}: 100% probability always executes"
@@ -277,8 +279,8 @@ prob_100_test
 # Test that 0% never executes (value becomes REST_MARKER)
 prob_0_test() {
     TOTAL=$((TOTAL + 1))
-    output=$(echo "42 0% . 42 0% . 42 0% . 42 0% . 42 0% ." | $MIDI_FORTH 2>&1)
-    # With 0%, the value is replaced with REST_MARKER, so 42 should not appear
+    # With 0%, the value is replaced with REST_MARKER, so 42 should not appear in output
+    output=$(echo "42 0% . 42 0% . 42 0% . 42 0% . 42 0% ." | $MIDI_FORTH 2>&1 | grep " ok")
     count=$(echo "$output" | grep -oE '\b42\b' | wc -l)
     if [ "$count" -eq 0 ]; then
         echo -e "${GREEN}PASS${NC}: 0% probability never executes"
