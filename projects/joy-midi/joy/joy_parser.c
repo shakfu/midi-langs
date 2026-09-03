@@ -10,6 +10,19 @@
 #include <errno.h>
 #include <setjmp.h>
 
+#ifdef _WIN32
+/* MSVC has strdup but not strndup */
+static char* strndup(const char* s, size_t n) {
+    size_t len = 0;
+    while (len < n && s[len]) len++;
+    char* copy = malloc(len + 1);
+    if (!copy) return NULL;
+    memcpy(copy, s, len);
+    copy[len] = '\0';
+    return copy;
+}
+#endif
+
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>

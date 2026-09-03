@@ -1,3 +1,15 @@
+# Tests that open a MIDI port run under this wrapper, which holds one MIDI
+# client open for their duration; tests/midi_keepalive.c explains why.
+if(NOT WIN32)
+    add_executable(midi_keepalive midi_keepalive.c)
+    target_link_libraries(midi_keepalive PRIVATE midi_open)
+
+    set(MIDI_KEEPALIVE
+        ${CMAKE_CURRENT_SOURCE_DIR}/with_midi_keepalive.sh
+        $<TARGET_FILE:midi_keepalive>
+    )
+endif()
+
 # C unit tests for forth_midi
 add_executable(test_forth_midi_unit test_forth_midi_unit.c)
 target_link_libraries(test_forth_midi_unit PRIVATE forth_midi_lib)
@@ -15,7 +27,7 @@ if(NOT WIN32)
 # Test using the comprehensive shell script
 add_test(
     NAME forth_midi_test_suite
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_forth_midi.sh $<TARGET_FILE:forth_midi>
+    COMMAND ${MIDI_KEEPALIVE} ${CMAKE_CURRENT_SOURCE_DIR}/test_forth_midi.sh $<TARGET_FILE:forth_midi>
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -70,7 +82,7 @@ set_tests_properties(
 # pktpy_midi tests
 add_test(
     NAME pktpy_midi_test_suite
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_pktpy_midi.sh $<TARGET_FILE:pktpy_midi>
+    COMMAND ${MIDI_KEEPALIVE} ${CMAKE_CURRENT_SOURCE_DIR}/test_pktpy_midi.sh $<TARGET_FILE:pktpy_midi>
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -92,7 +104,7 @@ add_test(
 
 add_test(
     NAME pktpy_midi_virtual_port
-    COMMAND sh -c "echo 'import midi; m = midi.open(); print(m.is_open)' | $<TARGET_FILE:pktpy_midi> | grep -q 'True'"
+    COMMAND ${MIDI_KEEPALIVE} sh -c "echo 'import midi; m = midi.open(); print(m.is_open)' | $<TARGET_FILE:pktpy_midi> | grep -q 'True'"
 )
 
 set_tests_properties(
@@ -109,7 +121,7 @@ set_tests_properties(
 # s7_midi tests
 add_test(
     NAME s7_midi_test_suite
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_s7_midi.sh $<TARGET_FILE:s7_midi>
+    COMMAND ${MIDI_KEEPALIVE} ${CMAKE_CURRENT_SOURCE_DIR}/test_s7_midi.sh $<TARGET_FILE:s7_midi>
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -136,7 +148,7 @@ add_test(
 
 add_test(
     NAME s7_midi_virtual_port
-    COMMAND sh -c "$<TARGET_FILE:s7_midi> -e '(begin (define m (midi-open)) (midi-out? m))' | grep -q '#t'"
+    COMMAND ${MIDI_KEEPALIVE} sh -c "$<TARGET_FILE:s7_midi> -e '(begin (define m (midi-open)) (midi-out? m))' | grep -q '#t'"
 )
 
 set_tests_properties(
@@ -154,7 +166,7 @@ set_tests_properties(
 # lua_midi tests
 add_test(
     NAME lua_midi_test_suite
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_lua_midi.sh $<TARGET_FILE:lua_midi>
+    COMMAND ${MIDI_KEEPALIVE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lua_midi.sh $<TARGET_FILE:lua_midi>
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -181,7 +193,7 @@ add_test(
 
 add_test(
     NAME lua_midi_virtual_port
-    COMMAND sh -c "$<TARGET_FILE:lua_midi> -e 'local m = midi.open(); print(m:is_open()); m:close()' | grep -q 'true'"
+    COMMAND ${MIDI_KEEPALIVE} sh -c "$<TARGET_FILE:lua_midi> -e 'local m = midi.open(); print(m:is_open()); m:close()' | grep -q 'true'"
 )
 
 set_tests_properties(
@@ -236,7 +248,7 @@ add_test(
 
 add_test(
     NAME forth_midi_golden_async
-    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.4th | grep -q ' 0 '"
+    COMMAND ${MIDI_KEEPALIVE} sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.4th | grep -q ' 0 '"
 )
 
 add_test(
@@ -320,7 +332,7 @@ if(NOT WIN32)
 
     add_test(
         NAME joy_midi_virtual_port
-        COMMAND sh -c "echo 'midi-virtual' | $<TARGET_FILE:joy_midi> | grep -q 'JoyMIDI'"
+        COMMAND ${MIDI_KEEPALIVE} sh -c "echo 'midi-virtual' | $<TARGET_FILE:joy_midi> | grep -q 'JoyMIDI'"
     )
 
     set_tests_properties(
@@ -398,7 +410,7 @@ add_test(
 
 add_test(
     NAME demo_example_lua
-    COMMAND $<TARGET_FILE:lua_midi> ${CMAKE_CURRENT_SOURCE_DIR}/examples/demo_lua.lua
+    COMMAND ${MIDI_KEEPALIVE} $<TARGET_FILE:lua_midi> ${CMAKE_CURRENT_SOURCE_DIR}/examples/demo_lua.lua
 )
 
 add_test(

@@ -10,6 +10,7 @@
 #include "py_prelude.h"
 #include "music_theory.h"
 #include "midi_file.h"
+#include "midi_open.h"
 #include "scheduler.h"
 #include <stdio.h>
 #include <string.h>
@@ -260,12 +261,14 @@ static bool midi_open(int argc, py_StackRef argv) {
     }
 
     libremidi_midi_out_handle* handle;
-    ret = libremidi_midi_out_new(&midi_conf, &api_conf, &handle);
+    ret = midi_out_open(&midi_conf, &api_conf, &handle);
     if (ret != 0) {
+        const char* why = midi_out_last_error();
         if (is_virtual) {
-            return py_exception(tp_RuntimeError, "Failed to create virtual MIDI output: %d", ret);
+            return py_exception(tp_RuntimeError, "Failed to create virtual MIDI output: %d %s",
+                               ret, why);
         } else {
-            return py_exception(tp_RuntimeError, "Failed to open MIDI output: %d", ret);
+            return py_exception(tp_RuntimeError, "Failed to open MIDI output: %d %s", ret, why);
         }
     }
 

@@ -26,7 +26,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#define usleep(us) Sleep((DWORD)((us) / 1000))
+#else
 #include <unistd.h>
+#endif
 
 /* Special value for rest */
 #define REST_MARKER (-1)

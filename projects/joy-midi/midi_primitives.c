@@ -11,7 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#define usleep(us) Sleep((DWORD)((us) / 1000))
+#else
 #include <unistd.h>
+#endif
 #include <limits.h>
 
 /* Helper macros (matching joy_primitives.c pattern) */

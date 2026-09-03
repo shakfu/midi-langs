@@ -32,7 +32,7 @@ else()
 endif()
 
 # Link with music_theory, midi_file, and libuv for async scheduler
-target_link_libraries(pktpy_midi PRIVATE music_theory midi_file uv_a)
+target_link_libraries(pktpy_midi PRIVATE music_theory midi_file midi_open uv_a)
 
 # Platform-specific dependencies
 if(APPLE)

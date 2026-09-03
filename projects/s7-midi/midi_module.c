@@ -44,6 +44,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 #include "scm_prelude.h"
 #include "music_theory.h"
 #include "midi_file.h"
+#include "midi_open.h"
 #include "scheduler.h"
 
 #define MAX_PORTS 64
@@ -314,10 +315,11 @@ static s7_pointer g_midi_open(s7_scheme *sc, s7_pointer args) {
     }
 
     libremidi_midi_out_handle* handle;
-    ret = libremidi_midi_out_new(&midi_conf, &api_conf, &handle);
+    ret = midi_out_open(&midi_conf, &api_conf, &handle);
     if (ret != 0) {
         return s7_error(sc, s7_make_symbol(sc, "midi-error"),
-                        s7_list(sc, 1, s7_make_string(sc, "Failed to open MIDI output")));
+                        s7_list(sc, 2, s7_make_string(sc, "Failed to open MIDI output"),
+                                s7_make_string(sc, midi_out_last_error())));
     }
 
     MidiOutData *data = (MidiOutData *)malloc(sizeof(MidiOutData));

@@ -396,6 +396,7 @@ add_custom_command(
     COMMENT "Building music-0.1.0.pkg"
     VERBATIM
 )
+add_custom_target(mhs-music-pkg DEPENDS ${MUSIC_PKG})
 
 # mhs-midi-pkg: uncompressed package embedding
 # Uses mhs_embedded_pkgs.h (expected by vfs.c VFS_USE_PKG mode)
@@ -418,6 +419,11 @@ add_custom_command(
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
     DEPENDS
         ${MHS_EMBED}
+        # Target-level deps: without them the Makefile generator copies the
+        # shared package rules into both consumers, which then run mcabal
+        # concurrently and read base-*.pkg while it is being rewritten.
+        mhs-local-install
+        mhs-music-pkg
         ${LOCAL_MCABAL_STAMP}
         ${MUSIC_PKG}
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
@@ -449,6 +455,11 @@ add_custom_command(
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
     DEPENDS
         ${MHS_EMBED}
+        # Target-level deps: without them the Makefile generator copies the
+        # shared package rules into both consumers, which then run mcabal
+        # concurrently and read base-*.pkg while it is being rewritten.
+        mhs-local-install
+        mhs-music-pkg
         ${LOCAL_MCABAL_STAMP}
         ${MUSIC_PKG}
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h

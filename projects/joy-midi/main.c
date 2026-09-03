@@ -11,8 +11,26 @@
 #include "midi_primitives.h"
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <io.h>
+#define access _access
+#define R_OK 4
+#define isatty _isatty
+#define STDIN_FILENO _fileno(stdin)
+/* MSVC has no <libgen.h>; truncate at the last separator in place */
+static char* dirname(char* path) {
+    char* last = NULL;
+    for (char* p = path; *p; p++) {
+        if (*p == '/' || *p == '\\') last = p;
+    }
+    if (!last) return ".";
+    *last = '\0';
+    return path[0] ? path : "/";
+}
+#else
 #include <libgen.h>
 #include <unistd.h>
+#endif
 
 /* Try to load prelude.joy from various locations */
 static void load_prelude(JoyContext* ctx, const char* argv0) {
