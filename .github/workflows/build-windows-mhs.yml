@@ -35,7 +35,7 @@ jobs:
           if exist thirdparty\MicroHs\generated\mhs.c (echo Found) else (echo NOT FOUND && exit 1)
 
       - name: Configure CMake
-        run: cmake -B build -G "Visual Studio 17 2022" --log-level=VERBOSE
+        run: cmake -B build --log-level=VERBOSE
 
       - name: List CMake targets
         shell: cmd

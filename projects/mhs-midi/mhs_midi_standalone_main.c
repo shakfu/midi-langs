@@ -103,37 +103,59 @@ int main(int argc, char **argv) {
     }
 
     /* Build new argv with -C flag for caching, plus linker flags if needed */
-    /* Extra args: -C, and if linking: -optl flags for each library + frameworks */
-    /* With VFS_USE_PKG: also add -a and -p flags for package loading */
-#ifdef __APPLE__
-    /* macOS: 4 libraries + 3 frameworks + C++ runtime = 8 -optl pairs = 16 args */
-    #define LINK_EXTRA_ARGS 16
-#else
-    /* Linux: --no-as-needed + 4 libraries + ALSA + C++ runtime + math = 8 -optl pairs = 16 args */
-    #define LINK_EXTRA_ARGS 16
-#endif
-
 #ifdef VFS_USE_PKG
-    /* Package mode: -C + -a/mhs-embedded + -pbase + -pmusic = 4 extra args */
+    /* Package mode: -a/mhs-embedded, -pbase, -pmusic */
     #define PKG_EXTRA_ARGS 3
 #else
     #define PKG_EXTRA_ARGS 0
 #endif
 
+    /* Library paths for -optl; only filled when linking */
+    char lib_libremidi[512] = "";
+    char lib_midi_ffi[512] = "";
+    char lib_music_theory[512] = "";
+    char lib_midi_file[512] = "";
+
+    if (linking_midi) {
+        snprintf(lib_midi_ffi, sizeof(lib_midi_ffi), "%s/lib/libmidi_ffi.a", temp_dir);
+        snprintf(lib_music_theory, sizeof(lib_music_theory), "%s/lib/libmusic_theory.a", temp_dir);
+        snprintf(lib_midi_file, sizeof(lib_midi_file), "%s/lib/libmidi_file.a", temp_dir);
+        snprintf(lib_libremidi, sizeof(lib_libremidi), "%s/lib/liblibremidi.a", temp_dir);
+    }
+
+    /* Linker flags for the MIDI libraries. The argv allocation is sized from
+     * this array so the count cannot drift from the contents. */
+    char *link_args[] = {
+        "-optl", lib_midi_ffi,
+        "-optl", lib_music_theory,
+        "-optl", lib_midi_file,
+        "-optl", lib_libremidi,
+#ifdef __APPLE__
+        "-optl", "-framework", "-optl", "CoreMIDI",
+        "-optl", "-framework", "-optl", "CoreFoundation",
+        "-optl", "-framework", "-optl", "CoreAudio",
+        /* libremidi is C++; Clang uses libc++ */
+        "-optl", "-lc++",
+#else
+        /* Force the linker to keep the libraries: GCC processes them
+         * left-to-right, but mhs puts -optl before the sources */
+        "-optl", "-Wl,--no-as-needed",
+        "-optl", "-lasound",
+        "-optl", "-lstdc++",
+        /* Required on Linux, implicit on macOS */
+        "-optl", "-lm",
+#endif
+    };
+    const int link_argc = (int)(sizeof(link_args) / sizeof(link_args[0]));
+
     int extra_args = 1;  /* -C */
     extra_args += PKG_EXTRA_ARGS;
     if (linking_midi) {
-        extra_args += LINK_EXTRA_ARGS;
+        extra_args += link_argc;
     }
 
     int new_argc = argc - arg_offset + extra_args;
     char **new_argv = malloc((new_argc + 1) * sizeof(char *));
-
-    /* Buffers for library path arguments */
-    char lib_libremidi[512];
-    char lib_midi_ffi[512];
-    char lib_music_theory[512];
-    char lib_midi_file[512];
 
     if (!new_argv) {
         fprintf(stderr, "Error: Memory allocation failed\n");
@@ -152,56 +174,10 @@ int main(int argc, char **argv) {
     new_argv[j++] = "-pmusic";          /* Preload music package */
 #endif
 
-    /* Add linker flags for MIDI libraries if compiling to executable */
     if (linking_midi) {
-        /* Build library paths */
-        snprintf(lib_midi_ffi, sizeof(lib_midi_ffi), "%s/lib/libmidi_ffi.a", temp_dir);
-        snprintf(lib_music_theory, sizeof(lib_music_theory), "%s/lib/libmusic_theory.a", temp_dir);
-        snprintf(lib_midi_file, sizeof(lib_midi_file), "%s/lib/libmidi_file.a", temp_dir);
-        snprintf(lib_libremidi, sizeof(lib_libremidi), "%s/lib/liblibremidi.a", temp_dir);
-
-        /* Add -optl flags for each library */
-        new_argv[j++] = "-optl";
-        new_argv[j++] = lib_midi_ffi;
-        new_argv[j++] = "-optl";
-        new_argv[j++] = lib_music_theory;
-        new_argv[j++] = "-optl";
-        new_argv[j++] = lib_midi_file;
-        new_argv[j++] = "-optl";
-        new_argv[j++] = lib_libremidi;
-
-#ifdef __APPLE__
-        /* macOS frameworks */
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "-framework";
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "CoreMIDI";
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "-framework";
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "CoreFoundation";
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "-framework";
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "CoreAudio";
-        /* C++ standard library (libremidi is C++) - Clang uses libc++ */
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "-lc++";
-#else
-        /* Linux: Force linker to include libraries despite ordering
-         * (GCC processes libraries left-to-right, but mhs puts -optl before sources) */
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "-Wl,--no-as-needed";
-        /* Linux: ALSA */
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "-lasound";
-        /* C++ standard library (libremidi is C++) - GCC uses libstdc++ */
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "-lstdc++";
-        /* Math library - required on Linux, implicit on macOS */
-        new_argv[j++] = "-optl";
-        new_argv[j++] = "-lm";
-#endif
+        for (int i = 0; i < link_argc; i++) {
+            new_argv[j++] = link_args[i];
+        }
     }
 
     /* Copy remaining arguments */
