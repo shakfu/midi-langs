@@ -69,6 +69,10 @@ static char advance(AldaScanner* s) {
     return c;
 }
 
+/* match() - currently unused but kept for future use (e.g., multi-char tokens) */
+#if defined(__GNUC__) || defined(__clang__)
+static int match(AldaScanner* s, char expected) __attribute__((unused));
+#endif
 static int match(AldaScanner* s, char expected) {
     if (is_at_end(s)) return 0;
     if (s->source[s->current] != expected) return 0;
@@ -83,18 +87,13 @@ static void skip_whitespace(AldaScanner* s) {
         if (c == ' ' || c == '\t' || c == '\r') {
             advance(s);
         } else if (c == '#') {
-            /* Check if this is a comment (# followed by space/newline/EOF)
-             * vs a sharp accidental (# followed by digit or note-related char) */
-            char next_c = s->source[s->current + 1];
-            if (next_c == '\0' || next_c == ' ' || next_c == '\t' ||
-                next_c == '\n' || next_c == '\r' || isalpha((unsigned char)next_c)) {
-                /* Comment: skip to end of line */
-                while (!is_at_end(s) && peek(s) != '\n') {
-                    advance(s);
-                }
-            } else {
-                /* Sharp accidental - don't skip */
-                break;
+            /* '#' always begins a comment that runs to end of line. Alda spells
+             * sharp as '+', never '#', so there is nothing to disambiguate. A
+             * previous heuristic treated '#' as a sharp unless the next
+             * character was whitespace or a letter, which mis-scanned ordinary
+             * banner comments such as "########" as accidentals. */
+            while (!is_at_end(s) && peek(s) != '\n') {
+                advance(s);
             }
         } else {
             break;
@@ -111,7 +110,9 @@ static int is_identifier_start(char c) {
 }
 
 static int is_identifier_char(char c) {
-    return isalnum((unsigned char)c) || c == '_' || c == '-';
+    /* '+' as in Alda's midi-bass+lead. Alda also allows ' ( ) in names, which
+     * here would swallow the s-expression after a name. */
+    return isalnum((unsigned char)c) || c == '_' || c == '-' || c == '+';
 }
 
 static int is_symbol_char(char c) {
@@ -119,6 +120,12 @@ static int is_symbol_char(char c) {
     switch (c) {
         case '!': case '?': case '+': case '-': case '*': case '/':
         case '_': case '<': case '>': case '=': case '.': case ':':
+        /* '#' continues a symbol so that sharp tonics inside an s-expression -
+         * (key-sig '(c# minor)) - scan as one symbol. A '#' at the start of a
+         * token is still a comment: skip_whitespace() consumes those before a
+         * token begins, and this function only ever extends one already in
+         * progress. */
+        case '#':
             return 1;
         default:
             return 0;
@@ -164,6 +171,18 @@ static AldaToken scan_number(AldaScanner* s) {
         advance(s);
     }
 
+    /* A '.' is part of the number only when a digit follows it, e.g. the
+     * quadruple-whole note "c0.25". Otherwise it is an augmentation dot and
+     * belongs to the next token: "c4." is a dotted quarter, not the number 4. */
+    int is_fraction = 0;
+    if (peek(s) == '.' && isdigit((unsigned char)peek_next(s))) {
+        is_fraction = 1;
+        advance(s); /* . */
+        while (isdigit((unsigned char)peek(s))) {
+            advance(s);
+        }
+    }
+
     /* Check for ms or s suffix */
     if (peek(s) == 'm' && peek_next(s) == 's') {
         advance(s); /* m */
@@ -178,9 +197,12 @@ static AldaToken scan_number(AldaScanner* s) {
         return tok;
     }
 
-    /* Regular note length */
+    /* Regular note length. The literal is a union, so the value is carried as
+     * float_val for every note length - fractional or not - and read back the
+     * same way in parse_duration_component(). */
+    (void)is_fraction;
     AldaToken tok = make_token(s, ALDA_TOK_NOTE_LENGTH);
-    tok.literal.int_val = atoi(tok.lexeme);
+    tok.literal.float_val = atof(tok.lexeme);
     return tok;
 }
 
@@ -198,6 +220,17 @@ static AldaToken scan_name(AldaScanner* s) {
     while (is_identifier_char(peek(s))) {
         advance(s);
     }
+
+    /* Dot accessor: "strings.cello" addresses one member of the group aliased
+     * "strings". The dot is only part of the name when an identifier character
+     * follows it, so a trailing '.' still scans as an augmentation dot. */
+    while (peek(s) == '.' && is_identifier_char(peek_next(s))) {
+        advance(s); /* . */
+        while (is_identifier_char(peek(s))) {
+            advance(s);
+        }
+    }
+
     return make_token(s, ALDA_TOK_NAME);
 }
 
@@ -400,8 +433,7 @@ static AldaToken scan_normal_token(AldaScanner* s) {
 
     /* Single-character tokens */
     switch (c) {
-        case '+':
-        case '#': return make_token(s, ALDA_TOK_SHARP);
+        case '+': return make_token(s, ALDA_TOK_SHARP);
         case '-': return make_token(s, ALDA_TOK_FLAT);
         case '_': return make_token(s, ALDA_TOK_NATURAL);
         case '>': return make_token(s, ALDA_TOK_OCTAVE_UP);

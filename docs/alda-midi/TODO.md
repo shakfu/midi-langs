@@ -2,7 +2,7 @@
 
 ## Shared Test Suite Status
 
-**20/20 tests passing** - All shared test suite tests now pass.
+All 60 scores match Alda 2.4.7: the 20 shared-suite scores and the 40 examples (`conformance.md`).
 
 ---
 

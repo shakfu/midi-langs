@@ -13,6 +13,22 @@ extern "C" {
 #endif
 
 /* ============================================================================
+ * Source Line Tracking (for playback visualization)
+ * ============================================================================ */
+
+#ifdef ALDA_SOURCE_TRACKING
+/**
+ * @brief Set the source line for subsequent scheduled events.
+ * Call this before scheduling events from an AST node.
+ * @param ctx Alda context.
+ * @param line Source line number (1-based, or 0 for unknown).
+ */
+#define ALDA_SET_SOURCE_LINE(ctx, line) ((ctx)->source_tracking_line = (line))
+#else
+#define ALDA_SET_SOURCE_LINE(ctx, line) ((void)0)
+#endif
+
+/* ============================================================================
  * Event Queue Management
  * ============================================================================ */
 
@@ -129,6 +145,14 @@ int alda_events_play(AldaContext* ctx);
  * @return Duration in ticks.
  */
 int alda_duration_to_ticks(int denominator, int dots);
+
+/**
+ * @brief Convert a possibly fractional note-length denominator to ticks.
+ * @param denominator Note value denominator (4 = quarter, 0.25 = quadruple whole).
+ * @param dots Number of augmentation dots.
+ * @return Duration in ticks.
+ */
+int alda_duration_to_ticks_frac(double denominator, int dots);
 
 /**
  * @brief Convert milliseconds to ticks.

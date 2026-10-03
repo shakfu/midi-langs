@@ -34,12 +34,16 @@ typedef struct {
     int event_count;
     int event_index;
     int tempo;
+    int segment_tick;               /* Tick of the last tempo change */
+    int segment_ms;                 /* Its time from the start of playback */
+    uint64_t start_ns;              /* uv_hrtime() when playback started */
 
     /* Stop request */
     int stop_requested;
 
     /* libuv handles */
     uv_timer_t timer;
+    uv_async_t start_async;
     uv_async_t stop_async;
 } AsyncSlot;
 
@@ -178,7 +182,9 @@ static void on_timer(uv_timer_t* handle) {
     AldaScheduledEvent* evt = &slot->events[slot->event_index];
 
     if (evt->type == ALDA_EVT_TEMPO) {
-        /* Tempo event: update playback tempo for timing calculations */
+        /* Tempo event: later events are timed from here at the new tempo */
+        slot->segment_ms += alda_ticks_to_ms(evt->tick - slot->segment_tick, slot->tempo);
+        slot->segment_tick = evt->tick;
         slot->tempo = evt->data1;
         if (slot->tempo <= 0) slot->tempo = ALDA_DEFAULT_TEMPO;
     } else {
@@ -207,25 +213,44 @@ static void schedule_next_event(AsyncSlot* slot) {
         return;
     }
 
+    /* Wait until the event's time on the clock, so neither rounding nor
+     * timer latency accumulates from event to event */
     AldaScheduledEvent* curr = &slot->events[slot->event_index];
-    int prev_tick = (slot->event_index > 0) ?
-                    slot->events[slot->event_index - 1].tick : 0;
-
-    int delta_ticks = curr->tick - prev_tick;
-    int ms = alda_ticks_to_ms(delta_ticks, slot->tempo);
+    int target_ms = slot->segment_ms +
+                    alda_ticks_to_ms(curr->tick - slot->segment_tick, slot->tempo);
+    int64_t now_ms = (int64_t)((uv_hrtime() - slot->start_ns) / 1000000);
+    int64_t ms = target_ms - now_ms;
     if (ms < 0) ms = 0;
 
-    uv_timer_start(&slot->timer, on_timer, ms, 0);
+    uv_timer_start(&slot->timer, on_timer, (uint64_t)ms, 0);
 }
 
 /* ============================================================================
- * Stop Signal Handler
+ * Start and Stop Signal Handlers
  * ============================================================================ */
+
+/* libuv handles may only be used on the loop thread, so playback is started
+ * here rather than in alda_events_play_async(). */
+static void on_start_signal(uv_async_t* handle) {
+    AsyncSlot* slot = (AsyncSlot*)handle->data;
+    slot->start_ns = uv_hrtime();
+    schedule_next_event(slot);
+}
 
 static void on_stop_signal(uv_async_t* handle) {
     AsyncSlot* slot = (AsyncSlot*)handle->data;
     slot->stop_requested = 1;
     uv_timer_stop(&slot->timer);
+
+    /* Silence notes this slot left sounding. Sent here, on the loop thread,
+     * so no note-on from this slot can follow it. */
+    for (int ch = 0; ch < 16; ch++) {
+        AldaScheduledEvent off = {0};
+        off.type = ALDA_EVT_CC;
+        off.channel = ch;
+        off.data1 = 123;  /* All Notes Off */
+        send_event(&off);
+    }
 
     if (slot->active) {
         uv_mutex_lock(&async_sys.mutex);
@@ -312,6 +337,9 @@ int alda_async_init(void) {
         uv_timer_init(async_sys.loop, &slot->timer);
         slot->timer.data = slot;
 
+        uv_async_init(async_sys.loop, &slot->start_async, on_start_signal);
+        slot->start_async.data = slot;
+
         uv_async_init(async_sys.loop, &slot->stop_async, on_stop_signal);
         slot->stop_async.data = slot;
     }
@@ -352,6 +380,7 @@ void alda_async_cleanup(void) {
     for (int i = 0; i < MAX_ASYNC_SLOTS; i++) {
         AsyncSlot* slot = &async_sys.slots[i];
         uv_close((uv_handle_t*)&slot->timer, NULL);
+        uv_close((uv_handle_t*)&slot->start_async, NULL);
         uv_close((uv_handle_t*)&slot->stop_async, NULL);
 
         if (slot->events) {
@@ -427,6 +456,8 @@ int alda_events_play_async(AldaContext* ctx) {
     slot->event_count = ctx->event_count;
     slot->event_index = 0;
     slot->tempo = ctx->global_tempo > 0 ? ctx->global_tempo : ALDA_DEFAULT_TEMPO;
+    slot->segment_tick = 0;
+    slot->segment_ms = 0;
     slot->stop_requested = 0;
     slot->active = 1;
     async_sys.active_count++;
@@ -435,16 +466,8 @@ int alda_events_play_async(AldaContext* ctx) {
 
     uv_mutex_unlock(&async_sys.mutex);
 
-    /* Schedule first event */
-    int first_ms = 0;
-    if (slot->event_count > 0 && slot->events[0].tick > 0) {
-        first_ms = alda_ticks_to_ms(slot->events[0].tick, slot->tempo);
-    }
-
-    uv_timer_start(&slot->timer, on_timer, first_ms, 0);
-
-    /* Wake the event loop thread */
-    uv_async_send(&async_sys.wake_async);
+    /* Schedule the first event on the loop thread */
+    uv_async_send(&slot->start_async);
 
     return 0;
 }

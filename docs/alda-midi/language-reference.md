@@ -15,11 +15,17 @@ c d e f g a b      # Natural notes in current octave
 ### Accidentals
 
 ```alda
-c# d# f# g# a#     # Sharps (also: cs ds fs gs as)
-db eb gb ab bb     # Flats
-c## d##            # Double sharps
-dbb ebb            # Double flats
+c+ d+ f+ g+ a+     # Sharps (extension: cs ds fs gs as)
+d- e- g- a- b-     # Flats (extension: db eb gb ab)
+c++ d++            # Double sharps
+d-- e--            # Double flats
 c_                 # Natural (explicit)
+```
+
+`#` always starts a comment, as in Alda; `c#` is `c` followed by a comment.
+The `s` and `b` suffixes are not Alda syntax.
+
+```alda
 ```
 
 ### Durations
@@ -219,11 +225,13 @@ Attributes modify playback characteristics using S-expression syntax.
 (volume 100)       # Full volume (0-100)
 (volume 50)        # Half volume
 (vol 80)           # Shorthand
+(track-volume 50)  # MIDI CC 11, 0-100 percent (default CC 11 = 100)
 ```
 
 ### Dynamics
 
-Dynamics set velocity/volume using musical terms:
+Dynamics set velocity/volume using musical terms. Velocities follow Alda
+(`pp` 40, `p` 49, `mp` 59, `mf` 69, the default):
 
 ```alda
 (ppp)              # Pianississimo (very very soft)
@@ -241,6 +249,7 @@ Dynamics set velocity/volume using musical terms:
 Quantization controls note articulation (percentage of duration actually sounded):
 
 ```alda
+(quant 120)        # Overlapping (values above 100 are allowed)
 (quant 100)        # Legato (full duration)
 (quant 90)         # Default (slightly detached)
 (quant 50)         # Staccato (half duration)
@@ -255,6 +264,17 @@ Quantization controls note articulation (percentage of duration actually sounded
 (panning 127)      # Hard right
 (pan 32)           # Left of center
 ```
+
+### Global Attributes and Channels
+
+```alda
+(tempo! 90)        # Tempo for every part; overrides the first part's (tempo N)
+(key-sig! '(g major))  # Key signature for every part, including later ones
+(midi-channel 3)   # Pin the part to MIDI channel 3 (0-15)
+```
+
+A part's own `(tempo N)` changes only that part's timing. The MIDI tempo map
+follows the first part's tempo changes, as in Alda.
 
 ---
 
@@ -319,16 +339,10 @@ c d e f    # Inline comment
 
 ## MIDI Channel Assignment
 
-Channels are automatically assigned to parts in declaration order:
-
-| Order | Channel |
-| ----- | ------- |
-| 1st part | Channel 1 |
-| 2nd part | Channel 2 |
-| ... | ... |
-| 9th part | Channel 9 |
-| 10th part | Channel 11 (skip 10) |
-| ... | ... |
+Channels are assigned as notes need them. Each note's channel receives the
+program, pan (CC 10) and track volume (CC 11) the note needs, when they differ
+from what the channel holds. With more than 15 parts, a channel passes to
+another part once its part stops sounding. `(midi-channel N)` pins a part.
 
 Channel 10 is reserved for percussion in General MIDI.
 
@@ -336,34 +350,9 @@ Channel 10 is reserved for percussion in General MIDI.
 
 ## Implementation Status
 
-### Fully Implemented
-
-- Notes with durations, accidentals, dots
-- Rests
-- Octave setting and shifts
-- Chords
-- Ties
-- Part declarations
-- Part groups
-- All 128 GM instruments
-- Tempo attribute
-- Volume attribute
-- Dynamics (ppp to fff)
-- Quantization
-- Panning
-- Voices (V1-V8, V0)
-- Barlines
-- Comments
-- Basic repeats
-
-### Deferred Features
-
-- Markers and jumps (@marker, %marker)
-- Variables (name = events)
-- Cram expressions ({...}duration)
-- On-repetitions ('1-3,5)
-- Key signatures
-- Slurs
+Output matches Alda 2.4.7 note for note for the 40 scores in
+`docs/alda-midi/examples/` and the 20 in `docs/alda-midi/shared_suite/`. See
+`docs/alda-midi/conformance.md`.
 
 ---
 

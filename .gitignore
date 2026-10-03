@@ -2,6 +2,7 @@
 
 # Build directory
 build/
+build-asan/
 
 # cache
 .mhscache

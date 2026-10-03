@@ -63,6 +63,9 @@ int alda_schedule_event(AldaContext* ctx, int tick, AldaEventType type,
     evt->data1 = data1;
     evt->data2 = data2;
     evt->part_index = part_index;
+#ifdef ALDA_SOURCE_TRACKING
+    evt->source_line = ctx->source_tracking_line;
+#endif
 
     ctx->event_count++;
     return 0;
@@ -200,22 +203,23 @@ int alda_events_play(AldaContext* ctx) {
     /* Sort events by tick */
     alda_events_sort(ctx);
 
-    /* Get tempo for timing conversion */
+    /* Each event's time is measured from the last tempo change, so rounding
+     * to whole milliseconds does not accumulate from event to event. */
     int tempo = ctx->global_tempo;
     if (tempo <= 0) tempo = ALDA_DEFAULT_TEMPO;
-
-    int last_tick = 0;
+    int segment_tick = 0;
+    int segment_ms = 0;
+    int elapsed_ms = 0;
 
     /* Play events in order */
     for (int i = 0; i < ctx->event_count; i++) {
         AldaScheduledEvent* evt = &ctx->events[i];
 
         /* Wait until event time */
-        if (evt->tick > last_tick) {
-            int delta_ticks = evt->tick - last_tick;
-            int delta_ms = alda_ticks_to_ms(delta_ticks, tempo);
-            alda_midi_sleep_ms(ctx, delta_ms);
-            last_tick = evt->tick;
+        int target_ms = segment_ms + alda_ticks_to_ms(evt->tick - segment_tick, tempo);
+        if (target_ms > elapsed_ms) {
+            alda_midi_sleep_ms(ctx, target_ms - elapsed_ms);
+            elapsed_ms = target_ms;
         }
 
         /* Convert channel back to 1-based for MIDI functions */
@@ -245,6 +249,8 @@ int alda_events_play(AldaContext* ctx) {
 
             case ALDA_EVT_TEMPO:
                 /* Update playback tempo for subsequent timing calculations */
+                segment_tick = evt->tick;
+                segment_ms = target_ms;
                 tempo = evt->data1;
                 if (tempo <= 0) tempo = ALDA_DEFAULT_TEMPO;
                 break;
@@ -258,30 +264,38 @@ int alda_events_play(AldaContext* ctx) {
  * Duration Calculation
  * ============================================================================ */
 
-int alda_duration_to_ticks(int denominator, int dots) {
-    if (denominator <= 0) {
-        denominator = 4;  /* Default to quarter note */
+int alda_duration_to_ticks_frac(double denominator, int dots) {
+    if (!(denominator > 0.0)) {
+        denominator = 4.0;  /* Default to quarter note */
     }
 
-    /* Base duration: whole note = 4 * TICKS_PER_QUARTER */
-    int base_ticks = (4 * ALDA_TICKS_PER_QUARTER) / denominator;
+    /* Base duration: whole note = 4 * TICKS_PER_QUARTER. Computed in floating
+     * point so fractional note lengths (c0.25, a double whole note) are exact
+     * rather than truncated to zero by integer division. */
+    double base_ticks = (4.0 * ALDA_TICKS_PER_QUARTER) / denominator;
 
     /* Apply dots: each dot adds half of the previous value */
-    int total = base_ticks;
-    int add = base_ticks;
+    double total = base_ticks;
+    double add = base_ticks;
     for (int d = 0; d < dots; d++) {
-        add = add / 2;
+        add = add / 2.0;
         total += add;
     }
 
-    return total;
+    if (total < 0.0) total = 0.0;
+    return (int)(total + 0.5);
+}
+
+int alda_duration_to_ticks(int denominator, int dots) {
+    return alda_duration_to_ticks_frac((double)denominator, dots);
 }
 
 int alda_ms_to_ticks(int ms, int tempo) {
     if (tempo <= 0) tempo = ALDA_DEFAULT_TEMPO;
 
-    /* ticks = ms * tempo * TICKS_PER_QUARTER / 60000 */
-    return (ms * tempo * ALDA_TICKS_PER_QUARTER) / 60000;
+    /* ticks = ms * tempo * TICKS_PER_QUARTER / 60000, in 64 bits: the
+     * product passes INT_MAX after about 37 seconds at 120 BPM */
+    return (int)(((long long)ms * tempo * ALDA_TICKS_PER_QUARTER) / 60000);
 }
 
 int alda_seconds_to_ticks(double seconds, int tempo) {
@@ -291,8 +305,9 @@ int alda_seconds_to_ticks(double seconds, int tempo) {
 int alda_ticks_to_ms(int ticks, int tempo) {
     if (tempo <= 0) tempo = ALDA_DEFAULT_TEMPO;
 
-    /* ms = ticks * 60000 / (tempo * TICKS_PER_QUARTER) */
-    return (ticks * 60000) / (tempo * ALDA_TICKS_PER_QUARTER);
+    /* ms = ticks * 60000 / (tempo * TICKS_PER_QUARTER), in 64 bits: the
+     * product passes INT_MAX after 35791 ticks */
+    return (int)(((long long)ticks * 60000) / (tempo * ALDA_TICKS_PER_QUARTER));
 }
 
 int alda_apply_quant(int duration_ticks, int quant) {

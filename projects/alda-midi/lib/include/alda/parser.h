@@ -63,6 +63,20 @@ const AldaError* alda_parser_error(AldaParser* parser);
 char* alda_parser_error_string(AldaParser* parser);
 
 /**
+ * @brief Get the number of errors collected.
+ * @param parser Parser to check.
+ * @return Number of errors.
+ */
+int alda_parser_error_count(AldaParser* parser);
+
+/**
+ * @brief Get formatted string of all errors.
+ * @param parser Parser to check.
+ * @return Formatted string with all errors. Caller must free().
+ */
+char* alda_parser_all_errors_string(AldaParser* parser);
+
+/**
  * @brief Convenience function to parse a string.
  * @param source Source text to parse.
  * @param filename Source filename for error reporting (may be NULL).

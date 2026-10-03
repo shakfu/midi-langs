@@ -56,8 +56,8 @@ static int get_exe_dir(char *buf, size_t size) {
     uint32_t bufsize = (uint32_t)size;
     if (_NSGetExecutablePath(buf, &bufsize) == 0) {
         char *dir = dirname(buf);
-        strncpy(buf, dir, size - 1);
-        buf[size - 1] = '\0';
+        /* dirname may return a pointer into buf; strncpy on overlap is undefined */
+        memmove(buf, dir, strlen(dir) + 1);
         return 0;
     }
 #elif defined(__linux__)
@@ -65,8 +65,8 @@ static int get_exe_dir(char *buf, size_t size) {
     if (len > 0) {
         buf[len] = '\0';
         char *dir = dirname(buf);
-        strncpy(buf, dir, size - 1);
-        buf[size - 1] = '\0';
+        /* dirname may return a pointer into buf; strncpy on overlap is undefined */
+        memmove(buf, dir, strlen(dir) + 1);
         return 0;
     }
 #endif

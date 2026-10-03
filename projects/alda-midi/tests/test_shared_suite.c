@@ -1,14 +1,29 @@
 /**
  * @file test_shared_suite.c
- * @brief Test runner for shared Alda test suite.
+ * @brief Check alda-midi's output against Alda's own, score by score.
  *
- * Validates alda-midi output against .expected files.
+ * Usage: test_shared_suite DIR [EXPECTED_DIR]
+ *
+ * Interprets every DIR/<name>.alda and compares it with
+ * EXPECTED_DIR/<name>.expected (EXPECTED_DIR defaults to DIR). The .expected
+ * files are written from `alda export` output by aldakit's
+ * scripts/gen_shared_suite.py; shared_suite/README.md gives the format and
+ * docs/alda-midi/conformance.md the method.
+ *
+ * Each note is compared on pitch, start, duration and velocity, plus the
+ * program and controllers 10 (pan) and 11 (track volume) in effect on its
+ * channel when it starts. Channel numbers are not compared: they are an
+ * implementation detail, and alda-midi numbers them differently from Alda. Notes
+ * are read from alda-midi's events the way a MIDI file reader reads them, because
+ * that is how the expected notes were read.
  */
 
+#include <ctype.h>
+#include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <dirent.h>
 
 #include <alda/alda.h>
@@ -16,479 +31,403 @@
 #include <alda/context.h>
 #include <alda/scheduler.h>
 
-/* ============================================================================
- * Configuration
- * ============================================================================ */
-
-#define MAX_EXPECTED_NOTES    1024
-#define MAX_EXPECTED_PROGRAMS 64
-#define MAX_EXPECTED_CCS      256
-#define MAX_EXPECTED_TEMPOS   64
-#define TIME_TOLERANCE        0.01   /* 10ms tolerance */
-#define DURATION_TOLERANCE    0.01
+/* The expected values come from a 128 ticks-per-beat file, within one tick
+ * of Alda's millisecond values; 10ms covers that at any tempo in the corpus. */
+#define TOLERANCE 0.01
+#define SHOW 5  /* Mismatches listed per category */
 
 /* ============================================================================
- * Expected Data Structures
+ * Notes and their channel state
  * ============================================================================ */
 
 typedef struct {
     int pitch;
-    float start;
-    float duration;
+    double start;
+    double duration;
     int velocity;
     int channel;
-} ExpectedNote;
+    int program;   /* -1 when none was sent */
+    int pan;       /* -1 when none was sent */
+    int volume;    /* CC 11, -1 when none was sent */
+    int matched;
+} Note;
 
 typedef struct {
-    int program;
+    double time;
     int channel;
-    float time;
-} ExpectedProgram;
-
-typedef struct {
-    int control;
+    int control;   /* -1 for a program change */
     int value;
-    int channel;
-    float time;
-} ExpectedCC;
+} Setting;
 
 typedef struct {
-    float bpm;
-    float time;
-} ExpectedTempo;
+    double time;
+    double bpm;
+} Tempo;
 
 typedef struct {
-    ExpectedNote notes[MAX_EXPECTED_NOTES];
+    Note* notes;
     int note_count;
-
-    ExpectedProgram programs[MAX_EXPECTED_PROGRAMS];
-    int program_count;
-
-    ExpectedCC ccs[MAX_EXPECTED_CCS];
-    int cc_count;
-
-    ExpectedTempo tempos[MAX_EXPECTED_TEMPOS];
+    Setting* settings;
+    int setting_count;
+    Tempo* tempos;
     int tempo_count;
-} ExpectedOutput;
+} Score;
+
+static void* grow(void* items, int count, size_t size) {
+    /* Double at powers of two */
+    if (count == 0 || (count & (count - 1)) == 0) {
+        void* bigger = realloc(items, size * (size_t)(count ? count * 2 : 16));
+        if (!bigger) {
+            fprintf(stderr, "Out of memory\n");
+            exit(2);
+        }
+        return bigger;
+    }
+    return items;
+}
+
+static void add_note(Score* s, Note n) {
+    s->notes = grow(s->notes, s->note_count, sizeof(Note));
+    s->notes[s->note_count++] = n;
+}
+
+static void add_setting(Score* s, Setting x) {
+    s->settings = grow(s->settings, s->setting_count, sizeof(Setting));
+    s->settings[s->setting_count++] = x;
+}
+
+static void add_tempo(Score* s, Tempo t) {
+    s->tempos = grow(s->tempos, s->tempo_count, sizeof(Tempo));
+    s->tempos[s->tempo_count++] = t;
+}
+
+static void free_score(Score* s) {
+    free(s->notes);
+    free(s->settings);
+    free(s->tempos);
+}
+
+/* The value of a program (control -1) or controller in effect on a channel
+ * at a time: the last one sent at or before it. Settings are in time order. */
+static int state_at(const Score* s, int channel, int control, double time) {
+    int value = -1;
+    for (int i = 0; i < s->setting_count; i++) {
+        const Setting* x = &s->settings[i];
+        if (x->time > time + 1e-6) break;
+        if (x->channel == channel && x->control == control) value = x->value;
+    }
+    return value;
+}
+
+static int compare_settings(const void* a, const void* b) {
+    const Setting* x = a;
+    const Setting* y = b;
+    return (x->time > y->time) - (x->time < y->time);
+}
+
+static void resolve_state(Score* s) {
+    /* Stable enough: settings at one time on one channel do not conflict */
+    qsort(s->settings, (size_t)s->setting_count, sizeof(Setting), compare_settings);
+    for (int i = 0; i < s->note_count; i++) {
+        Note* n = &s->notes[i];
+        n->program = state_at(s, n->channel, -1, n->start);
+        n->pan = state_at(s, n->channel, 10, n->start);
+        n->volume = state_at(s, n->channel, 11, n->start);
+    }
+}
 
 /* ============================================================================
- * Parsing .expected Files
+ * Reading .expected files
  * ============================================================================ */
 
-int parse_expected_file(const char* path, ExpectedOutput* out) {
+static int read_expected(const char* path, Score* s) {
     FILE* f = fopen(path, "r");
-    if (!f) {
-        fprintf(stderr, "Cannot open expected file: %s\n", path);
-        return -1;
-    }
-
-    memset(out, 0, sizeof(ExpectedOutput));
+    if (!f) return -1;
 
     char line[256];
     while (fgets(line, sizeof(line), f)) {
-        /* Skip comments and empty lines */
-        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') {
-            continue;
-        }
-
-        char type[16];
-        if (sscanf(line, "%15s", type) != 1) {
-            continue;
-        }
-
-        if (strcmp(type, "NOTE") == 0) {
-            if (out->note_count >= MAX_EXPECTED_NOTES) continue;
-            ExpectedNote* n = &out->notes[out->note_count];
-            if (sscanf(line, "NOTE %d %f %f %d %d",
-                       &n->pitch, &n->start, &n->duration,
-                       &n->velocity, &n->channel) == 5) {
-                out->note_count++;
-            }
-        }
-        else if (strcmp(type, "PROGRAM") == 0) {
-            if (out->program_count >= MAX_EXPECTED_PROGRAMS) continue;
-            ExpectedProgram* p = &out->programs[out->program_count];
-            if (sscanf(line, "PROGRAM %d %d %f",
-                       &p->program, &p->channel, &p->time) == 3) {
-                out->program_count++;
-            }
-        }
-        else if (strcmp(type, "CC") == 0) {
-            if (out->cc_count >= MAX_EXPECTED_CCS) continue;
-            ExpectedCC* c = &out->ccs[out->cc_count];
-            if (sscanf(line, "CC %d %d %d %f",
-                       &c->control, &c->value, &c->channel, &c->time) == 4) {
-                out->cc_count++;
-            }
-        }
-        else if (strcmp(type, "TEMPO") == 0) {
-            if (out->tempo_count >= MAX_EXPECTED_TEMPOS) continue;
-            ExpectedTempo* t = &out->tempos[out->tempo_count];
-            if (sscanf(line, "TEMPO %f %f", &t->bpm, &t->time) == 2) {
-                out->tempo_count++;
-            }
+        double a, b, c;
+        int i, j, k;
+        if (sscanf(line, "NOTE %d %lf %lf %d %d", &i, &a, &b, &j, &k) == 5) {
+            add_note(s, (Note){i, a, b, j, k, -1, -1, -1, 0});
+        } else if (sscanf(line, "PROGRAM %d %d %lf", &i, &j, &a) == 3) {
+            add_setting(s, (Setting){a, j, -1, i});
+        } else if (sscanf(line, "CC %d %d %d %lf", &i, &j, &k, &a) == 4) {
+            add_setting(s, (Setting){a, k, i, j});
+        } else if (sscanf(line, "TEMPO %lf %lf", &a, &c) == 2) {
+            add_tempo(s, (Tempo){c, a});
         }
     }
-
     fclose(f);
+    resolve_state(s);
     return 0;
 }
 
 /* ============================================================================
- * Tempo Map for Tick-to-Second Conversion
+ * Reading alda-midi's events
  * ============================================================================ */
-
-#define MAX_TEMPO_CHANGES 64
 
 typedef struct {
     int tick;
+    double time;
     int tempo;
-} TempoEntry;
+} TempoPoint;
 
-typedef struct {
-    TempoEntry entries[MAX_TEMPO_CHANGES];
-    int count;
-} TempoMap;
+static double tick_seconds(const TempoPoint* map, int count, int tick) {
+    int i = 0;
+    while (i + 1 < count && map[i + 1].tick <= tick) i++;
+    return map[i].time + (double)(tick - map[i].tick) / ALDA_TICKS_PER_QUARTER
+                         * 60.0 / map[i].tempo;
+}
 
-/* Build tempo map from context events */
-void build_tempo_map(AldaContext* ctx, TempoMap* map, int default_tempo) {
-    map->count = 0;
+static int read_ours(const char* path, Score* s) {
+    AldaContext* ctx = malloc(sizeof(AldaContext));
+    if (!ctx) return -1;
+    alda_context_init(ctx);
+    alda_set_no_sleep(ctx, 1);
 
-    /* Add initial tempo */
-    map->entries[0].tick = 0;
-    map->entries[0].tempo = default_tempo;
-    map->count = 1;
-
-    /* Find all tempo change events */
-    for (int i = 0; i < ctx->event_count && map->count < MAX_TEMPO_CHANGES; i++) {
-        AldaScheduledEvent* evt = &ctx->events[i];
-        if (evt->type == ALDA_EVT_TEMPO) {
-            map->entries[map->count].tick = evt->tick;
-            map->entries[map->count].tempo = evt->data1;
-            map->count++;
-        }
+    if (alda_interpret_file(ctx, path) != 0) {
+        alda_context_cleanup(ctx);
+        free(ctx);
+        return -1;
     }
-}
-
-/* Get tempo at a specific tick position */
-int get_tempo_at_tick(TempoMap* map, int tick) {
-    int tempo = ALDA_DEFAULT_TEMPO;
-    for (int i = 0; i < map->count; i++) {
-        if (map->entries[i].tick <= tick) {
-            tempo = map->entries[i].tempo;
-        } else {
-            break;
-        }
-    }
-    return tempo;
-}
-
-/**
- * Convert tick position to seconds using tempo map.
- * Handles tempo changes by calculating time segment by segment.
- */
-float ticks_to_seconds_with_map(int ticks, TempoMap* map) {
-    float seconds = 0.0f;
-    int current_tick = 0;
-
-    for (int i = 0; i < map->count && current_tick < ticks; i++) {
-        int segment_start = map->entries[i].tick;
-        int segment_end = (i + 1 < map->count) ? map->entries[i + 1].tick : ticks;
-        int tempo = map->entries[i].tempo;
-
-        /* Clamp segment to our range */
-        if (segment_start < current_tick) segment_start = current_tick;
-        if (segment_end > ticks) segment_end = ticks;
-
-        if (segment_end > segment_start) {
-            int delta_ticks = segment_end - segment_start;
-            seconds += (float)delta_ticks / ALDA_TICKS_PER_QUARTER * 60.0f / (float)tempo;
-            current_tick = segment_end;
-        }
-    }
-
-    return seconds;
-}
-
-/**
- * Convert tick duration to seconds at a specific tempo.
- */
-float duration_to_seconds(int duration_ticks, int tempo) {
-    return (float)duration_ticks / ALDA_TICKS_PER_QUARTER * 60.0f / (float)tempo;
-}
-
-/**
- * Convert tick position to seconds (legacy, single tempo).
- */
-float ticks_to_seconds(int ticks, int tempo) {
-    return (float)ticks / ALDA_TICKS_PER_QUARTER * 60.0f / (float)tempo;
-}
-
-/* ============================================================================
- * Compare Functions
- * ============================================================================ */
-
-int compare_floats(float a, float b, float tolerance) {
-    return fabsf(a - b) < tolerance;
-}
-
-/* Comparison function for sorting notes by start time then pitch */
-int compare_notes_by_start_pitch(const void* a, const void* b) {
-    const ExpectedNote* na = (const ExpectedNote*)a;
-    const ExpectedNote* nb = (const ExpectedNote*)b;
-    if (na->start != nb->start) {
-        return (na->start > nb->start) ? 1 : -1;
-    }
-    return na->pitch - nb->pitch;
-}
-
-/* ============================================================================
- * Extract Notes from Context Events
- * ============================================================================ */
-
-typedef struct {
-    int pitch;
-    int channel;
-    int start_tick;
-    int velocity;
-} PendingNote;
-
-int extract_notes_from_context(AldaContext* ctx, ExpectedNote* notes, int max_notes, TempoMap* tempo_map) {
-    int note_count = 0;
-    PendingNote pending[256];
-    int pending_count = 0;
-
-    /* Sort events first */
     alda_events_sort(ctx);
 
-    for (int i = 0; i < ctx->event_count && note_count < max_notes; i++) {
-        AldaScheduledEvent* evt = &ctx->events[i];
-
-        if (evt->type == ALDA_EVT_NOTE_ON) {
-            /* Store pending note-on */
-            if (pending_count < 256) {
-                pending[pending_count].pitch = evt->data1;
-                pending[pending_count].channel = evt->channel;
-                pending[pending_count].start_tick = evt->tick;
-                pending[pending_count].velocity = evt->data2;
-                pending_count++;
-            }
+    /* Tempo map as the export writes it: the context tempo unless the score
+     * sets its own at tick 0, then every tempo event. */
+    int count = 0;
+    TempoPoint* map = malloc(sizeof(TempoPoint) * (size_t)(ctx->event_count + 1));
+    map[count++] = (TempoPoint){0, 0.0, ctx->global_tempo};
+    for (int i = 0; i < ctx->event_count; i++) {
+        AldaScheduledEvent* e = &ctx->events[i];
+        if (e->type != ALDA_EVT_TEMPO) continue;
+        if (map[count - 1].tick == e->tick) {
+            map[count - 1].tempo = e->data1;
+        } else {
+            double t = tick_seconds(map, count, e->tick);
+            map[count++] = (TempoPoint){e->tick, t, e->data1};
         }
-        else if (evt->type == ALDA_EVT_NOTE_OFF) {
-            /* Find matching note-on and create note */
-            for (int j = 0; j < pending_count; j++) {
-                if (pending[j].pitch == evt->data1 && pending[j].channel == evt->channel) {
-                    ExpectedNote* n = &notes[note_count];
-                    n->pitch = pending[j].pitch;
-                    n->channel = pending[j].channel;
-                    /* Use tempo map for accurate time conversion */
-                    n->start = ticks_to_seconds_with_map(pending[j].start_tick, tempo_map);
-                    /* Duration uses tempo at start of note */
-                    int tempo_at_note = get_tempo_at_tick(tempo_map, pending[j].start_tick);
-                    n->duration = duration_to_seconds(evt->tick - pending[j].start_tick, tempo_at_note);
-                    n->velocity = pending[j].velocity;
-                    note_count++;
+    }
+    for (int i = 0; i < count; i++) add_tempo(s, (Tempo){map[i].time, map[i].tempo});
 
-                    /* Remove from pending */
-                    pending[j] = pending[pending_count - 1];
-                    pending_count--;
+    /* Notes as a MIDI file reader pairs them: one sounding note per channel
+     * and pitch; a new note-on replaces it, and a velocity-0 note-on ends it. */
+    int pending_tick[16][128], pending_velocity[16][128];
+    for (int c = 0; c < 16; c++) {
+        for (int p = 0; p < 128; p++) pending_tick[c][p] = -1;
+    }
+
+    for (int i = 0; i < ctx->event_count; i++) {
+        AldaScheduledEvent* e = &ctx->events[i];
+        double t = tick_seconds(map, count, e->tick);
+        int ch = e->channel;
+        switch (e->type) {
+            case ALDA_EVT_NOTE_ON:
+                if (e->data2 > 0) {
+                    pending_tick[ch][e->data1] = e->tick;
+                    pending_velocity[ch][e->data1] = e->data2;
                     break;
                 }
+                /* fall through: velocity 0 ends the note */
+            case ALDA_EVT_NOTE_OFF: {
+                int start = pending_tick[ch][e->data1];
+                if (start < 0) break;
+                pending_tick[ch][e->data1] = -1;
+                double begin = tick_seconds(map, count, start);
+                double length = t - begin;
+                add_note(s, (Note){e->data1, begin, length > 0.001 ? length : 0.001,
+                                   pending_velocity[ch][e->data1], ch, -1, -1, -1, 0});
+                break;
             }
+            case ALDA_EVT_PROGRAM:
+                add_setting(s, (Setting){t, ch, -1, e->data1});
+                break;
+            case ALDA_EVT_PAN:
+                add_setting(s, (Setting){t, ch, 10, e->data1});
+                break;
+            case ALDA_EVT_CC:
+                add_setting(s, (Setting){t, ch, e->data1, e->data2});
+                break;
+            default:
+                break;
         }
     }
 
-    return note_count;
-}
-
-int extract_programs_from_context(AldaContext* ctx, ExpectedProgram* programs, int max, int tempo) {
-    int count = 0;
-    for (int i = 0; i < ctx->event_count && count < max; i++) {
-        AldaScheduledEvent* evt = &ctx->events[i];
-        if (evt->type == ALDA_EVT_PROGRAM) {
-            programs[count].program = evt->data1;
-            programs[count].channel = evt->channel;
-            programs[count].time = ticks_to_seconds(evt->tick, tempo);
-            count++;
-        }
-    }
-    return count;
-}
-
-int extract_ccs_from_context(AldaContext* ctx, ExpectedCC* ccs, int max, int tempo) {
-    int count = 0;
-    for (int i = 0; i < ctx->event_count && count < max; i++) {
-        AldaScheduledEvent* evt = &ctx->events[i];
-        if (evt->type == ALDA_EVT_CC || evt->type == ALDA_EVT_PAN) {
-            ccs[count].control = evt->data1;
-            ccs[count].value = evt->data2;
-            ccs[count].channel = evt->channel;
-            ccs[count].time = ticks_to_seconds(evt->tick, tempo);
-            count++;
-        }
-    }
-    return count;
+    free(map);
+    alda_context_cleanup(ctx);
+    free(ctx);
+    resolve_state(s);
+    return 0;
 }
 
 /* ============================================================================
- * Test Runner
+ * Comparison
  * ============================================================================ */
 
+enum { C_MISSING, C_EXTRA, C_DURATION, C_VELOCITY, C_PROGRAM, C_PAN, C_VOLUME,
+       C_TEMPO, C_COUNT };
+static const char* CATEGORY[C_COUNT] = {
+    "note missing", "note extra", "note duration", "note velocity",
+    "note program", "note pan (CC 10)", "note track volume (CC 11)", "tempo"
+};
+
 typedef struct {
-    int passed;
-    int failed;
-    int skipped;
-} TestStats;
+    int count[C_COUNT];
+    char lines[C_COUNT][SHOW][160];
+} Report;
 
-int run_test(const char* alda_path, const char* expected_path, TestStats* stats) {
-    ExpectedOutput expected;
-    if (parse_expected_file(expected_path, &expected) != 0) {
-        stats->skipped++;
-        return -1;
+static void report(Report* r, int category, const char* fmt, ...) {
+    if (r->count[category] < SHOW) {
+        va_list ap;
+        va_start(ap, fmt);
+        vsnprintf(r->lines[category][r->count[category]], 160, fmt, ap);
+        va_end(ap);
     }
+    r->count[category]++;
+}
 
-    /* Initialize context */
-    AldaContext ctx;
-    alda_context_init(&ctx);
-    alda_set_no_sleep(&ctx, 1);  /* Disable timing for tests */
+static int state_differences(const Note* a, const Note* b) {
+    return (a->program != b->program) + (a->pan != b->pan) + (a->volume != b->volume);
+}
 
-    /* Parse and interpret */
-    if (alda_interpret_file(&ctx, alda_path) != 0) {
-        fprintf(stderr, "FAIL: %s - parse/interpret error\n", alda_path);
-        alda_context_cleanup(&ctx);
-        stats->failed++;
-        return -1;
+static void compare(Score* want, Score* got, Report* r) {
+    for (int i = 0; i < want->note_count; i++) {
+        Note* w = &want->notes[i];
+        Note* best = NULL;
+        /* Same pitch, start within tolerance; prefer the same instrument state,
+         * then the closest duration, so unison notes in different parts pair
+         * by part. */
+        for (int j = 0; j < got->note_count; j++) {
+            Note* g = &got->notes[j];
+            if (g->matched || g->pitch != w->pitch) continue;
+            if (fabs(g->start - w->start) > TOLERANCE) continue;
+            if (!best ||
+                state_differences(g, w) < state_differences(best, w) ||
+                (state_differences(g, w) == state_differences(best, w) &&
+                 fabs(g->duration - w->duration) < fabs(best->duration - w->duration))) {
+                best = g;
+            }
+        }
+        if (!best) {
+            report(r, C_MISSING, "%.4f p%d", w->start, w->pitch);
+            continue;
+        }
+        best->matched = 1;
+        if (fabs(best->duration - w->duration) > 2 * TOLERANCE) {
+            report(r, C_DURATION, "%.4f p%d: alda %.4f, ours %.4f",
+                   w->start, w->pitch, w->duration, best->duration);
+        }
+        if (best->velocity != w->velocity) {
+            report(r, C_VELOCITY, "%.4f p%d: alda %d, ours %d",
+                   w->start, w->pitch, w->velocity, best->velocity);
+        }
+        if (best->program != w->program) {
+            report(r, C_PROGRAM, "%.4f p%d: alda %d, ours %d",
+                   w->start, w->pitch, w->program, best->program);
+        }
+        if (best->pan != w->pan) {
+            report(r, C_PAN, "%.4f p%d: alda %d, ours %d",
+                   w->start, w->pitch, w->pan, best->pan);
+        }
+        if (best->volume != w->volume) {
+            report(r, C_VOLUME, "%.4f p%d: alda %d, ours %d",
+                   w->start, w->pitch, w->volume, best->volume);
+        }
     }
-
-    /* Extract actual output */
-    int default_tempo = ctx.global_tempo > 0 ? ctx.global_tempo : ALDA_DEFAULT_TEMPO;
-
-    /* Build tempo map for accurate timing conversions */
-    TempoMap tempo_map;
-    build_tempo_map(&ctx, &tempo_map, default_tempo);
-
-    ExpectedNote actual_notes[MAX_EXPECTED_NOTES];
-    int actual_note_count = extract_notes_from_context(&ctx, actual_notes, MAX_EXPECTED_NOTES, &tempo_map);
-
-    ExpectedProgram actual_programs[MAX_EXPECTED_PROGRAMS];
-    int actual_program_count = extract_programs_from_context(&ctx, actual_programs, MAX_EXPECTED_PROGRAMS, default_tempo);
-
-    ExpectedCC actual_ccs[MAX_EXPECTED_CCS];
-    int actual_cc_count = extract_ccs_from_context(&ctx, actual_ccs, MAX_EXPECTED_CCS, default_tempo);
-
-    /* Compare note counts */
-    int passed = 1;
-
-    if (actual_note_count != expected.note_count) {
-        fprintf(stderr, "FAIL: %s - note count mismatch (expected %d, got %d)\n",
-                alda_path, expected.note_count, actual_note_count);
-        passed = 0;
-    }
-
-    /* Sort notes for comparison */
-    qsort(actual_notes, actual_note_count, sizeof(ExpectedNote), compare_notes_by_start_pitch);
-    qsort(expected.notes, expected.note_count, sizeof(ExpectedNote), compare_notes_by_start_pitch);
-
-    /* Compare notes */
-    int min_notes = actual_note_count < expected.note_count ? actual_note_count : expected.note_count;
-    for (int i = 0; i < min_notes && passed; i++) {
-        ExpectedNote* a = &actual_notes[i];
-        ExpectedNote* e = &expected.notes[i];
-
-        if (a->pitch != e->pitch) {
-            fprintf(stderr, "FAIL: %s - note %d pitch mismatch (expected %d, got %d)\n",
-                    alda_path, i, e->pitch, a->pitch);
-            passed = 0;
-        }
-        if (!compare_floats(a->start, e->start, TIME_TOLERANCE)) {
-            fprintf(stderr, "FAIL: %s - note %d start mismatch (expected %.4f, got %.4f)\n",
-                    alda_path, i, e->start, a->start);
-            passed = 0;
-        }
-        if (!compare_floats(a->duration, e->duration, DURATION_TOLERANCE)) {
-            fprintf(stderr, "FAIL: %s - note %d duration mismatch (expected %.4f, got %.4f)\n",
-                    alda_path, i, e->duration, a->duration);
-            passed = 0;
-        }
-        if (a->velocity != e->velocity) {
-            fprintf(stderr, "FAIL: %s - note %d velocity mismatch (expected %d, got %d)\n",
-                    alda_path, i, e->velocity, a->velocity);
-            passed = 0;
+    for (int j = 0; j < got->note_count; j++) {
+        if (!got->notes[j].matched) {
+            report(r, C_EXTRA, "%.4f p%d", got->notes[j].start, got->notes[j].pitch);
         }
     }
 
-    alda_context_cleanup(&ctx);
-
-    if (passed) {
-        printf("PASS: %s (%d notes)\n", alda_path, actual_note_count);
-        stats->passed++;
-    } else {
-        stats->failed++;
+    /* Tempo maps: each expected change must be in effect in ours at its time */
+    for (int i = 0; i < want->tempo_count; i++) {
+        Tempo* w = &want->tempos[i];
+        double bpm = 0.0;
+        for (int j = 0; j < got->tempo_count; j++) {
+            if (got->tempos[j].time <= w->time + TOLERANCE) bpm = got->tempos[j].bpm;
+        }
+        if (fabs(bpm - w->bpm) > 0.01) {
+            report(r, C_TEMPO, "%.4f: alda %.2f, ours %.2f", w->time, w->bpm, bpm);
+        }
     }
-
-    return passed ? 0 : -1;
 }
 
 /* ============================================================================
  * Main
  * ============================================================================ */
 
-int main(int argc, char** argv) {
-    const char* suite_dir = NULL;
+static int run(const char* alda_path, const char* expected_path, const char* name) {
+    Score want = {0}, got = {0};
+    if (read_expected(expected_path, &want) != 0) {
+        printf("FAIL: %s - no .expected file; write one with aldakit's "
+               "scripts/gen_shared_suite.py\n", name);
+        return -1;
+    }
+    if (read_ours(alda_path, &got) != 0) {
+        printf("FAIL: %s - parse/interpret error\n", name);
+        free_score(&want);
+        return -1;
+    }
 
-    if (argc >= 2) {
-        suite_dir = argv[1];
+    Report r;
+    memset(&r, 0, sizeof(r));
+    compare(&want, &got, &r);
+
+    int failed = 0;
+    for (int c = 0; c < C_COUNT; c++) failed |= r.count[c] > 0;
+    if (!failed) {
+        printf("PASS: %s (%d notes)\n", name, want.note_count);
     } else {
-        /* Default path relative to build directory */
-        suite_dir = "../docs/alda-midi/shared_suite";
+        printf("FAIL: %s\n", name);
+        for (int c = 0; c < C_COUNT; c++) {
+            if (!r.count[c]) continue;
+            printf("      %s: %d\n", CATEGORY[c], r.count[c]);
+            for (int k = 0; k < r.count[c] && k < SHOW; k++) {
+                printf("        %s\n", r.lines[c][k]);
+            }
+        }
     }
 
-    printf("Running shared test suite from: %s\n\n", suite_dir);
+    free_score(&want);
+    free_score(&got);
+    return failed ? -1 : 0;
+}
 
-    DIR* dir = opendir(suite_dir);
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        fprintf(stderr, "usage: %s DIR [EXPECTED_DIR]\n", argv[0]);
+        return 2;
+    }
+    const char* dir_path = argv[1];
+    const char* expected_dir = argc >= 3 ? argv[2] : argv[1];
+    printf("Comparing %s with %s\n\n", dir_path, expected_dir);
+
+    DIR* dir = opendir(dir_path);
     if (!dir) {
-        fprintf(stderr, "Cannot open suite directory: %s\n", suite_dir);
-        return 1;
+        fprintf(stderr, "Cannot open directory: %s\n", dir_path);
+        return 2;
     }
 
-    TestStats stats = {0, 0, 0};
-
+    int passed = 0, failed = 0;
     struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
-        /* Find .alda files */
         const char* name = entry->d_name;
         size_t len = strlen(name);
-        if (len < 5 || strcmp(name + len - 5, ".alda") != 0) {
-            continue;
-        }
+        if (len < 5 || strcmp(name + len - 5, ".alda") != 0) continue;
 
-        /* Build paths */
-        char alda_path[512];
-        char expected_path[512];
-        snprintf(alda_path, sizeof(alda_path), "%s/%s", suite_dir, name);
+        char alda_path[1024], expected_path[1024];
+        snprintf(alda_path, sizeof(alda_path), "%s/%s", dir_path, name);
+        snprintf(expected_path, sizeof(expected_path), "%s/%.*s.expected",
+                 expected_dir, (int)(len - 5), name);
 
-        /* Replace .alda with .expected */
-        snprintf(expected_path, sizeof(expected_path), "%s/%s", suite_dir, name);
-        strcpy(expected_path + strlen(expected_path) - 5, ".expected");
-
-        /* Check if .expected exists */
-        FILE* f = fopen(expected_path, "r");
-        if (!f) {
-            printf("SKIP: %s (no .expected file)\n", name);
-            stats.skipped++;
-            continue;
-        }
-        fclose(f);
-
-        run_test(alda_path, expected_path, &stats);
+        if (run(alda_path, expected_path, name) == 0) passed++;
+        else failed++;
     }
-
     closedir(dir);
 
     printf("\n========================================\n");
-    printf("Results: %d passed, %d failed, %d skipped\n",
-           stats.passed, stats.failed, stats.skipped);
+    printf("Results: %d passed, %d failed\n", passed, failed);
     printf("========================================\n");
-
-    return stats.failed > 0 ? 1 : 0;
+    return failed > 0 ? 1 : 0;
 }

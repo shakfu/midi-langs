@@ -285,6 +285,18 @@ if(NOT WIN32)
     )
 endif()
 
+# Tests for scripts/sync_alda_from_psnd.py (pytest, run through uv)
+find_program(UV_EXECUTABLE uv)
+if(UV_EXECUTABLE)
+    add_test(
+        NAME alda_sync_script
+        COMMAND ${UV_EXECUTABLE} run --no-project --with pytest
+                pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_sync_alda_from_psnd.py
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    set_tests_properties(alda_sync_script PROPERTIES LABELS "unit")
+endif()
+
 # Quick alda_midi tests (shell-based, Unix only)
 if(NOT WIN32)
     add_test(

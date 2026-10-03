@@ -1,6 +1,7 @@
 # Makefile frontend for CMake build
 
 BUILD_DIR := build
+ASAN_BUILD_DIR := build-asan
 CMAKE := cmake
 CTEST := ctest
 PRELUDE2C := ./scripts/prelude2c.py
@@ -16,7 +17,7 @@ HEADER_PY  := projects/pktpy-midi/py_prelude.h
 
 PRELUDE_HEADERS := $(HEADER_SCM) $(HEADER_LUA) $(HEADER_PY)
 
-.PHONY: all build configure clean test test-quick test-verbose \
+.PHONY: all build configure clean test test-quick test-verbose test-asan \
 		rebuild ctidy help reset preludes build-debug \
 		alda-midi forth-midi joy-midi lua-midi pktpy-midi s7-midi \
 		mhs-midi mhs-midi-all \
@@ -100,6 +101,13 @@ test-quick: build
 test-verbose: build
 	@$(CTEST) --test-dir $(BUILD_DIR) -V
 
+# Own build dir: CMake caches ENABLE_SANITIZERS, which would leak into `make test`
+test-asan: $(PRELUDE_HEADERS)
+	@$(CMAKE) -DENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug -B $(ASAN_BUILD_DIR)
+	@$(CMAKE) --build $(ASAN_BUILD_DIR) -j4
+	@LSAN_OPTIONS=suppressions=$(CURDIR)/tests/lsan.supp:print_suppressions=0 \
+		$(CTEST) --test-dir $(ASAN_BUILD_DIR) --output-on-failure
+
 # Joy unit tests (from pyjoy-lang test suite)
 test-joy: build
 	@$(CTEST) --test-dir $(BUILD_DIR) -L joy_unit --output-on-failure
@@ -134,6 +142,7 @@ help:
 	@echo "  test             Run all tests"
 	@echo "  test-quick       Run quick tests only"
 	@echo "  test-verbose     Run tests with verbose output"
+	@echo "  test-asan        Run all tests with ASan and UBSan in $(ASAN_BUILD_DIR)/"
 	@echo "  test-joy         Run Joy unit tests (pyjoy-lang suite)"
 	@echo "  test-joy-passing Show only passing Joy tests"
 	@echo "  test-joy-failing Re-run only failed Joy tests"

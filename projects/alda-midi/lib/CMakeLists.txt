@@ -13,6 +13,7 @@ set(LIBALDA_SOURCES
     src/tsf_backend.c
     src/scheduler.c
     src/interpreter.c
+    src/finalize.c
     src/attributes.c
     src/async.c
 )

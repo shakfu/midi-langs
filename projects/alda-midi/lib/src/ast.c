@@ -249,7 +249,7 @@ AldaNode* alda_node_duration(AldaNode* components, AldaSourcePos pos) {
     return node;
 }
 
-AldaNode* alda_node_note_length(int denominator, int dots, AldaSourcePos pos) {
+AldaNode* alda_node_note_length(double denominator, int dots, AldaSourcePos pos) {
     AldaNode* node = alda_node_new(ALDA_NODE_NOTE_LENGTH, pos);
     if (node) {
         node->data.note_length.denominator = denominator;

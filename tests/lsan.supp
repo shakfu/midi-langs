@@ -1,0 +1,8 @@
+# LeakSanitizer suppressions for vendored code, used by `make test-asan`.
+# Each entry is allocated once and held until exit.
+
+# MicroHs: decompressed bundle buffer, never freed (src/runtime/bfile.c)
+leak:lz77d
+
+# s7: permanent strings made by s7_init
+leak:make_permanent_string

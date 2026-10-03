@@ -105,7 +105,7 @@ struct AldaNode {
 
         /* ALDA_NODE_NOTE_LENGTH */
         struct {
-            int denominator;
+            double denominator;  /* 4 = quarter; may be fractional (0.25) */
             int dots;
         } note_length;
 
@@ -252,7 +252,7 @@ AldaNode* alda_node_note(char letter, char* accidentals, AldaNode* duration, int
 AldaNode* alda_node_rest(AldaNode* duration, AldaSourcePos pos);
 AldaNode* alda_node_chord(AldaNode* notes, AldaSourcePos pos);
 AldaNode* alda_node_duration(AldaNode* components, AldaSourcePos pos);
-AldaNode* alda_node_note_length(int denominator, int dots, AldaSourcePos pos);
+AldaNode* alda_node_note_length(double denominator, int dots, AldaSourcePos pos);
 AldaNode* alda_node_note_length_ms(int ms, AldaSourcePos pos);
 AldaNode* alda_node_note_length_s(double seconds, AldaSourcePos pos);
 AldaNode* alda_node_octave_set(int octave, AldaSourcePos pos);

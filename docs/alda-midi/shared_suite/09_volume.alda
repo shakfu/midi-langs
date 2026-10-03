@@ -5,7 +5,7 @@
 piano:
 (tempo 120)
 
-# Default volume (80)
+# Default volume (54, mf: velocity 69)
 c4
 
 # Explicit volume settings
@@ -20,4 +20,4 @@ c4
 # Volume changes
 (vol 40) c4
 (vol 80) d4
-(vol 120) e4  # Clamped to 100
+(vol 100) e4

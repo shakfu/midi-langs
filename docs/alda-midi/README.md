@@ -187,8 +187,8 @@ This is useful for debugging or when you want to hear each part in isolation.
 
 ```alda
 c d e f g a b      # Natural notes
-c# d# f# g# a#     # Sharps
-db eb gb ab bb     # Flats
+c+ d+ f+ g+ a+     # Sharps (# starts a comment)
+d- e- g- a- b-     # Flats
 c4 d8 e16          # Durations: 4=quarter, 8=eighth, 16=sixteenth
 c4. c4..           # Dotted notes
 c4~4               # Tied notes

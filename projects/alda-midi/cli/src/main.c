@@ -394,7 +394,7 @@ int main(int argc, char* argv[]) {
 #endif
 
     /* Initialize context */
-    AldaContext ctx;
+    static AldaContext ctx;  /* Too large for the stack on some platforms */
     alda_context_init(&ctx);
     ctx.verbose_mode = verbose;
     ctx.no_sleep_mode = no_sleep;

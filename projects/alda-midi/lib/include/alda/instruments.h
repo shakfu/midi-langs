@@ -38,6 +38,16 @@ const char* alda_instrument_name(int program);
  */
 int alda_instrument_is_percussion(const char* name);
 
+/**
+ * @brief Get instrument names matching a prefix for tab completion.
+ *
+ * @param prefix  Prefix to match (empty string matches all)
+ * @param count   Output: number of completions returned
+ * @param max     Maximum number of completions to return
+ * @return Array of strdup'd strings (caller frees array and strings), or NULL
+ */
+char** alda_instrument_get_completions(const char* prefix, int* count, int max);
+
 #ifdef __cplusplus
 }
 #endif

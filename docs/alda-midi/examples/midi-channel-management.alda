@@ -50,6 +50,7 @@ percussion:
     V2: o2 (mf) [ r4 g+ r g+ ]*2
     V3: o3 (mf) [ b4 b6 b12 ]*4
     V4: o2 (p) [ r2 r6 d12 r4 ]*2
+    V0:
   ]
 
   jazzyBeat*4

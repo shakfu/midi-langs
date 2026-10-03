@@ -6,6 +6,14 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
+- **`make test-asan`**: runs the full suite with ASan and UBSan in `build-asan/`. A separate build dir keeps the cached `ENABLE_SANITIZERS` out of `make test`, which `build-debug` does not. `tests/lsan.supp` suppresses exit-time leaks in vendored MicroHs and s7. `joy_midi_timing` still fails on joy parser leaks.
+
+- **alda-midi conformance tests**: `alda_conformance_examples` compares the output of all 40 examples with Alda 2.4.7's `alda export`, and `alda_midi_test_suite` now does the same for the 20 shared-suite scores. Both pass. Method and deviations: `docs/alda-midi/conformance.md`. psnd's scanner, parser, fuzz and interpreter unit tests are ported as well.
+
+- **`scripts/sync_alda_from_psnd.py`**: vendors psnd's Alda interpreter, tests and conformance data into alda-midi. `--check` reports drift without writing. A vendored copy with a sync script was chosen over a submodule because three files need midi-langs edits; the script fails when upstream changes break those edits.
+
+- **alda-midi `(track-volume N)` and `(midi-channel N)`**: track volume is sent as CC 11, as in Alda. `midi-channel` pins a part to a channel.
+
 - **guile-midi**: New GNU Guile Scheme implementation for MIDI
   - Full MIDI bindings: `midi-open`, `midi-note`, `midi-chord`, `midi-cc`, etc.
   - Async scheduler with `spawn`, `run`, `poll`, `stop` for concurrent voices
@@ -101,7 +109,19 @@ All notable changes to midi-langs are documented in this file.
 
 ### Fixed
 
-- **joy-midi test suite compatibility**: Fixed 8 test files for compiled Joy implementation
+- **mhs-midi executable-path lookup copied a string onto itself**: `dirname()` may return a pointer into its argument, so the following `strncpy` had overlapping arguments, which is undefined behaviour. ASan aborted `mhs_midi_test_suite` on it.
+
+- **alda-midi interpreter ported from psnd 0.4.0**: it fixes chords, voices, rests, crams, per-part tempo, instrument names, rounding and channel allocation, and `(key-sig! ...)` now applies to parts declared after it. `docs/alda-midi/conformance.md` points to psnd's list of causes. **Most scores sound different**: every channel now starts at Alda's pan and track volume, and the default velocity is 69 (`mf`), not 80.
+
+- **alda-midi playback timing**: `alda_ticks_to_ms()` computed `ticks * 60000` in `int`, which overflows above 35791 ticks (about 74 beats). A long gap before an event then gave a negative delay; async playback passed it to libuv as a huge unsigned timeout. Both players also rounded each event-to-event delay to whole ms, so the error accumulated over a score. Events are now timed from the last tempo change; async playback also measures against `uv_hrtime()`, so timer latency does not accumulate.
+
+- **alda-midi async playback threading**: `alda_events_play_async()` started the libuv timer from the caller's thread while the loop thread ran it. libuv handles are not thread-safe. Playback now starts on the loop thread through a `uv_async_t`. A stopped slot now sends All Notes Off from the loop thread, so no later note-on from that slot can follow it.
+
+- **alda-midi parse errors leaked the partial AST**: `alda_parse()` returned NULL without freeing the tree built during error recovery, so every REPL line with a syntax error leaked it. Found with LeakSanitizer; psnd has the same leak.
+
+- **alda-midi `midi-channel-management.alda`**: restored a `V0:` line missing from the upstream score.
+
+: Fixed 8 test files for compiled Joy implementation
   - `argv.joy`: Simplified to verify `argv` returns non-empty list (path-independent)
   - `eql2.joy`: Replaced `'\002` character literal syntax with `2 chr` function call
   - `ftell.joy`: Fixed stack management (`swap` → `pop`), added `fclose` cleanup, position-based assertion
@@ -120,6 +140,10 @@ All notable changes to midi-langs are documented in this file.
   - Added automated timing verification test (`joy_midi_timing` in ctest)
 
 ### Changed
+
+- **libremidi PipeWire backend is opt-in**: `-DMIDI_LANGS_PIPEWIRE=ON` enables it, and configure fails if the PipeWire headers are missing. It uses the vendored `thirdparty/readerwriterqueue`. Before this change, Linux configure always fetched readerwriterqueue from GitHub `master`, even when PipeWire was absent and the backend was skipped.
+
+- **alda-midi `#` is always a comment** (breaking): `c#` is now `c` followed by a comment, as in Alda. Spell sharp as `+` (or the `s` suffix extension). The `ALDA_MAX_PARTS` limit rose from 64 to 256, so `AldaContext` is about 147KB; the CLI holds it in static storage.
 
 - **joy-midi architecture**: Separated core Joy interpreter from MIDI extensions
   - Moved `thirdparty/pyjoy-runtime/` to `projects/joy-midi/joy/`

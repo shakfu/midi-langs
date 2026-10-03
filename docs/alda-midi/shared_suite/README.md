@@ -4,6 +4,11 @@ This directory contains a language-agnostic test suite for validating Alda imple
 Each test file is a standalone `.alda` file with a corresponding `.expected` file
 describing the expected MIDI output.
 
+The `.expected` files record what Alda itself produces. aldakit's
+`scripts/gen_shared_suite.py` writes them from `alda export` output (Alda
+2.4.7, committed in aldakit's `tests/alda_reference/`). Do not edit them by
+hand; change the `.alda` file and regenerate.
+
 ## Structure
 
 ```
@@ -42,9 +47,11 @@ Example:
 # Expected output for 01_notes_basic.alda
 PROGRAM 0 0 0.0000
 TEMPO 120.0 0.0000
-NOTE 60 0.0000 0.4500 80 0
-NOTE 62 0.5000 0.4500 80 0
-NOTE 64 1.0000 0.4500 80 0
+CC 10 64 0 0.0000
+CC 11 100 0 0.0000
+NOTE 60 0.0000 0.4492 69 0
+NOTE 62 0.5000 0.4492 69 0
+NOTE 64 1.0000 0.4492 69 0
 ```
 
 ### Record Types
@@ -61,10 +68,25 @@ All times are in seconds. Pitch is MIDI note number (0-127).
 ## MIDI Conventions
 
 - **Tempo**: Default 120 BPM unless specified
-- **Velocity**: Default 80 (mf) unless dynamics specified
-- **Channel**: 0-15, assigned per part (channel 9 reserved for percussion)
+- **Velocity**: Default 69 (mf: volume 54) unless dynamics specified
+- **Channel**: 0-15 as Alda assigns them (channel 9 reserved for percussion)
 - **Timing**: All times in seconds at specified tempo
 - **Duration**: Note duration in seconds (affected by quantization, default 90%)
+- **Controllers**: CC 10 (pan) and CC 11 (track volume) are sent with the
+  first note on a channel and whenever a later note needs a different value;
+  a program change likewise
+
+## Comparing Against the Files
+
+- **Tolerance**: times and durations come from a 128 ticks-per-beat MIDI
+  file, so they are within one tick of Alda's values. Compare with a
+  tolerance; 10ms covers every file.
+- **Channels**: an implementation may number channels differently from Alda,
+  provided each note plays with the same program and controller values.
+- **Silent notes**: a note at volume 0 is absent. MIDI encodes it as a
+  note-on with velocity 0, which every reader takes as a note-off, so it
+  cannot appear in a file derived from MIDI. Compare only notes with velocity
+  above 0.
 
 ## Pitch Reference
 

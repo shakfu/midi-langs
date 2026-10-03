@@ -15,8 +15,9 @@ c4 d4 e4
 trumpet "brass":
 c4 d4 e4
 
-# Multi-instrument part (all play same notes)
-violin/viola/cello "strings":
+# Multi-instrument part (all play same notes). Alda refuses a bare 'violin:'
+# once a named violin exists, so the group leaves the violin out.
+viola/cello/contrabass "strings":
 c4 d4 e4
 
 # Multiple sequential parts

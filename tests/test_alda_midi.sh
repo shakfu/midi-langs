@@ -76,14 +76,15 @@ EOF
 "$ALDA_MIDI" --no-sleep /tmp/dynamics.alda 2>/dev/null
 echo "  PASS: Dynamics and attributes parsed"
 
-# Test 7: Accidentals (c#, db, cs, eb, f#, gb)
-echo "Test 7: Parse accidentals (# and b notation)..."
+# Test 7: Accidentals (Alda's + and -; s and b suffixes as an extension)
+echo "Test 7: Parse accidentals (+/- and s/b notation)..."
 cat > /tmp/accidentals.alda << 'EOF'
-# Accidental test - both # and s/b suffix notation
+# Accidental test - Alda's +/- and the s/b suffix extension
 piano:
-  c# d# f# g#     # Sharp with # symbol
-  db eb gb ab     # Flat with b symbol
+  c+ d+ f+ g+     # Sharp with +
+  d- e- g- a-     # Flat with -
   cs ds fs gs     # Sharp with s suffix
+  db eb gb ab     # Flat with b suffix
 EOF
 "$ALDA_MIDI" --no-sleep /tmp/accidentals.alda 2>/dev/null
 echo "  PASS: Accidentals parsed"
@@ -91,11 +92,11 @@ echo "  PASS: Accidentals parsed"
 # Test 8: Verify accidentals schedule correct number of events
 echo "Test 8: Verify accidentals schedule events correctly..."
 cat > /tmp/verify_accidentals.alda << 'EOF'
-piano: c#4 db4 c4
+piano: c+4 d-4 c4
 EOF
 OUTPUT=$("$ALDA_MIDI" -v --no-sleep /tmp/verify_accidentals.alda 2>&1)
-# 3 notes = 6 note events + 1 program change = 7 events
-if echo "$OUTPUT" | grep -q "7 events"; then
+# 3 notes = 6 note events + program change, pan (CC 10), track volume (CC 11)
+if echo "$OUTPUT" | grep -q "9 events"; then
     echo "  PASS: Accidentals schedule correct number of events"
 else
     echo "  FAIL: Accidental event count not correct"
