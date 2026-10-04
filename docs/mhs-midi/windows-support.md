@@ -9,7 +9,9 @@ The Virtual Filesystem (VFS) used by these binaries relies on `fmemopen()` to se
 ## What Works on Windows
 
 - **MicroHs compiler**: The MicroHs compiler itself works on Windows
+
 - **Compiling to executables**: You can compile Haskell MIDI programs to standalone executables
+
 - **libremidi**: The MIDI library supports Windows via WinMM
 
 ## Using MicroHs with MIDI on Windows
@@ -51,6 +53,7 @@ cc MyProgram.c path\to\runtime\*.c -o MyProgram.exe
 You'll need to link against:
 
 - `libremidi` (build from thirdparty/libremidi)
+
 - `winmm.lib` (Windows Multimedia API)
 
 ### Linking libremidi on Windows
@@ -70,7 +73,9 @@ Link against `build\Release\libremidi.lib` and `winmm.lib`.
 Potential approaches to enable Windows support:
 
 1. **Implement fmemopen alternative**: Create a Windows-compatible implementation using `CreateFileMapping`/`MapViewOfFile` or temporary files
+
 2. **Use a different VFS approach**: Modify the VFS to use a different mechanism that works cross-platform
+
 3. **Compile-time only**: Focus on compiling Haskell to executables rather than providing a REPL
 
 Contributions welcome.

@@ -5,10 +5,15 @@ Analysis of possible data structures for representing MIDI sequences in stack-mi
 ## Design Considerations
 
 - How to represent individual events (notes, CCs, etc.)
+
 - How to store sequences of events
+
 - How to enable transformations (transpose, invert, retrograde, etc.)
+
 - How to support polyphony and multiple tracks
+
 - Memory model: stack vs heap allocation
+
 - Live coding: ability to modify sequences while playing
 
 ---
@@ -35,14 +40,19 @@ dup pitch@ .                \ extract pitch
 **Pros:**
 
 - Fits on stack naturally
+
 - Simple transformations (bit manipulation)
+
 - Cache-friendly
+
 - No memory management
 
 **Cons:**
 
 - Limited duration range (max ~16k ticks)
+
 - No CC or other event types
+
 - Rigid format, hard to extend
 
 ---
@@ -76,13 +86,17 @@ event-free ( event -- )
 **Pros:**
 
 - Flexible, supports all MIDI message types
+
 - Extensible to MIDI 2.0, sysex, etc.
+
 - Natural event representation
 
 **Cons:**
 
 - Requires memory management
+
 - Indirection overhead
+
 - Need to track allocations
 
 ---
@@ -112,13 +126,17 @@ seq-cons ( event seq -- seq )
 **Pros:**
 
 - Easy insert/delete at any position
+
 - Natural recursive structure for Forth
+
 - No reallocation needed
 
 **Cons:**
 
 - Poor cache locality
+
 - O(n) to access by index
+
 - More memory per event (pointer overhead)
 
 ---
@@ -150,14 +168,19 @@ seq-reverse ( seq -- seq )
 **Pros:**
 
 - O(1) random access
+
 - Good cache locality for playback
+
 - Easy to sort by time
+
 - Simple iteration
 
 **Cons:**
 
 - O(n) insert in middle
+
 - Needs reallocation when growing
+
 - Fixed event size
 
 ---
@@ -189,14 +212,19 @@ pat[ 0 60 100 480 | 0 64 100 480 | 0 67 100 480 ]pat
 **Pros:**
 
 - Composable and reusable
+
 - Musical abstractions (chords, scales, arpeggios)
+
 - Good for live coding - modify pattern, hear changes
+
 - Compact representation
 
 **Cons:**
 
 - More complex implementation
+
 - Patterns need interpretation/compilation step
+
 - Less direct control over individual events
 
 ---
@@ -230,14 +258,19 @@ seq-deep-clone ( seq -- seq2 )      \ copies events too
 **Pros:**
 
 - Events can belong to multiple sequences
+
 - Easy to create variations without duplicating data
+
 - Efficient cloning for live manipulation
+
 - Pool allocation is fast
 
 **Cons:**
 
 - Two-level indirection
+
 - More bookkeeping
+
 - Need to track reference counts or accept leaks
 
 ---
@@ -264,7 +297,9 @@ Given the goals of polyphonic sequences, live coding, and transformations:
 Start simple with packed note representation:
 
 - Works with existing stack
+
 - Sufficient for basic melodies and chords
+
 - Easy transformations via bit manipulation
 
 ```forth
@@ -278,7 +313,9 @@ Start simple with packed note representation:
 Add sequence storage in a memory region:
 
 - Sequence handles on stack
+
 - Array storage for events
+
 - Basic operations: append, play, transform
 
 ```forth
@@ -294,7 +331,9 @@ seq-play                  \ play the chord
 Build musical abstractions on top:
 
 - User-defined words generate sequences
+
 - Chord/scale/arpeggio helpers
+
 - Live-friendly pattern manipulation
 
 ```forth
@@ -328,7 +367,9 @@ int sequence_count = 0;
 Standard MIDI files use 480 or 960 ticks per quarter note (PPQ). Suggest:
 
 - Default: 480 PPQ
+
 - Tempo stored separately (microseconds per quarter note)
+
 - Conversion words: `ms>ticks`, `ticks>ms`, `bpm!`
 
 ### Playback Model
@@ -336,8 +377,11 @@ Standard MIDI files use 480 or 960 ticks per quarter note (PPQ). Suggest:
 For live coding, maintain:
 
 - Current tick position
+
 - Tempo/BPM
+
 - Playing flag
+
 - Event index (next event to play)
 
 Playback runs in background, checks current time against next event time.

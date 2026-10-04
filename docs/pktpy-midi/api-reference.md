@@ -17,7 +17,9 @@ midi.open(index: int) -> MidiOut
 Open a MIDI output port.
 
 - `open()` - Create virtual port named "pktpyMIDI"
+
 - `open("MyApp")` - Create virtual port with custom name
+
 - `open(0)` - Open hardware port by index
 
 ```python
@@ -48,7 +50,9 @@ midi.note(name: str) -> int
 Parse note name to MIDI number.
 
 - Supports: C, D, E, F, G, A, B
+
 - Accidentals: # or s (sharp), b (flat)
+
 - Octaves: -1 to 9
 
 ```python
@@ -81,8 +85,11 @@ m.note(pitch, velocity=80, duration=500, channel=1)
 Play a single note.
 
 - `pitch` - MIDI number (0-127) or note name string
+
 - `velocity` - Note velocity (0-127), default 80
+
 - `duration` - Duration in milliseconds, default 500
+
 - `channel` - MIDI channel (1-16), default 1
 
 ```python
@@ -102,8 +109,11 @@ m.chord(pitches, velocity=80, duration=500, channel=1)
 Play multiple notes simultaneously.
 
 - `pitches` - List or tuple of MIDI numbers or note names
+
 - `velocity` - Note velocity (0-127)
+
 - `duration` - Duration in milliseconds
+
 - `channel` - MIDI channel (1-16)
 
 ```python
@@ -121,9 +131,13 @@ m.arpeggio(pitches, velocity=80, note_duration=None, spacing=None, channel=1)
 Play notes sequentially (arpeggiated).
 
 - `pitches` - List of pitches to arpeggiate
+
 - `velocity` - Note velocity (0-127)
+
 - `note_duration` - Duration of each note (default: eighth)
+
 - `spacing` - Time between note starts (default: same as duration)
+
 - `channel` - MIDI channel (1-16)
 
 ```python
@@ -155,7 +169,9 @@ m.cc(control, value, channel=1)
 Send Control Change message.
 
 - `control` - CC number (0-127)
+
 - `value` - CC value (0-127)
+
 - `channel` - MIDI channel (1-16)
 
 ```python
@@ -173,6 +189,7 @@ m.program_change(program, channel=1)
 Send Program Change message.
 
 - `program` - Program number (0-127)
+
 - `channel` - MIDI channel (1-16)
 
 ```python
@@ -236,8 +253,11 @@ m.sustain(on=True, channel=1)    # CC 64 - Sustain pedal
 All pitches follow the pattern `<note><octave>`:
 
 - Notes: c, d, e, f, g, a, b
+
 - Sharps: cs, ds, fs, gs, as
+
 - Flats: db, eb, gb, ab, bb
+
 - Octaves: 0-8
 
 Middle C (MIDI 60) is `c4`.
@@ -296,6 +316,7 @@ midi.set_tempo(bpm: int)
 Set tempo in BPM. This affects:
 
 - Duration constants (`midi.quarter`, `midi.half`, etc.)
+
 - All durations passed to `MidiOut.note()` and `MidiOut.chord()`
 
 Durations are scaled relative to 120 BPM (the default). At 60 BPM, all durations double; at 240 BPM, they halve.
@@ -453,6 +474,7 @@ midi.scale(root, name) -> list[int]
 Build a scale from root pitch and scale name.
 
 - `root` - Root pitch (int or str)
+
 - `name` - Scale name (string)
 
 ```python
@@ -470,7 +492,9 @@ midi.degree(root, name, n) -> int
 Get the nth degree of a named scale (1-based).
 
 - `root` - Root pitch (int or str)
+
 - `name` - Scale name (string)
+
 - `n` - Scale degree (1 = root, 2 = second, etc.)
 
 Supports degrees beyond the octave (e.g., 9 = 2nd + octave).
@@ -606,6 +630,7 @@ m.pitch_bend(cents, channel=1)
 Set pitch bend in cents (-200 to +200 for semitone range).
 
 - `cents` - Pitch offset in cents
+
 - `channel` - MIDI channel (1-16)
 
 ```python
@@ -623,6 +648,7 @@ midi.cents_to_note(root, cents) -> tuple[int, int]
 Convert a cents interval to note and pitch bend values.
 
 - `root` - Root pitch (MIDI number)
+
 - `cents` - Interval in cents from root
 
 Returns tuple of (midi_note, bend_cents).
@@ -801,6 +827,7 @@ midi.save_midi("my_song.py")
 The generated file contains:
 
 - Event data as a Python list of tuples
+
 - Replay code that recreates the timing
 
 ### midi.record_status
@@ -891,9 +918,13 @@ for event in data["events"]:
 Event types (in the `type` field):
 
 - `0x90` = Note On
+
 - `0x80` = Note Off
+
 - `0xB0` = Control Change
+
 - `0xC0` = Program Change
+
 - `0xE0` = Pitch Bend
 
 ---
@@ -911,6 +942,7 @@ midi.spawn(func, name=None) -> int
 Spawn a new voice from a generator function. Returns the voice ID.
 
 - `func` - A generator function (must use `yield`)
+
 - `name` - Optional name for debugging
 
 The function is called immediately to create a generator. The generator should yield millisecond wait times.
@@ -951,6 +983,7 @@ midi.stop(voice_id) -> bool
 Stop voices.
 
 - `stop()` - Stop all voices
+
 - `stop(voice_id)` - Stop specific voice, returns True if found
 
 ```python
@@ -1003,9 +1036,13 @@ midi.play(out, pitch, velocity=None, duration=None, channel=1)
 Play a note asynchronously (generator). Handles note_on, wait, note_off.
 
 - `out` - MidiOut instance
+
 - `pitch` - MIDI number or note name string
+
 - `velocity` - Note velocity (default: mf)
+
 - `duration` - Duration in ms (default: quarter)
+
 - `channel` - MIDI channel (default: 1)
 
 ```python
@@ -1025,9 +1062,13 @@ midi.play_chord(out, pitches, velocity=None, duration=None, channel=1)
 Play a chord asynchronously (generator).
 
 - `out` - MidiOut instance
+
 - `pitches` - List of MIDI numbers or note names
+
 - `velocity` - Note velocity (default: mf)
+
 - `duration` - Duration in ms (default: quarter)
+
 - `channel` - MIDI channel (default: 1)
 
 ```python
@@ -1046,10 +1087,15 @@ midi.play_arp(out, pitches, velocity=None, note_duration=None, spacing=None, cha
 Play notes as arpeggio asynchronously (generator).
 
 - `out` - MidiOut instance
+
 - `pitches` - List of pitches to arpeggiate
+
 - `velocity` - Note velocity (default: mf)
+
 - `note_duration` - Duration of each note (default: eighth)
+
 - `spacing` - Time between note starts (default: same as duration)
+
 - `channel` - MIDI channel (default: 1)
 
 ```python

@@ -1,8 +1,6 @@
 # Bracket Sequence Syntax
 
-**Status:** Implemented
-**Author:** team-stack-midi
-**Date:** 2025-12-30
+**Status:** Implemented **Author:** team-stack-midi **Date:** 2025-12-30
 
 ## Summary
 
@@ -27,8 +25,11 @@ Sequences can hold both musical elements (pitches, chords, rests, dynamics, dura
    ```
 
 3. **Inconsistent mental model:**
+
    - `,` triggers playback
+
    - But you need it after every note, even the last one
+
    - Easy to forget, causes silent failures
 
 ### Proposed Solution
@@ -60,6 +61,7 @@ This proposal repurposes `[ ]` for sequences.
 ```
 
 - `[ ... ]` creates a sequence object (pushed to stack)
+
 - `,` plays the sequence
 
 Each element plays with current default duration, velocity, and channel.
@@ -99,11 +101,17 @@ Dynamics apply to subsequent notes until changed:
 Equivalent to:
 
 - `mf` sets velocity to 80
+
 - `c4` plays at velocity 80
+
 - `e4` plays at velocity 80
+
 - `ff` sets velocity to 112
+
 - `g4` plays at velocity 112
+
 - `p` sets velocity to 49
+
 - `c5` plays at velocity 49
 
 ### Rests
@@ -133,7 +141,9 @@ Parentheses still group simultaneous notes:
 Interpretation:
 
 - `c4 major` pushes C4, E4, G4 onto stack, plays as chord
+
 - `(f4 a4 c5)` plays as chord
+
 - `g4 dom7` pushes G4, B4, D5, F5, plays as chord
 
 ### Articulation
@@ -209,8 +219,11 @@ c4 ch=1 vel=100 dur=500,
 **Benefits:**
 
 - Self-documenting (no memorizing parameter order)
+
 - Partial specification (only override what you need)
+
 - Order-independent
+
 - Familiar `name=value` syntax
 
 **Examples:**
@@ -272,9 +285,13 @@ The `=` and `:=` syntax extends to all musical parameters:
 Common CC numbers:
 
 - `cc1` - Modulation wheel
+
 - `cc7` - Volume
+
 - `cc10` - Pan
+
 - `cc11` - Expression
+
 - `cc64` - Sustain pedal
 
 **Examples:**
@@ -352,17 +369,25 @@ note-play     = (pitch | chord) named-param* "," ;
 **When `]` is encountered:**
 
 1. Collect all elements since matching `[`
+
 2. Create sequence object containing these elements
+
 3. Push sequence object onto stack
 
 **When `,` is applied to a sequence:**
 
 1. Pop sequence from stack
+
 2. For each element in order:
+
    - If dynamic: update current velocity
+
    - If duration word: update current duration
+
    - If rest: sleep for current duration
+
    - If pitch/interval: play note with current params, sleep for duration
+
    - If chord: play all notes simultaneously, sleep for duration
 
 ### State Within Sequences
@@ -370,7 +395,9 @@ note-play     = (pitch | chord) named-param* "," ;
 Sequences have their own local state for:
 
 - Current pitch (for relative intervals)
+
 - Current velocity (for dynamics)
+
 - Current duration (for duration words)
 
 Channel is inherited from global state and not locally modifiable within sequences.
@@ -499,25 +526,41 @@ midi-close
 ### Implemented Features
 
 1. **Bracket sequences**: `[ ... ]` creates sequence objects as first-class values
+
 2. **Sequence playback**: `,` plays sequences when on top of stack
+
 3. **Musical elements in sequences**: pitches, chords `( )`, rests `r`, dynamics, durations
+
 4. **Plain numbers in sequences**: for use with generative operations
+
 5. **Generative operations on sequences**:
+
    - `shuffle` - Fisher-Yates shuffle on sequence elements
+
    - `reverse` - reverse sequence in place
+
    - `pick` - pick random element from sequence
+
    - `pick-n` - pick n random elements, returns new sequence
+
    - `invert` - invert pitches around axis
+
    - `arp-up-down` - create sequence with middle reversed appended
+
    - `random-walk` - outputs sequence instead of stack values
+
    - `drunk-walk` - takes scale sequence as input, outputs sequence
+
    - `weighted-pick` - pick from sequence with value/weight pairs
 
 ### Also Implemented
 
 1. **Named parameters**: `vel=100` (one-shot), `ch:=2` (persistent)
+
 2. **Gate parameter**: `gate=80` or `80 gate!` - percentage of duration to sound (1-100)
+
 3. **Sequence concatenation**: `[ c4 e4 ] [ g4 b4 ] concat` - join two sequences
+
 4. **Polymorphic transpose**: `transpose` works on both packed notes and bracket sequences
 
 ### Example Usage
@@ -546,10 +589,15 @@ c4, e4, g4,
 ### Tokenizer Changes
 
 - `[` starts sequence capture mode
+
 - Tokens accumulated until `]`
+
 - `]` creates sequence object, pushes to stack
+
 - `,` pops sequence (or note) from stack and plays it
+
 - `=` is treated as part of the token (not a separator)
+
   - `ch=2` is one token, not three
 
 ### Named Parameter Parsing
@@ -716,31 +764,45 @@ void execute_sequence(Token* tokens, int count) {
 ## Design Decisions
 
 1. **Sequences are first-class values**
+
    - `[ c4 e4 g4 ]` creates a sequence object (pushed to stack)
+
    - `[ c4 e4 g4 ],` creates and plays the sequence
+
    - Can be assigned to words, transformed, and manipulated
 
 2. **Interval base after chords: highest note (top voice)**
+
    - `[ (c4 e4 g4) +2 ],` plays chord then A4 (G4 + 2 semitones)
+
    - Rationale: Top voice typically carries melody; follows melodic contour naturally
 
 3. **Empty sequences are valid no-ops**
+
    - `[ ],` is valid and does nothing when played
 
 4. **Duration words set context directly (sticky)**
+
    - `[ quarter c4 e4 eighth g4 a4 ],` - c4/e4 as quarters, g4/a4 as eighths
+
    - Consistent with dynamics behavior (`mf c4 e4 ff g4`)
+
    - Reads naturally like sheet music notation
 
 5. **Probability applies to next element**
+
    - `[ c4 e4 75% g4 ],` - 75% chance to play g4
+
    - Consistent with existing probability syntax
 
 ## Future Considerations
 
 1. **Octave transposition parameter**
+
    - Potential syntax: `oct:=5` to set default octave for pitches without explicit octave
+
    - Would require syntax for octave-less pitches (e.g., `c, e, g,`)
+
    - Deferred; requires further design work
 
 ## Alternatives Considered
@@ -751,8 +813,7 @@ void execute_sequence(Token* tokens, int count) {
 < c4 e4 g4 >
 ```
 
-Pros: No conflict with existing syntax
-Cons: Less common, harder to type
+Pros: No conflict with existing syntax Cons: Less common, harder to type
 
 ### Alternative B: Implicit Sequence (EOL triggers)
 
@@ -760,8 +821,7 @@ Cons: Less common, harder to type
 c4, e4, g4     \ No trailing comma needed, EOL triggers last note
 ```
 
-Pros: Minimal change
-Cons: Doesn't help with visual grouping
+Pros: Minimal change Cons: Doesn't help with visual grouping
 
 ### Alternative C: Sequence Word
 
@@ -769,8 +829,7 @@ Cons: Doesn't help with visual grouping
 seq{ c4 e4 g4 }
 ```
 
-Pros: Explicit, no ambiguity
-Cons: More verbose
+Pros: Explicit, no ambiguity Cons: More verbose
 
 ### Alternative D: Bar Notation
 
@@ -788,8 +847,11 @@ The bracket sequence syntax `[ ... ]` provides a cleaner, more readable way to e
 Key benefits:
 
 - Reduces visual noise (no comma per note inside sequences)
+
 - Enables sequence manipulation (transpose, reverse, concat)
+
 - Consistent model: `,` always means "play"
+
 - Named parameters replace cryptic positional syntax
 
 The main trade-off is deprecating the old explicit params syntax `[1 c4 100 500],`, replaced by the more readable `c4 ch=1 vel=100 dur=500,`.
@@ -797,4 +859,5 @@ The main trade-off is deprecating the old explicit params syntax `[1 c4 100 500]
 ## References
 
 - Current stack-midi syntax: [syntax.md](syntax.md)
+
 - API reference: [api-reference.md](api-reference.md)

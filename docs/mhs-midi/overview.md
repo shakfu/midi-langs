@@ -5,18 +5,25 @@ Announcing `mhs-midi`, a new Haskell MIDI library designed for the MicroHs compi
 ## Key Features
 
 - **Dual-API Design**:
+
   - **`MusicPerform`**: A pure, declarative DSL for composing and transforming music as data. Use combinators like `(+:+)` (sequence) and `(|||)` (parallel) and transformations like `transpose`, `stretch`, and `invert`.
+
   - **`MidiPerform`**: An immediate, `IO`-based API for REPL-style interaction, allowing you to play notes, chords, and melodies directly.
 
 - **Asynchronous Playback**: A built-in scheduler allows you to `spawn` multiple concurrent voices that run in parallel using native Haskell threads.
 
 - **Generative Music**: Includes functions for creating algorithmic and random music, such as:
+
   - Random walks (`walk`, `drunk`)
+
   - Euclidean rhythms (`euclidean`)
+
   - Random selection (`pick`, `chance`, `oneOf`)
 
 - **Rich Music Theory Support**:
+
   - Comes with 55 built-in scales, including diatonic modes, pentatonics, blues, world scales, and more.
+
   - Microtonal support with cents-based scales for quarter-tone music.
 
 - **Interactive REPL**: The `./scripts/mhs-midi` tool provides a fast-starting environment for live coding and experimentation, with MIDI ports accessible for immediate feedback.

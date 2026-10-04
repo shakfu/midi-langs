@@ -5,17 +5,29 @@ A Lua-based MIDI language using [Lua 5.5](https://www.lua.org/), providing a fam
 ## Features
 
 - Full Lua 5.5 programming language
+
 - Concise syntax with global pitch/duration/dynamic constants
+
 - Object-oriented MIDI port interface
+
 - Musical abstractions: pitches, durations, velocities, chords
+
 - **Async scheduler** for concurrent voices using Lua coroutines and libuv
+
 - **55 built-in scales** (modes, pentatonics, blues, exotic, Arabic Maqamat, Indian Ragas)
+
 - **10 microtonal scales** with quarter-tone support via pitch bend
+
 - Scale functions: build scales, get degrees, quantize pitches
+
 - Low-level MIDI control: note on/off, CC, program change, pitch bend
+
 - Virtual and hardware MIDI port support
+
 - Chord builders and transpose helpers
+
 - Tempo-aware duration constants
+
 - Readline support for command history
 
 ## Quick Start
@@ -112,10 +124,15 @@ Run with:
 Lua's design makes it excellent for musical scripting:
 
 - **Simple syntax**: Clean, readable code for musical patterns
+
 - **Tables**: Flexible representation for chords and sequences
+
 - **First-class functions**: Create reusable musical patterns
+
 - **Metatables**: Object-oriented MIDI port interface
+
 - **REPL**: Interactive exploration and live coding
+
 - **Embeddable**: Easy integration with C/C++ audio applications
 
 ## Global Constants
@@ -169,10 +186,13 @@ For simpler interactive use, the convenience functions (`open()`, `n()`, `ch()`,
 ## Documentation
 
 - [API Reference](api-reference.md) - Complete function documentation
+
 - [Examples](examples.md) - More code examples
+
 - [Architecture](architecture.md) - How the FFI works
 
 ## Requirements
 
 - Built project (`make` must complete successfully)
+
 - macOS (CoreMIDI), Linux (ALSA), or Windows (WinMM)

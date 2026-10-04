@@ -28,7 +28,9 @@ List available MIDI output ports. Returns list of `(index name)` pairs.
 Open a MIDI output port.
 
 - `(midi-open)` - Create virtual port named "guileMIDI"
+
 - `(midi-open "MyApp")` - Create virtual port with custom name
+
 - `(midi-open 0)` - Open hardware port by index
 
 ```scheme
@@ -90,9 +92,13 @@ Type predicate for midi-out objects.
 Play a single note (blocking).
 
 - `m` - midi-out object
+
 - `pitch` - MIDI number (0-127) or note name symbol/string
+
 - `velocity` - Note velocity (0-127), default 80
+
 - `duration` - Duration in milliseconds, default 500
+
 - `channel` - MIDI channel (1-16), default 1
 
 ```scheme
@@ -112,9 +118,13 @@ Play a single note (blocking).
 Play multiple notes simultaneously.
 
 - `m` - midi-out object
+
 - `pitches` - List of MIDI numbers or note names
+
 - `velocity` - Note velocity (0-127), default 80
+
 - `duration` - Duration in milliseconds, default 500
+
 - `channel` - MIDI channel (1-16), default 1
 
 ```scheme
@@ -133,9 +143,13 @@ Play multiple notes simultaneously.
 Play notes sequentially (arpeggiated).
 
 - `m` - midi-out object
+
 - `pitches` - List of pitches to arpeggiate
+
 - `velocity` - Note velocity (0-127), default mf (80)
+
 - `duration` - Duration of each note, default eighth (250)
+
 - `channel` - MIDI channel (1-16), default 1
 
 ```scheme
@@ -183,7 +197,9 @@ Send Note Off message.
 Send Control Change message.
 
 - `control` - CC number (0-127)
+
 - `value` - CC value (0-127)
+
 - `channel` - MIDI channel (1-16), default 1
 
 ```scheme
@@ -196,11 +212,17 @@ Send Control Change message.
 Common CC numbers:
 
 - 1: Modulation wheel
+
 - 7: Channel volume
+
 - 10: Pan
+
 - 11: Expression
+
 - 64: Sustain pedal
+
 - 91: Reverb
+
 - 93: Chorus
 
 ### midi-program
@@ -212,6 +234,7 @@ Common CC numbers:
 Send Program Change message.
 
 - `program` - Program number (0-127)
+
 - `channel` - MIDI channel (1-16), default 1
 
 ```scheme
@@ -246,7 +269,9 @@ Send All Notes Off. If channel is omitted, sends on all channels (1-16).
 Parse note name to MIDI number.
 
 - Supports: C, D, E, F, G, A, B (case insensitive)
+
 - Accidentals: # or s (sharp), b (flat)
+
 - Octaves: -1 to 9
 
 ```scheme
@@ -950,6 +975,7 @@ The scheduler provides non-blocking concurrent playback using a thunk-based coop
 Create a new voice from a procedure. The procedure takes no arguments and should return:
 
 - A number (milliseconds to wait before next call)
+
 - `#f` (voice is complete)
 
 ```scheme

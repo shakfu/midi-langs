@@ -28,7 +28,9 @@ This document tracks what's implemented and outlines future directions for Joy-M
 
 Notes are converted to MIDI integers at **parse time**. This means:
 - `c` becomes `60`, `c5` becomes `72`
+
 - `[c d e]` is literally `[60 62 64]`
+
 - All Joy combinators work naturally: `[c d e] [7 +] map` transposes
 
 This is fundamentally different from the original Alda-like proposal where notes would auto-play. The current design is more algebraic and Joy-like.
@@ -238,7 +240,9 @@ c8 d8 e8 f8       \ Eighth notes
 
 **Conflict**: This conflicts with octave notation (`c4` = octave 4). Options:
 1. Use `c:4` for duration, `c4` for octave
+
 2. Use `c/4` for duration
+
 3. Context-dependent (if followed by note, it's duration; otherwise octave)
 
 ### Option C: Explicit Duration Parameter
@@ -340,20 +344,29 @@ This would require integrating an audio library (miniaudio, PortAudio, etc.).
 
 ### High Priority (Core Usability)
 1. **prelude.joy** - Standard library with common patterns - DONE
+
 2. **midi-cc** - Control change for expression - DONE
+
 3. **midi-program** - Instrument selection - DONE
+
 4. **Documentation** - Complete reference for all primitives
 
 ### Medium Priority (Enhanced Expression)
 5. **midi-channel** - Multi-channel support
+
 6. **Non-blocking play** - `play&` for concurrent notes
+
 7. **Sequence builder** - Complex timing patterns
+
 8. **Duration helpers** - `q h w e s` duration words
 
 ### Lower Priority (Advanced Features)
 9. **Euclidean rhythms** - Generative patterns
+
 10. **MIDI file export** - Save compositions
+
 11. **Parallel voices** - True polyphony
+
 12. **Audio synthesis** - Direct sound generation
 
 ---
@@ -380,7 +393,11 @@ docs/joy-midi/
 ## References
 
 - [Alda Language](https://alda.io/) - Notation inspiration
+
 - [Joy Language](https://hypercubed.github.io/joy/html/j00rat.html) - Concatenative programming
+
 - [TidalCycles](https://tidalcycles.org/) - Pattern language inspiration
+
 - [Sonic Pi](https://sonic-pi.net/) - Live coding reference
+
 - [General MIDI](https://en.wikipedia.org/wiki/General_MIDI) - Program numbers

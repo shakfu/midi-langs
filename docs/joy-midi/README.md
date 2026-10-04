@@ -280,7 +280,9 @@ def loop4 == 4 swap times .
 
 Syntax:
 - `def name == body .` - define a single word
+
 - `DEFINE name == body .` - same as def
+
 - `DEFINE n1 == b1 ; n2 == b2 .` - multiple definitions
 
 ## Architecture
@@ -313,10 +315,13 @@ Notes are converted to MIDI integers at **parse time**, not execution time. This
 
 Octave is explicit (default 4), not stateful:
 - `c` = C4 = 60
+
 - `c5` = C5 = 72
+
 - `c 12 +` = C5 = 72 (arithmetic works too)
 
 ## See Also
 
 - [Joy Language](https://hypercubed.github.io/joy/html/j00rat.html) - Original Joy documentation
+
 - [Alda](https://alda.io/) - Music composition language that inspires Joy-MIDI's notation

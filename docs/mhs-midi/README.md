@@ -5,11 +5,17 @@ A Haskell MIDI library for MicroHs, providing both pure functional composition a
 ## Features
 
 - **Pure Music DSL**: Compose and transform music functionally before performance
+
 - **Immediate Playback**: Direct MIDI output for REPL-style interaction
+
 - **Async Scheduler**: Concurrent voice playback using native Haskell threads
+
 - **Generative Music**: Random selection, walks, euclidean rhythms, probability
+
 - **55 Built-in Scales**: Modes, pentatonics, world scales, ragas, maqamat
+
 - **Microtonal Support**: 10 cents-based scales with quarter-tones
+
 - **Interactive REPL**: Fast startup with caching
 
 ## Module Structure
@@ -239,8 +245,11 @@ main = do
 ## Documentation
 
 - [API Reference](api-reference.md) - Complete function documentation
+
 - [Examples](examples.md) - More code examples
+
 - [Architecture](architecture.md) - How the FFI works
+
 - [Package Build](mhs-pkg-build.md) - Technical details on `.pkg` embedding
 
 ## Build Variants
@@ -257,6 +266,7 @@ Multiple build variants are available with different trade-offs:
 **Key insight**: After the first run, `.mhscache` is created and all variants have similar warm-start times (~0.5-1s). The main differences are:
 
 - **pkg variants**: Eliminate the 20-second cold-start penalty (first run or fresh machine)
+
 - **zstd variants**: Reduce binary size significantly (useful for distribution)
 
 ### Selection Guide
@@ -318,4 +328,5 @@ For distribution, use one of the standalone variants (`mhs-midi-src`, `mhs-midi-
 ## Requirements
 
 - Built project (`make` must complete successfully)
+
 - macOS (CoreMIDI), Linux (ALSA), or Windows (WinMM)

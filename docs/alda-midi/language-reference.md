@@ -22,8 +22,7 @@ d-- e--            # Double flats
 c_                 # Natural (explicit)
 ```
 
-`#` always starts a comment, as in Alda; `c#` is `c` followed by a comment.
-The `s` and `b` suffixes are not Alda syntax.
+`#` always starts a comment, as in Alda; `c#` is `c` followed by a comment. The `s` and `b` suffixes are not Alda syntax.
 
 ```alda
 ```
@@ -230,8 +229,7 @@ Attributes modify playback characteristics using S-expression syntax.
 
 ### Dynamics
 
-Dynamics set velocity/volume using musical terms. Velocities follow Alda
-(`pp` 40, `p` 49, `mp` 59, `mf` 69, the default):
+Dynamics set velocity/volume using musical terms. Velocities follow Alda (`pp` 40, `p` 49, `mp` 59, `mf` 69, the default):
 
 ```alda
 (ppp)              # Pianississimo (very very soft)
@@ -273,8 +271,7 @@ Quantization controls note articulation (percentage of duration actually sounded
 (midi-channel 3)   # Pin the part to MIDI channel 3 (0-15)
 ```
 
-A part's own `(tempo N)` changes only that part's timing. The MIDI tempo map
-follows the first part's tempo changes, as in Alda.
+A part's own `(tempo N)` changes only that part's timing. The MIDI tempo map follows the first part's tempo changes, as in Alda.
 
 ---
 
@@ -339,10 +336,7 @@ c d e f    # Inline comment
 
 ## MIDI Channel Assignment
 
-Channels are assigned as notes need them. Each note's channel receives the
-program, pan (CC 10) and track volume (CC 11) the note needs, when they differ
-from what the channel holds. With more than 15 parts, a channel passes to
-another part once its part stops sounding. `(midi-channel N)` pins a part.
+Channels are assigned as notes need them. Each note's channel receives the program, pan (CC 10) and track volume (CC 11) the note needs, when they differ from what the channel holds. With more than 15 parts, a channel passes to another part once its part stops sounding. `(midi-channel N)` pins a part.
 
 Channel 10 is reserved for percussion in General MIDI.
 
@@ -350,9 +344,7 @@ Channel 10 is reserved for percussion in General MIDI.
 
 ## Implementation Status
 
-Output matches Alda 2.4.7 note for note for the 40 scores in
-`docs/alda-midi/examples/` and the 20 in `docs/alda-midi/shared_suite/`. See
-`docs/alda-midi/conformance.md`.
+Output matches Alda 2.4.7 note for note for the 40 scores in `docs/alda-midi/examples/` and the 20 in `docs/alda-midi/shared_suite/`. See `docs/alda-midi/conformance.md`.
 
 ---
 

@@ -207,7 +207,9 @@ define pitches
 guile-midi recognizes these extensions:
 
 - `.w` - Wisp syntax
+
 - `.wisp` - Wisp syntax
+
 - `.scm` - Standard Scheme
 
 ## Loading Wisp from Scheme
@@ -238,18 +240,25 @@ midi-close m
 Wisp offers several advantages:
 
 - **Familiar indentation**: Python/YAML-like structure
+
 - **Less punctuation**: Fewer parentheses to balance
+
 - **Still Scheme**: Full language power, just different surface syntax
+
 - **Readable**: Clear visual structure for nested expressions
+
 - **Portable**: Wisp files can be converted to standard Scheme
 
 ## Limitations
 
 - Wisp requires consistent indentation (spaces recommended)
+
 - Some complex expressions may be clearer in standard Scheme
+
 - Error messages reference the translated Scheme, not original Wisp
 
 ## Resources
 
 - [Wisp Homepage](https://www.draketo.de/software/wisp)
+
 - [Wisp Specification](https://srfi.schemers.org/srfi-119/srfi-119.html) (SRFI-119)

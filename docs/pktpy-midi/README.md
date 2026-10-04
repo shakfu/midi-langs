@@ -5,13 +5,21 @@ A Python-based MIDI language using [PocketPy](https://pocketpy.dev), a portable 
 ## Features
 
 - Pythonic API with context managers and classes
+
 - **Async multi-voice playback** using generators and libuv
+
 - Musical abstractions: pitches, durations, velocities, chords
+
 - 55 built-in scales including modes, pentatonics, world scales
+
 - Microtonal support with 10 scales featuring quarter-tones
+
 - Low-level MIDI control: note on/off, CC, program change, pitch bend
+
 - Virtual and hardware MIDI port support
+
 - Chord builders: major, minor, diminished, augmented, 7ths
+
 - Tempo-aware duration constants
 
 ## Quick Start
@@ -137,11 +145,15 @@ midi.run()  # Blocks until all voices complete
 ## Documentation
 
 - [API Reference](api-reference.md) - Complete function documentation
+
 - [Examples](examples.md) - More code examples
+
 - [Architecture](architecture.md) - How the C module works
+
 - [yield from](yield-from.md) - Using `yield from` with async generators
 
 ## Requirements
 
 - Built project (`make` must complete successfully)
+
 - macOS (CoreMIDI), Linux (ALSA), or Windows (WinMM)

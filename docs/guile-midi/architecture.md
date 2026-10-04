@@ -36,11 +36,17 @@ This document explains how guile-midi integrates the GNU Guile interpreter with 
 GNU Guile 3.0 is the official extension language for the GNU project. It provides a full Scheme implementation with:
 
 - Full R5RS/R6RS/R7RS Scheme
+
 - Module system (`use-modules`)
+
 - GOOPS object system
+
 - Powerful macro system
+
 - Excellent debugging and error messages
+
 - Foreign function interface via `scm_c_define_gsubr`
+
 - Foreign object types via `scm_make_foreign_object_type`
 
 On macOS, guile-midi statically links Guile and its dependencies (gmp, gc, unistring), with only system libraries (libffi, libiconv) remaining dynamic.
@@ -52,8 +58,11 @@ Location: `projects/guile-midi/midi_module.c`
 The core C module providing MIDI functionality to Scheme:
 
 - Module initialization (`guile_midi_init`)
+
 - C functions exposed to Scheme via `scm_c_define_gsubr`
+
 - Custom `midi-out` foreign object type
+
 - Scheme prelude (embedded Scheme code)
 
 #### midi-out Type
@@ -71,7 +80,9 @@ typedef struct {
 The `midi-out` type wraps a libremidi output handle with:
 
 - Automatic cleanup via finalizer
+
 - String representation via custom print function
+
 - Type predicate via `midi-out?`
 
 ### 3. scheduler.c - Async Scheduler
@@ -81,8 +92,11 @@ Location: `projects/guile-midi/scheduler.c`
 The scheduler provides non-blocking concurrent playback:
 
 - libuv-based event loop
+
 - Voice management with GC protection
+
 - Timer callbacks invoking Scheme thunks
+
 - Cooperative multitasking model
 
 ```c
@@ -109,7 +123,9 @@ Location: `thirdparty/libremidi/`
 Cross-platform MIDI library supporting:
 
 - macOS: CoreMIDI
+
 - Linux: ALSA
+
 - Windows: WinMM
 
 ### 5. Scheme Prelude
@@ -117,12 +133,19 @@ Cross-platform MIDI library supporting:
 The module includes a Scheme prelude shared with s7-midi that defines:
 
 - Pitch constants (c0-c8, cs0-cs8, etc.)
+
 - Duration constants (whole, half, quarter, etc.)
+
 - Velocity constants (ppp through fff)
+
 - Chord builders (major, minor, dim, aug, dom7, maj7, min7)
+
 - Scale definitions (55 scales including exotic and microtonal)
+
 - Tempo functions (set-tempo!, get-tempo, bpm)
+
 - Helper functions (transpose, octave-up, octave-down)
+
 - Voice builders for async playback
 
 The prelude is maintained as native Scheme code in `prelude.scm` and converted to a C header at build time:
@@ -282,8 +305,11 @@ uint8_t pc[2] = {
 The initialization sequence in `guile_midi_init()`:
 
 1. Create `midi-out` foreign object type with finalizer
+
 2. Register all C functions with Guile
+
 3. Initialize scheduler
+
 4. Load Scheme prelude
 
 ```c
@@ -416,8 +442,11 @@ make preludes
 This is preferred for:
 
 - Pure Scheme logic
+
 - Helper functions
+
 - Constants
+
 - Higher-order functions
 
 ## Static Linking on macOS
@@ -426,13 +455,18 @@ guile-midi uses a hybrid static/dynamic linking approach on macOS:
 
 **Statically linked:**
 - libguile-3.0.a (Guile interpreter)
+
 - libgmp.a (GNU Multiple Precision)
+
 - libgc.a (Boehm garbage collector)
+
 - libunistring.a (Unicode string library)
 
 **Dynamically linked (system libraries):**
 - libffi (no static library available on macOS)
+
 - libiconv (system library)
+
 - CoreMIDI, CoreFoundation, CoreAudio frameworks
 
 This produces a ~2.6MB binary that only depends on system libraries, making distribution easier while avoiding the complexity of fully static linking.

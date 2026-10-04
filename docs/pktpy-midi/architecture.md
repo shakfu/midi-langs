@@ -32,7 +32,9 @@ Location: `projects/pktpy-midi/pocketpy.c`, `pocketpy.h`
 PocketPy v2.1.6 is an embeddable Python interpreter written in C. Key features:
 
 - Small footprint (~250KB compiled)
+
 - CPython-compatible subset
+
 - Easy C API for extensions
 
 ### 2. midi_module.c - C Bindings
@@ -42,7 +44,9 @@ Location: `projects/pktpy-midi/midi_module.c`
 The core C module providing MIDI functionality. Contains:
 
 - Module functions (`midi.open`, `midi.list_ports`, `midi.note`)
+
 - `MidiOut` class definition and methods
+
 - Python prelude (helper functions as embedded Python code)
 
 #### MidiOut Type
@@ -57,8 +61,11 @@ typedef struct {
 The `MidiOut` type wraps a libremidi output handle with:
 
 - Destructor for cleanup (`MidiOut_dtor`)
+
 - Methods bound via `py_bindmethod`
+
 - Properties via `py_bindproperty`
+
 - Magic methods for context manager and repr
 
 ### 3. libremidi - MIDI Backend
@@ -68,7 +75,9 @@ Location: `thirdparty/libremidi/`
 Cross-platform MIDI library supporting:
 
 - macOS: CoreMIDI
+
 - Linux: ALSA
+
 - Windows: WinMM
 
 ### 4. Python Prelude
@@ -76,7 +85,9 @@ Cross-platform MIDI library supporting:
 The module includes a Python prelude that runs at initialization. This adds:
 
 - Constants (dynamics, durations, pitches)
+
 - Helper functions (chord builders, transpose)
+
 - Method extensions (arpeggio, CC helpers)
 
 The prelude is maintained as native Python code in `prelude.py` and converted to a C header at build time:
@@ -120,8 +131,11 @@ make preludes
 The initialization sequence in `pk_midi_module_init()`:
 
 1. Create the `midi` module
+
 2. Bind module-level functions
+
 3. Create and configure `MidiOut` type
+
 4. Execute Python prelude
 
 ```c
@@ -319,6 +333,9 @@ make preludes
 This is preferred for:
 
 - Pure Python logic
+
 - Helper functions
+
 - Constants
+
 - Method wrappers

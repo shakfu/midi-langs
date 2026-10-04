@@ -5,15 +5,25 @@ A C implementation of the [Alda](https://alda.io/) music language with MIDI outp
 ## Features
 
 - Full Alda language parser (38 tokens, 28 AST node types)
+
 - Music-first notation: notes, chords, rests, ties, dots
+
 - Part declarations with 128 GM instruments
+
 - Attributes: tempo, volume, dynamics, quantization, panning
+
 - Voices for polyphony (V1:, V2:, V0:)
+
 - Auto MIDI channel assignment (1-16)
+
 - Non-blocking REPL with concurrent playback (default)
+
 - Auto-connects to first available MIDI port
+
 - File playback and interactive REPL modes
+
 - Virtual and hardware MIDI port support
+
 - **Built-in synthesizer** using TinySoundFont + miniaudio (no external synth required, just soundfonts)
 
 ## Quick Start
@@ -253,17 +263,21 @@ V0: c1             # Merge voices (continue at max tick)
 ## Documentation
 
 - [Language Reference](language-reference.md) - Complete syntax documentation
+
 - [Examples](examples.md) - More code examples
+
 - [Alda Language Guide](alda-language/README.md) - Comprehensive Alda documentation
 
 ## Requirements
 
 - Built project (`make` must complete successfully)
+
 - macOS (CoreAudio), Linux (ALSA), or Windows (WinMM)
 
 For audio output, use one of:
 
 - **Built-in synth**: Requires a SoundFont (.sf2) file
+
 - **MIDI output**: Requires an external synth (FluidSynth, DAW, hardware)
 
 ## Built-in Synthesizer
@@ -285,7 +299,9 @@ alda-midi includes a built-in synthesizer powered by TinySoundFont and miniaudio
 Download a General MIDI SoundFont:
 
 - [FluidR3_GM.sf2](https://musical-artifacts.com/artifacts/738) (~140MB, high quality)
+
 - [GeneralUser_GS.sf2](https://schristiancollins.com/generaluser.php) (~30MB, good quality)
+
 - [Timbres of Heaven](https://midkar.com/soundfonts/) (~300MB, orchestral focus)
 
 ### Switching Between Modes in REPL
@@ -335,5 +351,7 @@ python scripts/fluidsynth-gm.py MySoundFont.sf2 # Use specific SoundFont
 ### Other Playback Options
 
 - **DAW**: Route the "AldaMIDI" virtual port to Logic, Ableton, Reaper, etc.
+
 - **Hardware**: Connect to GM-compatible synthesizers
+
 - **Software synths**: Any virtual instrument accepting MIDI input

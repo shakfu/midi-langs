@@ -5,14 +5,23 @@ A Scheme-based MIDI language using [s7](https://ccrma.stanford.edu/software/snd/
 ## Features
 
 - Full Scheme programming language (closures, macros, first-class functions)
+
 - Musical abstractions: pitches, durations, velocities, chords
+
 - **55 built-in scales** (modes, pentatonics, blues, exotic, Arabic Maqamat, Indian Ragas)
+
 - **10 microtonal scales** with quarter-tone support via pitch bend
+
 - Scale functions: build scales, get degrees, quantize pitches
+
 - Low-level MIDI control: note on/off, CC, program change, pitch bend
+
 - Virtual and hardware MIDI port support
+
 - Chord builders and transpose helpers
+
 - Tempo-aware duration constants
+
 - **Async scheduler**: concurrent voice playback using thunk-based cooperative multitasking
 
 ## Quick Start
@@ -135,18 +144,25 @@ Each voice is a closure that returns ms-to-wait or `#f` when done. See [API Refe
 Scheme's functional nature makes it ideal for musical programming:
 
 - **First-class functions**: Pass note-playing functions as arguments
+
 - **Closures**: Create parameterized musical patterns
+
 - **Lists**: Natural representation for chords and sequences
+
 - **Macros**: Define custom musical notation
+
 - **REPL**: Interactive exploration and live coding
 
 ## Documentation
 
 - [API Reference](api-reference.md) - Complete function documentation
+
 - [Examples](examples.md) - More code examples
+
 - [Architecture](architecture.md) - How the FFI works
 
 ## Requirements
 
 - Built project (`make` must complete successfully)
+
 - macOS (CoreMIDI), Linux (ALSA), or Windows (WinMM)

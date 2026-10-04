@@ -177,8 +177,11 @@ m:note(pitch, [velocity], [duration], [channel])
 Play a single note (blocking).
 
 - `pitch` - MIDI number (0-127) or note name string
+
 - `velocity` - Note velocity (0-127), default 80
+
 - `duration` - Duration in milliseconds, default 500
+
 - `channel` - MIDI channel (1-16), default 1
 
 ```lua
@@ -267,11 +270,17 @@ m:cc(64, 0)         -- Sustain pedal off
 Common CC numbers:
 
 - 1: Modulation wheel
+
 - 7: Channel volume
+
 - 10: Pan
+
 - 11: Expression
+
 - 64: Sustain pedal
+
 - 91: Reverb
+
 - 93: Chorus
 
 ### m:program
@@ -698,6 +707,7 @@ save_midi("my_song.lua")
 The generated file contains:
 
 - Event data as a Lua table
+
 - Replay code that recreates the timing
 
 ### record_status
@@ -789,9 +799,13 @@ end
 Event types (in the `type` field):
 
 - `0x90` = Note On
+
 - `0x80` = Note Off
+
 - `0xB0` = Control Change
+
 - `0xC0` = Program Change
+
 - `0xE0` = Pitch Bend
 
 ---
@@ -809,7 +823,9 @@ spawn(func, [name]) -> voice_id
 Create a new voice (coroutine) from a function. The function will run concurrently with other voices when `run()` is called.
 
 - `func` - Function to execute as a voice
+
 - `name` - Optional name for debugging (default: "")
+
 - Returns: Integer voice ID
 
 ```lua

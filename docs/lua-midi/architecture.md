@@ -34,9 +34,13 @@ Lua 5.5 is the latest version of the Lua scripting language, designed for embedd
 Key features:
 
 - Compact, efficient implementation (~25K lines)
+
 - Clean C API for extension
+
 - Userdata with metatables for custom types
+
 - Garbage collection with __gc metamethod
+
 - Coroutines for concurrent patterns
 
 ### 2. midi_module.c - Lua C Bindings
@@ -46,8 +50,11 @@ Location: `projects/lua-midi/midi_module.c`
 The core C module providing MIDI functionality to Lua:
 
 - Module initialization (`luaopen_midi`)
+
 - C functions exposed to Lua
+
 - `MidiOut` userdata type with metatable
+
 - Lua prelude (embedded Lua code)
 
 #### MidiOut Userdata
@@ -65,7 +72,9 @@ typedef struct {
 The `MidiOut` type wraps a libremidi output handle with:
 
 - Automatic cleanup via `__gc` metamethod
+
 - String representation via `__tostring` metamethod
+
 - Method dispatch via `__index` metamethod
 
 ### 3. libremidi - MIDI Backend
@@ -75,7 +84,9 @@ Location: `thirdparty/libremidi/`
 Cross-platform MIDI library supporting:
 
 - macOS: CoreMIDI
+
 - Linux: ALSA
+
 - Windows: WinMM
 
 ### 4. Lua Prelude
@@ -83,10 +94,15 @@ Cross-platform MIDI library supporting:
 The module includes a Lua prelude that defines:
 
 - Pitch constants (midi.c0-c8, midi.cs0-cs8, etc.)
+
 - Duration constants (midi.whole, half, quarter, etc.)
+
 - Velocity constants (midi.ppp through midi.fff)
+
 - Tempo functions (midi.set_tempo, midi.get_tempo, midi.bpm)
+
 - Helper functions (midi.dotted, midi.rest)
+
 - REPL convenience functions (open, close, n, ch, arp)
 
 The prelude is maintained as native Lua code in `prelude.lua` and converted to a C header at build time:
@@ -268,9 +284,13 @@ uint8_t pc[2] = {
 The initialization sequence in `luaopen_midi()`:
 
 1. Create `MidiOut` metatable with methods and __gc
+
 2. Create module table with functions
+
 3. Set module as global `midi`
+
 4. Load Lua prelude
+
 5. Return module table
 
 ```c
@@ -406,8 +426,11 @@ make preludes
 This is preferred for:
 
 - Pure Lua logic
+
 - Helper functions
+
 - Constants
+
 - Higher-order functions
 
 ## Comparison with Other Implementations

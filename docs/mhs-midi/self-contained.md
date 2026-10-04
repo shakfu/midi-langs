@@ -21,16 +21,23 @@ All standalone variants provide identical functionality (REPL, compile, run) and
 The standalone binary is fully working:
 
 - 273 files embedded (~2.5MB total)
+
 - All 185 Haskell modules load correctly
+
 - REPL, run, and compile modes all work
+
 - Can compile MIDI programs to standalone executables
+
 - All tests pass
 
 ## Goals
 
 1. **Single binary distribution** - No external files required (no MHSDIR, no lib/ directories)
+
 2. **Full functionality** - REPL and compiler with access to all standard and MIDI libraries
+
 3. **No MicroHs source modifications** - Achieve embedding via C-level interception
+
 4. **Cross-platform** - Works on macOS and Linux (Windows has separate MicroHs build issues)
 
 ## Usage
@@ -174,8 +181,11 @@ The standalone binary handles different modes:
 For executable compilation, the standalone:
 
 1. Extracts all embedded files to `/tmp/mhs-XXXXXX/`
+
 2. Sets `MHSDIR` to the temp directory
+
 3. Injects `-optl` flags for MIDI libraries and platform frameworks
+
 4. Cleans up temp directory after compilation
 
 ### Key Components
@@ -301,10 +311,15 @@ The error originated in MicroHs's `bfile.c` in `getb_utf8()`, which validates UT
 **Isolating the Problem**:
 
 1. Redirected stdin to /dev/null - error still occurred
+
 2. Closed stdin entirely - error still occurred (not stdin-related)
+
 3. Added VFS debug logging - files opening correctly
+
 4. Added first-byte verification - bytes matched expected
+
 5. Checked `Data/Bifunctor.hs` - found Unicode content (mathematical symbol)
+
 6. Compared byte vs character counts - **found the mismatch**
 
 **The Bug in the original `embed_libs.py`**:
@@ -390,12 +405,17 @@ build/projects/mhs-midi/
 ## Future Enhancements
 
 1. ~~**Compression** - Use LZ4/zstd to reduce embedded size~~ **Done** - mhs-midi-src-zstd reduces binary from 3.3MB to 1.3MB
+
 2. ~~**Precompiled packages** - Embed `.pkg` files for faster startup~~ **Done** - mhs-midi-pkg variants start in ~1s vs ~20s
+
 3. **Selective embedding** - Analyze imports to embed only required modules
+
 4. **Windows support** - Implement fmemopen fallback when MicroHs Windows builds work
+
 5. **Incremental extraction** - Only extract files needed for specific compilation
 
 ## References
 
 - MicroHs repository: <https://github.com/augustss/MicroHs>
+
 - fmemopen(3) man page

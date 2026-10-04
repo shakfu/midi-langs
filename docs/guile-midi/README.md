@@ -5,15 +5,25 @@ A Scheme-based MIDI language using [GNU Guile 3.0](https://www.gnu.org/software/
 ## Features
 
 - Full GNU Guile 3.0 (modules, GOOPS, macros, debugging)
+
 - Musical abstractions: pitches, durations, velocities, chords
+
 - **55 built-in scales** (modes, pentatonics, blues, exotic, Arabic Maqamat, Indian Ragas)
+
 - **10 microtonal scales** with quarter-tone support via pitch bend
+
 - Scale functions: build scales, get degrees, quantize pitches
+
 - Low-level MIDI control: note on/off, CC, program change, pitch bend
+
 - Virtual and hardware MIDI port support
+
 - Chord builders and transpose helpers
+
 - Tempo-aware duration constants
+
 - **Async scheduler**: concurrent voice playback using thunk-based cooperative multitasking
+
 - **Static linking on macOS**: self-contained binary with only system library dependencies
 
 ## Quick Start
@@ -155,16 +165,23 @@ Each voice is a closure that returns ms-to-wait or `#f` when done. See [API Refe
 Guile provides advantages over s7-midi for certain use cases:
 
 - **Full GNU Guile**: Access to Guile's module system, GOOPS OOP, and debugging
+
 - **Ecosystem**: Use existing Guile libraries and tools
+
 - **Better errors**: Guile provides more informative error messages
+
 - **Same API**: Shares the prelude with s7-midi - code is portable between them
 
 Scheme's functional nature makes it ideal for musical programming:
 
 - **First-class functions**: Pass note-playing functions as arguments
+
 - **Closures**: Create parameterized musical patterns
+
 - **Lists**: Natural representation for chords and sequences
+
 - **Macros**: Define custom musical notation
+
 - **REPL**: Interactive exploration and live coding
 
 ## guile-midi vs s7-midi
@@ -184,12 +201,17 @@ Choose guile-midi if you need Guile's full features. Choose s7-midi for a smalle
 ## Documentation
 
 - [API Reference](api-reference.md) - Complete function documentation
+
 - [Examples](examples.md) - More code examples
+
 - [Wisp Syntax Guide](wisp-syntax.md) - Indentation-based syntax alternative
+
 - [Architecture](architecture.md) - How the Guile FFI works
 
 ## Requirements
 
 - Built project (`make` must complete successfully)
+
 - GNU Guile 3.0 (for building; statically linked on macOS)
+
 - macOS (CoreMIDI), Linux (ALSA), or Windows (WinMM)

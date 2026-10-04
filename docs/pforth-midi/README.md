@@ -153,6 +153,9 @@ stack-midi features not ported: async sequences, bracket notation, articulation 
 ## Implementation
 
 - `thirdparty/pforth` is pForth at commit `e5617638c3a397c644fe82c6301711867a0ca1bf` (2026-07-28, version 2.2.0), unmodified.
+
 - `projects/pforth-midi/midi_words.c` adds the C words through pForth's `CustomFunctionTable`. MIDI I/O is mhs-midi's `midi_ffi.c`, compiled in.
+
 - `projects/pforth-midi/midi.fth` defines the rest in Forth. The build compiles it into pForth's dictionary and embeds the result as C (`PF_STATIC_DIC`), so the binary needs no `.dic` file.
+
 - `projects/pforth-midi/pf_io_midi.c` replaces two terminal-input functions; its header says why.

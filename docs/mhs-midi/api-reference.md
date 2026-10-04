@@ -599,4 +599,5 @@ main = do
 This prints:
 
 - File metadata (format, tracks, PPQN, tempo, duration)
+
 - All events with tick, channel, type, and data bytes

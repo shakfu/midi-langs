@@ -421,7 +421,11 @@ See `docs/scales.md` for the complete scale reference.
 ## Next Steps
 
 - Type `help` in the REPL for the full command reference
+
 - See [api-reference.md](api-reference.md) for complete API documentation
+
 - See [bracket_syntax.md](bracket_syntax.md) for advanced bracket sequence usage
+
 - See [scales.md](scales.md) for the 49 built-in scales
+
 - See [sequences.md](sequences.md) for tick-based sequences with precise timing control

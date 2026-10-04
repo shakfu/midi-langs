@@ -54,8 +54,11 @@ midi.run()
 PocketPy's `yield from` implementation:
 
 1. Calls `iter()` on the expression to get an iterator
+
 2. Repeatedly calls `next()` on the iterator
+
 3. Each value from the inner iterator is yielded to the outer caller
+
 4. When `StopIteration` is raised, `yield from` completes and returns the value (if any)
 
 This matches Python's PEP 380 semantics for basic generator delegation.

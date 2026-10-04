@@ -262,31 +262,45 @@ add_executable(joy_midi
 
 ### Phase 1: Core Infrastructure (First)
 1. Add `undef_handler` and `user_data` to JoyContext
+
 2. Create MusicContext struct
+
 3. Create basic music_notation.c skeleton
+
 4. Test: `c` should be recognized (even if not playing yet)
 
 ### Phase 2: Basic Notes
 1. Implement note letter parsing (c d e f g a b)
+
 2. Implement octave state and commands (o4, >, <)
+
 3. Play notes using existing MIDI infrastructure
+
 4. Test: `o4 c d e f g` should play C major scale
 
 ### Phase 3: Duration and Accidentals
 1. Add duration suffix parsing (c4, c8, etc.)
+
 2. Add accidental parsing (c+, c-, c_)
+
 3. Add dotted note support (c4., c4..)
+
 4. Test: `c4 d8 e8 f4. g2` should play varied rhythm
 
 ### Phase 4: Rests and Dynamics
 1. Implement rest parsing (r, r4, r8)
+
 2. Add dynamic primitives (ppp through fff)
+
 3. Add tempo primitive
+
 4. Test: `mf c4 r4 ff e4 r2`
 
 ### Phase 5: Chords
 1. Implement slash notation (c/e/g)
+
 2. Implement named chords (c:maj, c:min)
+
 3. Test: `c4/e/g d:min e:min f:maj`
 
 ## Notation Summary
@@ -354,6 +368,9 @@ ff f g a b >> c
 ## Verification
 
 1. Build: `cmake -B build && cmake --build build --target joy_midi`
+
 2. Test basic: `echo 'midi-virtual c d e' | ./build/joy_midi`
+
 3. Test scale: `echo 'midi-virtual o4 c d e f g a b >> c' | ./build/joy_midi`
+
 4. Run tests: `ctest --test-dir build -R joy_midi`

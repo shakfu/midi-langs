@@ -7,14 +7,23 @@ For standard Forth (`create`/`does>`, `immediate`, compiled definitions), use [p
 ## Features
 
 - Concise pitch notation: `c4,` plays middle C
+
 - Chord syntax: `(c4 e4 g4),` plays a chord
+
 - Dynamics: `ppp` to `fff`
+
 - Articulation: staccato `.`, accent `>`, tenuto `-`
+
 - Word definitions: `: melody c4, e4, g4, ;`
+
 - Generative: probability `75%`, alternatives `c4|e4|g4`
+
 - 49 built-in scales with `scale`, `degree`, `quantize`
+
 - Sequences for non-blocking playback
+
 - Command recording and MIDI event recording
+
 - Virtual and hardware MIDI port support
 
 ## Quick Start
@@ -37,10 +46,15 @@ Type `help` for command reference, `quit` to exit.
 ## Documentation
 
 - [API Reference](api-reference.md) - Complete word and command reference
+
 - [Tutorial](tutorial.md) - Step-by-step introduction
+
 - [Syntax Reference](syntax.md) - Complete syntax documentation
+
 - [Scales](scales.md) - 49 built-in scales and scale operations
+
 - [Sequences](sequences.md) - Non-blocking sequence playback
+
 - [Data Structures](data_structures.md) - Packed notes, sequences
 
 ## Example: Generative Pattern

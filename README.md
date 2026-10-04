@@ -422,11 +422,17 @@ Most implementations share functionality from a common C library (`projects/comm
 The shared library provides:
 
 - **Pitch parsing**: Note names like "C4", "C#4", "Db5" to MIDI numbers
+
 - **55 scales**: Major, minor, modes, pentatonic, blues, world scales, maqamat, ragas
+
 - **10 microtonal scales**: Quarter-tone maqamat, Turkish makamlar, Indian shruti
+
 - **Scale operations**: Build scales, get degrees, check membership, quantize
+
 - **Chord intervals**: Major, minor, diminished, augmented, 7th chords
+
 - **Dynamics**: ppp to fff velocity constants
+
 - **Durations**: Whole, half, quarter, eighth, sixteenth note values
 
 ## Prelude System
@@ -528,7 +534,9 @@ Download a GM SoundFont like [FluidR3_GM.sf2](https://musical-artifacts.com/arti
 ### Other Options
 
 - **DAW**: Route the virtual MIDI port to any DAW (Logic, Ableton, Reaper)
+
 - **Hardware**: Connect to GM-compatible synthesizers or sound modules
+
 - **Software synths**: Use any virtual instrument that accepts MIDI input
 
 ## Documentation

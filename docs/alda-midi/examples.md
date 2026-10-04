@@ -158,7 +158,9 @@ piano:
 ```
 
 - `V1:`, `V2:`, etc. declare independent voices
+
 - Each voice has its own timing
+
 - `V0:` merges all voices, continuing from the latest position
 
 ---

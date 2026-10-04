@@ -34,9 +34,13 @@ s7 is a Scheme interpreter designed for embedding in C applications. Originally 
 Key features:
 
 - Full R5RS Scheme with extensions
+
 - Easy C FFI via `s7_define_function`
+
 - Custom C types via `s7_make_c_type`
+
 - Garbage collection with marking support
+
 - ~103K lines, single-file implementation
 
 ### 2. midi_module.c - FFI Bindings
@@ -46,8 +50,11 @@ Location: `projects/s7-midi/midi_module.c`
 The core C module providing MIDI functionality to Scheme:
 
 - Module initialization (`s7_midi_init`)
+
 - C functions exposed to Scheme
+
 - Custom `midi-out` type with destructor
+
 - Scheme prelude (embedded Scheme code)
 
 #### midi-out Type
@@ -65,7 +72,9 @@ static s7_int midi_out_tag = 0;
 The `midi-out` type wraps a libremidi output handle with:
 
 - Automatic cleanup via `free_midi_out`
+
 - String representation via `midi_out_to_string`
+
 - Type predicate via `is_midi_out`
 
 ### 3. libremidi - MIDI Backend
@@ -75,7 +84,9 @@ Location: `thirdparty/libremidi/`
 Cross-platform MIDI library supporting:
 
 - macOS: CoreMIDI
+
 - Linux: ALSA
+
 - Windows: WinMM
 
 ### 4. Scheme Prelude
@@ -83,11 +94,17 @@ Cross-platform MIDI library supporting:
 The module includes a Scheme prelude that defines:
 
 - Pitch constants (c0-c8, cs0-cs8, etc.)
+
 - Duration constants (whole, half, quarter, etc.)
+
 - Velocity constants (ppp through fff)
+
 - Chord builders (major, minor, dim, aug, dom7, maj7, min7)
+
 - Tempo functions (set-tempo!, get-tempo, bpm)
+
 - Helper functions (transpose, octave-up, octave-down)
+
 - Arpeggio and rest functions
 
 The prelude is maintained as native Scheme code in `prelude.scm` and converted to a C header at build time:
@@ -261,7 +278,9 @@ uint8_t pc[2] = {
 The initialization sequence in `s7_midi_init()`:
 
 1. Create `midi-out` custom type with destructor
+
 2. Register all C functions with s7
+
 3. Load Scheme prelude
 
 ```c
@@ -373,8 +392,11 @@ make preludes
 This is preferred for:
 
 - Pure Scheme logic
+
 - Helper functions
+
 - Constants
+
 - Higher-order functions
 
 ## Comparison with Other Implementations

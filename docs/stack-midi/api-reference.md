@@ -16,9 +16,13 @@
 **Aliases** (for backward compatibility):
 
 - `midi-list` = `midi-output-list`
+
 - `midi-open` = `midi-output-virtual`
+
 - `midi-open-as` = `midi-output-open-as`
+
 - `midi-open-port` = `midi-output-open`
+
 - `midi-close` = `midi-output-close`
 
 ```forth
@@ -52,8 +56,11 @@ Receive MIDI messages from external devices or other applications.
 The `midi-input@` word returns:
 
 - `status`: MIDI status byte (e.g., 0x90 = note on channel 1)
+
 - `data1`: First data byte (pitch for notes, CC number for CCs)
+
 - `data2`: Second data byte (velocity for notes, CC value for CCs)
+
 - `flag`: -1 if message read, 0 if queue was empty
 
 ```forth
@@ -374,11 +381,17 @@ Based on 480 ticks per quarter note:
 Common CC numbers:
 
 - 1: Modulation wheel
+
 - 7: Channel volume
+
 - 10: Pan
+
 - 11: Expression
+
 - 64: Sustain pedal
+
 - 91: Reverb
+
 - 93: Chorus
 
 ```forth

@@ -23,10 +23,15 @@ Format: `[note][accidental][octave]`
 Examples:
 
 - `c4` = 60 (middle C)
+
 - `a4` = 69 (A440)
+
 - `c#4` = 61
+
 - `db4` = 61 (enharmonic)
+
 - `c5` = 72
+
 - `c3` = 48
 
 MIDI numbers (0-127) can also be used directly: `60` = middle C.
@@ -63,7 +68,9 @@ Parentheses group notes to play simultaneously:
 Inside parentheses:
 
 - Whitespace separates pitches
+
 - No commas needed (all notes share same parameters)
+
 - `)` closes the group, `,` triggers playback
 
 ### Explicit Parameters
@@ -165,8 +172,11 @@ melody                  \ Play the melody
 **Implementation notes:**
 
 - Requires compile mode vs interpret mode
+
 - Store word body as token list
+
 - Execute by interpreting stored tokens
+
 - Warn if stack not empty after `;` (catches missing trailing comma)
 
 ```forth
@@ -270,12 +280,15 @@ c4|r,                   \ 50% C4, 50% silence (equivalent to c4 50%,)
 Use cases:
 
 - Generative/algorithmic composition
+
 - Humanization (slight randomness)
+
 - Evolving patterns
 
 **Implementation**:
 
 - `%` pops probability (0-100), plays if `random() < probability`, else silence
+
 - `|` requires tokenizer change to treat `|` as separator; picks one alternative at random
 
 ### Square Brackets for Sequences
@@ -382,6 +395,7 @@ If word definitions feel too heavy for one-off patterns:
 The characters `,`, `(`, `)` are treated as word boundaries:
 
 - `c4,` tokenizes as `c4` `,`
+
 - `(c4 e4)` tokenizes as `(` `c4` `e4` `)`
 
 Future: Add `[` `]` `{` `}` as word boundaries.
@@ -435,12 +449,19 @@ void op_chord_open(Stack* stack) {
 The `,` word inspects the stack to determine mode:
 
 1. Find chord marker (if any)
+
 2. Count items since marker (or stack bottom)
+
 3. Dispatch:
+
    - Chord marker + N pitches: play chord
+
    - Chord marker + N pitches + 3 params: play chord with params
+
    - 1 item: play note with defaults
+
    - 4 items: play note with explicit params
+
    - Other: error
 
 ## Defaults

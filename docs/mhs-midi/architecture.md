@@ -31,12 +31,19 @@ This document explains how mhs-midi integrates MicroHs with MIDI functionality.
 Pure functions and data types with no IO:
 
 - Types: `Pitch`, `Duration`, `Velocity`, `Event`, `Music`
+
 - Pitch constants: `c0`-`c8`, `cs0`-`cs8`, etc.
+
 - Duration constants: `whole`, `half`, `quarter`, etc.
+
 - Velocity constants: `ppp` through `fff`
+
 - 55 scale constants: `scaleMajor`, `scaleDorian`, etc.
+
 - Music constructors: `note`, `rest`, `chord`, `line`
+
 - Combinators: `(+:+)`, `(|||)`, `timesM`
+
 - Transformations: `transpose`, `louder`, `softer`, `stretch`, `compress`
 
 ### Midi.hs - FFI Bindings
@@ -55,7 +62,9 @@ Exports: `midiInit`, `midiOpen`, `midiClose`, `midiNoteOn`, `midiNoteOff`, `midi
 Imports Music.hs and Midi.hs, provides:
 
 - `perform :: Music -> IO ()` - perform on channel 1
+
 - `performOn :: Channel -> Music -> IO ()` - perform on specific channel
+
 - Microtonal helpers: `centsToBend`, `pitchBendCents`
 
 ### MidiPerform.hs - Immediate IO
@@ -63,8 +72,11 @@ Imports Music.hs and Midi.hs, provides:
 Imports only Midi.hs (no Music.hs), so musical terms are IO actions:
 
 - Direct playback: `note`, `chord`, `rest`, `melody`, `arpeggio`
+
 - Generative: `pick`, `drunk`, `walk`, `euclidean`, `scramble`
+
 - Scales: `major`, `minor`, `pentatonic`, `blues`, etc.
+
 - Control: `open`, `close`, `panic`, `ports`
 
 ## C Layer
@@ -89,7 +101,9 @@ Location: `thirdparty/libremidi/`
 Cross-platform MIDI library supporting:
 
 - macOS: CoreMIDI
+
 - Linux: ALSA
+
 - Windows: WinMM
 
 ### midi_ffi_wrappers.c - MicroHs FFI Glue
@@ -113,6 +127,7 @@ from_t mhs_midi_note_on(int s) {
 MicroHs uses two FFI tables:
 
 1. **ffi_table** (built-in): Standard functions in `eval.c`
+
 2. **xffi_table** (external): Custom FFI functions
 
 mhs-midi populates `xffi_table` with MIDI functions:
@@ -228,7 +243,9 @@ The arity parameter must equal the number of arguments consumed:
 MicroHs supports compilation caching via `.mhscache`:
 
 - `-C` flag enables read/write caching
+
 - First run builds the cache
+
 - Subsequent runs are faster
 
 The `./scripts/mhs-midi` tool enables caching by default.

@@ -9,8 +9,11 @@ This document describes how to create a self-contained MicroHs-based application
 Despite these improvements, `mhs-midi` remained an outlier: relocating it without friction was still difficult. Ideally, it should be distributable as a single executable that users can download and run immediately, without installing MicroHs or configuring `MHSDIR`. To explore this possibility, an experiment was designed with the following objectives:
 
 1. Single-binary distribution — no external files or dependencies required
+
 2. Full featured — REPL, run, and compile modes all work
+
 3. No MicroHs source changes — achieve embedding via C-level interception
+
 4. Standalone compilation — user programs can be compiled into independent executables
 
 ## The Approach: Virtual Filesystem with fmemopen
@@ -282,8 +285,11 @@ This approach turned out to be quite useful, and can be adapted for any MicroHs-
 If you only need REPL and `-r` (run) modes, you just need:
 
 - `mhs-embed.c` or `mhs-embed.py` - embed your `.hs` libraries
+
 - `vfs.c` - the fmemopen-based VFS
+
 - `mhs_ffi_override.c` - intercept `mhs_fopen`
+
 - `mhs-patch-eval.py` - rename original `mhs_fopen`
 
 This gives you a ~1MB overhead for the MicroHs standard library.
@@ -293,7 +299,9 @@ This gives you a ~1MB overhead for the MicroHs standard library.
 To support `-o executable`:
 
 - Also embed `src/runtime/*.c` and `src/runtime/*.h`
+
 - Add `vfs_extract_to_temp()` function
+
 - Detect `-o` without `.c` suffix and extract
 
 ### 3. With Additional Libraries
@@ -301,7 +309,9 @@ To support `-o executable`:
 If your application has C dependencies:
 
 - Embed static libraries (`.a` files) as binary content
+
 - Inject `-optl` flags when compiling to executable
+
 - Include any required headers
 
 ### Potential MicroHs Enhancement
@@ -317,10 +327,15 @@ This would generate a single C file with embedded libraries, eliminating the nee
 The C implementation of `mhs-embed.c` (~1200 lines, optional zstd dependency) could be integrated directly into MicroHs to provide this functionality. It handles:
 
 - Recursive directory traversal for `.hs` and `.hs-boot` files
+
 - Runtime C/H file embedding (`--runtime`)
+
 - Static library embedding (`--lib`)
+
 - Header file embedding (`--header`)
+
 - Proper UTF-8 byte escaping
+
 - String literal chunking for C89 compatibility
 
 ## Results
@@ -336,8 +351,11 @@ The C implementation of `mhs-embed.c` (~1200 lines, optional zstd dependency) co
 The standalone binary:
 
 - Embeds 273 files (~2.5MB of content)
+
 - Starts REPL in ~0.5s (with `-C` caching)
+
 - Can compile HelloMidi.hs to 859KB standalone executable
+
 - Works on macOS and Linux (Windows has separate MicroHs build issues)
 
 ## Optional: Zstd Compression
@@ -377,15 +395,23 @@ cmake --build build --target mhs-midi-pkg-zstd
 The compression system consists of:
 
 1. **`mhs-embed.c`** - A unified C tool that:
+
    - Collects all files to embed
+
    - Trains a zstd dictionary (~112KB) on text files (.hs, .c, .h)
+
    - Compresses each file using the dictionary (or use `--no-compress`)
+
    - Generates `mhs_embedded_zstd.h` with compressed byte arrays
 
 2. **`vfs.c`** - A unified VFS that:
+
    - When `VFS_USE_ZSTD` is defined: decompresses files on demand using the embedded dictionary
+
    - When `VFS_USE_PKG` is defined: serves precompiled .pkg files for fast startup
+
    - When neither is defined: serves uncompressed .hs files directly
+
    - Caches decompressed content for repeated access
 
 3. **`zstddeclib.c`** - The decompress-only zstd library (~900KB source) linked into the binary
@@ -448,6 +474,7 @@ cc -O2 -o mhs-embed scripts/mhs-embed.c \
 **Key insight**: After the first run, `.mhscache` is created and all variants have similar warm-start times (~0.5-1s). The main differences are:
 
 - **pkg variants**: Eliminate the 20-second cold-start penalty (first run or fresh machine)
+
 - **zstd variants**: Reduce binary size significantly (useful for distribution)
 
 ## Files
@@ -478,6 +505,9 @@ The exploratory work to develop the standalone `mhs-midi` implementation was gre
 ## References
 
 - [MicroHs](https://github.com/augustss/MicroHs) - A small Haskell compiler
+
 - [fmemopen(3)](https://man7.org/linux/man-pages/man3/fmemopen.3.html) - Memory stream interface
+
 - [midi-langs](https://github.com/shakfu/midi-langs) - MIDI programming languages including mhs-midi
+
 - [Zstandard](https://github.com/facebook/zstd) - Fast lossless compression algorithm with dictionary support

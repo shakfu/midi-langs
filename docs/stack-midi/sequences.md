@@ -37,7 +37,9 @@ For precise timing control, use the tick-based sequence system. Events are store
 Tick-based sequences store MIDI events (note-on, note-off, CC) with tick-based timing. They can be:
 
 - Built up note by note with explicit timing
+
 - Transformed (transpose, reverse, stretch)
+
 - Played back at any tempo
 
 ## Basic Usage

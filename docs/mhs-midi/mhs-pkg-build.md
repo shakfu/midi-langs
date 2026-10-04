@@ -11,14 +11,19 @@ The standalone mhs-midi binaries embed Haskell source files using a Virtual File
 **Key Results:**
 
 - **20x faster cold start**: Reduced from ~20s to ~1s
+
 - **Full functionality preserved**: REPL, compilation to executables, and all MIDI features work identically
+
 - **Self-contained**: No external dependencies required
+
 - **The use of .pkg improves startup time if a `.mshcache` is not available**. If it subsequently avialable then using then startup times for the other variants are almost equal.
 
 **Implementation Challenges Solved:**
 
 1. Virtual directory operations for package discovery (MicroHs scans directories, not just files)
+
 2. Module-to-package mapping via `.txt` files (185+ mapping files needed)
+
 3. Hybrid embedding for compilation support (runtime source files still required for `cc`)
 
 **When to Use:**
@@ -31,6 +36,7 @@ The standalone mhs-midi binaries embed Haskell source files using a Virtual File
 | MHS_USE_PKG + MHS_USE_ZSTD | ~1s | ~0.95s | ~3.1M MB |
 
 - **`MHS_USE_PKG + MHS_USE_ZSTD`**: Best for distribution: with best balance of fast startup and small size (~1s startup, ~3.1M MB binary)
+
 - **Default mode**: Suitable for development with persistent `.mhscache` (faster warm starts, ~3.3 MB binary)
 
 ## Background: The Cold Start Problem
@@ -40,7 +46,9 @@ The standalone mhs-midi binaries embed all necessary Haskell source files (~274 
 Subsequent runs load from `.mhscache` in ~0.5 seconds, but the cold-start penalty is problematic for:
 
 - First-time users evaluating the tool
+
 - CI/CD pipelines without persistent caches
+
 - Distribution to end users
 
 ## MicroHs Package System
@@ -325,7 +333,9 @@ Key insight: `.mhscache` is more efficient than `.pkg` for warm starts because i
 Error messages and debugging information are functionally identical across all build modes:
 
 - **Runtime errors in user code**: File, line, and column are shown identically
+
 - **Type errors**: Full constraint information preserved
+
 - **Stack traces**: MicroHs shows the error location only (no full call stack in any mode)
 
 The only difference is in errors originating from Prelude/library code:
@@ -360,8 +370,11 @@ cmake --build build --target mhs-midi-pkg-zstd
 **Variant Summary:**
 
 - **`mhs-midi-src`**: Embeds .hs source files, ~20s cold start, ~3.3MB
+
 - **`mhs-midi-src-zstd`**: Compressed source, ~20s cold start, ~1.3MB (smallest)
+
 - **`mhs-midi-pkg`**: Precompiled packages, ~1s cold start, ~4.8MB
+
 - **`mhs-midi-pkg-zstd`**: Compressed packages, ~1s cold start, ~3.1MB (recommended)
 
 ## Prerequisites for MHS_USE_PKG
@@ -376,7 +389,9 @@ make
 The CMake build handles everything else automatically:
 
 - Builds `base-0.15.2.0.pkg` locally in `build/mhs-base-src/dist-mcabal/`
+
 - Installs packages to `build/mcabal/` (not `~/.mcabal`)
+
 - Generates module mapping `.txt` files that `mhs-embed.c --pkg-mode` reads
 
 This keeps the source tree clean and avoids modifying user's home directory.
@@ -386,7 +401,9 @@ This keeps the source tree clean and avoids modifying user's home directory.
 Embedding precompiled `.pkg` files required solving three unexpected challenges:
 
 1. Virtual directory operations for package discovery
+
 2. Module-to-package `.txt` mapping files
+
 3. Hybrid embedding for compilation support
 
 The result is a ~20x improvement in cold-start time (20s to 1s) while maintaining full functionality including the ability to compile Haskell programs to standalone executables.
