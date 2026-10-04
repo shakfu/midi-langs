@@ -30,7 +30,7 @@ else()
         pf_io_midi.c)
     # pf_io_midi.c wraps these two; see that file for why
     set_source_files_properties(${PFORTH_CSRC}/posix/pf_io_posix.c PROPERTIES
-        COMPILE_DEFINITIONS "sdTerminalIn=pf_posix_sdTerminalIn;sdTerminalEcho=pf_posix_sdTerminalEcho")
+        COMPILE_DEFINITIONS "sdTerminalIn=pf_posix_sdTerminalIn;sdTerminalEcho=pf_posix_sdTerminalEcho;sdTerminalInit=pf_posix_sdTerminalInit")
 endif()
 
 set(PFORTH_MIDI_SOURCES

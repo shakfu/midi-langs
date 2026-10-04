@@ -54,6 +54,19 @@ if [ $rc -eq 0 ] && echo "$out" | grep -q "^3 " && ! echo "$out" | grep -q "1 2 
 else
     fail "piped input: rc=$rc output='$out'"
 fi
+# timeout runs pforth in a background process group; on a tty that must not stop it.
+# "; true" stops sh exec'ing timeout as session leader, which cannot change group.
+if script -qec true /dev/null > /dev/null 2>&1; then
+    printf '7 7 * .\n' > "$TMP/t.fs"
+    out=$(script -qec "timeout 10 '$PFORTH_MIDI' '$TMP/t.fs'; true" /dev/null 2>&1)
+    if echo "$out" | grep -q "^49 "; then
+        pass "file run in background on a tty"
+    else
+        fail "file run in background on a tty: output='$out'"
+    fi
+else
+    echo "  SKIP: background tty run (no util-linux script)"
+fi
 
 echo "Pitch parsing"
 check "naturals" 'c4 . d4 . e4 . f4 . g4 . a4 . b4 .' "60 62 64 65 67 69 71"

@@ -1,9 +1,12 @@
 /* pf_io_midi.c - terminal input for pforth-midi.
  *
- * pForth's posix/pf_io_posix.c is compiled with sdTerminalIn and
- * sdTerminalEcho renamed to pf_posix_*; these wrappers replace them.
+ * pForth's posix/pf_io_posix.c is compiled with sdTerminalIn,
+ * sdTerminalEcho and sdTerminalInit renamed to pf_posix_*; these wrappers
+ * replace them.
  * Upstream treats getchar()'s EOF as character 0xFF and loops forever on
- * piped input, and echoes input even when stdin is not a terminal. */
+ * piped input, and echoes input even when stdin is not a terminal. It also
+ * sets raw mode on a terminal it does not own, which stops a background
+ * process with SIGTTOU (e.g. under `timeout` or `&`). */
 
 #include "pf_all.h"
 
@@ -13,6 +16,13 @@
 
 int pf_posix_sdTerminalIn(void);
 int pf_posix_sdTerminalEcho(char c);
+void pf_posix_sdTerminalInit(void);
+
+void sdTerminalInit(void) {
+    /* Only the terminal's foreground process group may change its modes */
+    if (isatty(STDIN_FILENO) && tcgetpgrp(STDIN_FILENO) != getpgrp()) return;
+    pf_posix_sdTerminalInit();
+}
 
 int sdTerminalIn(void) {
     int c = pf_posix_sdTerminalIn();
