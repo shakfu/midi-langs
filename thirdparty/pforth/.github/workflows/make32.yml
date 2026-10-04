@@ -1,0 +1,39 @@
+name: Make32
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+env:
+  # Customize the Make build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: Build 32-bit (PAGING=${{ matrix.demand_paging }}, FLOAT=${{ matrix.support_fp }}, CELL=${{ matrix.cell_size }})
+    # This uses a Unix Makefile and should run on Linux and Mac
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        demand_paging: [0, 1]
+        support_fp: [0, 1]
+        cell_size: [4, 8]
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install MultiLib to support 32-bit builds
+      run: |
+        sudo apt-get update
+        # Try a normal install with a few retries; fall back to fix-missing if needed
+        sudo apt-get -y --no-install-recommends -o Acquire::Retries=3 install gcc-multilib || \
+          (sudo apt-get update && sudo apt-get -y --fix-missing install gcc-multilib)
+
+    - name: Build and Test
+      working-directory: ${{github.workspace}}/platforms/unix
+      run: make test WIDTHOPT=-m32 ASAN=1 XCPPFLAGS="-DPF_SUPPORT_FP=${{ matrix.support_fp }} -DPF_DEMAND_PAGING=${{ matrix.demand_paging }} -DPF_CELL_SIZE=${{ matrix.cell_size }} -D_DEFAULT_SOURCE -D_GNU_SOURCE"
+

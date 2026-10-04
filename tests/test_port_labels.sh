@@ -50,15 +50,16 @@ run() {
 
 echo "=== Port labels ==="
 run alda   alda_midi  "list"
-run forth  forth_midi "midi-output-list"
+run stack  stack_midi "midi-output-list"
+run pforth pforth_midi "midi-list"
 run joy    joy_midi   "midi-list"
 run lua    lua_midi   'for _,p in ipairs(midi.list_ports()) do print(p[2]) end'
 run s7     s7_midi    '(display (midi-list-ports))'
 run guile  guile_midi '(display (midi-list-ports))'
 run pktpy  pktpy_midi 'import midi; print(midi.list_ports())'
 
-# forth opens by name; the open message prints the matched label
-run forth-open-as forth_midi "midi-open-as aseqdump"
+# stack-midi opens by name; the open message prints the matched label
+run stack-open-as stack_midi "midi-open-as aseqdump"
 
 if [ -x "$BUILD_DIR/mhs-midi" ]; then
     cat > "$TMP/PortLabels.hs" <<'EOF'

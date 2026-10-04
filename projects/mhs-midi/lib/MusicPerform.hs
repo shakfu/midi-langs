@@ -52,7 +52,8 @@ centsToBend = midiCentsToBend
 pitchBendCents :: Channel -> Int -> IO ()
 pitchBendCents channel cents = do
     bend <- centsToBend cents
-    midiPitchBend channel bend
+    -- centsToBend is 0..16383; midiPitchBend takes -8192..8191
+    midiPitchBend channel (bend - 8192)
 
 -----------------------------------------------------------
 -- Music DSL Interpretation

@@ -514,7 +514,7 @@ static void read_mid_callback(void* ctx, const midi_file_event* event) {
     }
 
     printf("  t=%5d ch=%2d %-10s %3d %3d\n",
-           event->tick, event->channel + 1, type_name, event->data1, event->data2);
+           event->tick, event->channel, type_name, event->data1, event->data2);
 }
 
 int midi_read_mid(const char* filename) {

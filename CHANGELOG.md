@@ -4,7 +4,13 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0]
+
 ### Added
+
+- **pforth-midi**: [pForth](https://github.com/philburk/pforth) with MIDI words, at `make pforth-midi`. It implements `docs/spec.md` sections 1-5 and 9, plus recording, `write-mid`, `read-mid` and seeded random. Pitch names such as `c4` are literals, chords and scales are stack lists (`c4 major chord`), and `scale:`/`chord:` define new ones. A vendored standard Forth was chosen over extending stack-midi, whose source-string interpreter has no compile step for `create`/`does>`, `immediate` or a return stack. Docs: `docs/pforth-midi/README.md`.
+
+  pForth is vendored unmodified at `e5617638` (2.2.0). Two upstream behaviours are worked around in `projects/pforth-midi/`: piped input looped forever at EOF, and was echoed back to the output. Tested on Linux only. It is not built on Windows, and the macOS build has not been run.
 
 - **`make test-asan`**: runs the full suite with ASan and UBSan in `build-asan/`. A separate build dir keeps the cached `ENABLE_SANITIZERS` out of `make test`, which `build-debug` does not. `tests/lsan.supp` suppresses s7's permanent strings and a MicroHs per-load leak that awaits the MicroHs upgrade. `joy_midi_timing` still fails on joy parser leaks.
 
@@ -107,106 +113,6 @@ All notable changes to midi-langs are documented in this file.
   - `from-to`: Build aggregate from lo to hi using linrec
   - `from-to-list`: Build list from lo to hi (e.g., `1 10 from-to-list` -> `[1 2 3 4 5 6 7 8 9 10]`)
 
-### Fixed
-
-- **mhs-midi `midiListPorts` found no ports**: `midi_init` left the observer's `track_*` flags at the C API's zero values, so libremidi tracked nothing. It now tracks hardware, virtual and other ports, as the other bindings do.
-
-- **mhs-midi executable-path lookup copied a string onto itself**: `dirname()` may return a pointer into its argument, so the following `strncpy` had overlapping arguments, which is undefined behaviour. ASan aborted `mhs_midi_test_suite` on it.
-
-- **alda-midi interpreter ported from psnd 0.4.0**: it fixes chords, voices, rests, crams, per-part tempo, instrument names, rounding and channel allocation, and `(key-sig! ...)` now applies to parts declared after it. `docs/alda-midi/conformance.md` points to psnd's list of causes. **Most scores sound different**: every channel now starts at Alda's pan and track volume, and the default velocity is 69 (`mf`), not 80.
-
-- **alda-midi playback timing**: `alda_ticks_to_ms()` computed `ticks * 60000` in `int`, which overflows above 35791 ticks (about 74 beats). A long gap before an event then gave a negative delay; async playback passed it to libuv as a huge unsigned timeout. Both players also rounded each event-to-event delay to whole ms, so the error accumulated over a score. Events are now timed from the last tempo change; async playback also measures against `uv_hrtime()`, so timer latency does not accumulate.
-
-- **alda-midi async playback threading**: `alda_events_play_async()` started the libuv timer from the caller's thread while the loop thread ran it. libuv handles are not thread-safe. Playback now starts on the loop thread through a `uv_async_t`. A stopped slot now sends All Notes Off from the loop thread, so no later note-on from that slot can follow it.
-
-- **alda-midi parse errors leaked the partial AST**: `alda_parse()` returned NULL without freeing the tree built during error recovery, so every REPL line with a syntax error leaked it. Found with LeakSanitizer; psnd has the same leak.
-
-- **alda-midi `midi-channel-management.alda`**: restored a `V0:` line missing from the upstream score.
-
-: Fixed 8 test files for compiled Joy implementation
-  - `argv.joy`: Simplified to verify `argv` returns non-empty list (path-independent)
-  - `eql2.joy`: Replaced `'\002` character literal syntax with `2 chr` function call
-  - `ftell.joy`: Fixed stack management (`swap` → `pop`), added `fclose` cleanup, position-based assertion
-  - `get.joy`: Removed runtime `get` usage (requires runtime parser); now smoke test only
-  - `maxint.joy`: Removed large number tests causing overflow; simplified to maxint value check
-  - `mktime.joy`: Changed `gmtime` → `localtime` for correct mktime roundtrip
-  - `null.joy`: Replaced `'\002` with `2 chr`, removed failing `ifte` tests
-  - `run_single_joy_test.sh`: Added `$` line filtering, end-of-line comment stripping, `cd` to test directory for relative paths
-
-- **joy-midi SEQ parallel parts timing**: Fixed multiple timing issues in scheduled playback
-  - Fixed LIFO stack order: notes pushed onto stack now play in correct order (not reversed)
-  - Rests (pitch=-1) no longer scheduled as events, just advance time
-  - Updated example files (ode_to_joy.joy, frere_jacques.joy) with correct beat counts
-  - Fixed file execution: post_eval_hook (accumulator_flush) now called after loading files
-  - Debug output shows schedule even without MIDI port open (`midi-debug` works in test mode)
-  - Added automated timing verification test (`joy_midi_timing` in ctest)
-
-### Changed
-
-- **Port lists show client names in every language**: ports print as `client: port`, e.g. `FLUID Synth (1234): Synth input port (1234:0)`. Before, only the port name was printed, and FluidSynth's port name does not identify the synth. alda `-o` and forth `midi-open-as` match against the full label, so `-o FLUID` selects FluidSynth. The client name comes from `libremidi_midi_out_port_device_name`, a local addition to vendored libremidi; its C API exposed only `port_name`. `midi_port_label` in `projects/common/midi_open.c` builds the label.
-
-- **libremidi PipeWire backend is opt-in**: `-DMIDI_LANGS_PIPEWIRE=ON` enables it, and configure fails if the PipeWire headers are missing. It uses the vendored `thirdparty/readerwriterqueue`. Before this change, Linux configure always fetched readerwriterqueue from GitHub `master`, even when PipeWire was absent and the backend was skipped.
-
-- **alda-midi `#` is always a comment** (breaking): `c#` is now `c` followed by a comment, as in Alda. Spell sharp as `+` (or the `s` suffix extension). The `ALDA_MAX_PARTS` limit rose from 64 to 256, so `AldaContext` is about 147KB; the CLI holds it in static storage.
-
-- **joy-midi architecture**: Separated core Joy interpreter from MIDI extensions
-  - Moved `thirdparty/pyjoy-runtime/` to `projects/joy-midi/joy/`
-  - Renamed library from `pyjoy_runtime` to `joy_core`
-  - Core Joy interpreter is now a reusable static library
-  - MIDI-specific code remains in `projects/joy-midi/`
-
-- **joy-midi tokenizer**: Fixed `.` handling for Joy compatibility
-  - `.` is now tokenized as a separate token (not part of symbols like `=.`)
-  - Enables proper parsing of Joy test files that use `.` as statement terminator
-
-### Fixed
-
-- **joy-midi `.` primitive**: Now prints-and-pops, with graceful empty stack handling
-  - `.` prints top of stack and pops it (standard Joy behavior)
-  - If stack is empty, `.` is a no-op (for smoke tests)
-  - Tests correctly clear results from stack after assertions
-
-- **joy-midi `typeof`**: Now correctly distinguishes user-defined (2) from builtin (3) words
-  - Looks up symbols in dictionary to determine if primitive or user-defined
-  - Matches reference Joy implementation behavior
-
-- **joy-midi `sametype`**: Now compares function pointers for primitives
-  - Two different builtins (like `pop` and `dup`) return false
-  - Two user-defined words return true (same type category)
-  - Matches reference Joy implementation behavior
-
-- **joy-midi `concat`**: Added SET and STRING support
-  - SET concat is union operation
-  - STRING concat joins two strings
-
-- **joy-midi `body`**: Returns empty quotation for undefined symbols instead of erroring
-
-- **joy-midi `treerec`/`treegenrec`**: Fixed tree recursion combinators
-  - Correctly preserve tree structure when mapping over nested lists
-  - Fixed iteration strategy (C parameter specifies how to recurse, not post-processing)
-
-- **joy-midi parser**: Fixed semicolon tokenization for multi-line DEFINE
-  - `;` now correctly separates multiple definitions in a single DEFINE block
-  - Example: `DEFINE a == 1; b == 2.` now correctly defines both `a` and `b`
-
-- **joy-midi parser**: User definitions now override note name transformations
-  - Dictionary is checked before the symbol transformer at parse time
-  - Allows defining symbols like `e`, `a`, `b` that would otherwise become MIDI notes
-  - Example: `CONST e == 2.71828 .` now works (e is 2.71828, not MIDI note 64)
-  - Undefined note names still convert to MIDI numbers as expected
-
-- **joy-midi character arithmetic**: Added character support to arithmetic operations
-  - `+`: char + int -> char, int + char -> char
-  - `-`: char - int -> char, char - char -> int (distance)
-  - `succ`/`pred`: Work on characters ('A succ -> 'B)
-  - `max`/`min`: Compare characters by ASCII value
-
-- **joy-midi aggregate operations**: Extended to support all aggregate types
-  - `cons`: Now supports strings (char + string) and sets
-  - `uncons`: Now supports strings and sets
-  - `has`: Now supports lists and strings (not just sets)
-  - `first`/`rest`: Now support sets (lowest element, remaining elements)
-
 - **joy-midi**: New Joy-based MIDI language using the [pyjoy](https://github.com/shakfu/pyjoy-lang) runtime
   - `projects/joy-midi/` - Complete project structure
   - Concatenative functional programming with stack-based execution
@@ -287,7 +193,109 @@ All notable changes to midi-langs are documented in this file.
   - Defaults to ON; set `-DBUILD_MHS_MIDI=OFF` to skip mhs-midi (avoids MicroHs build at configure time)
   - Used by Windows CI to skip mhs-midi in `build-windows` job (separate `build-windows-mhs` handles it)
 
+### Changed
+
+- **forth-midi is now stack-midi**: the project, binary (`stack_midi`), make target, docs and tests are renamed, and source files use `.stk` instead of `.4th`. Its language is Forth-like but not a Forth; pforth-midi is the standard Forth. The default virtual port is `StackMIDI`. `docs/forth-midi/missing-forth-features.md` is removed, since pforth-midi supersedes its proposals.
+
+- **Port lists show client names in every language**: ports print as `client: port`, e.g. `FLUID Synth (1234): Synth input port (1234:0)`. Before, only the port name was printed, and FluidSynth's port name does not identify the synth. alda `-o` and stack-midi `midi-open-as` match against the full label, so `-o FLUID` selects FluidSynth. The client name comes from `libremidi_midi_out_port_device_name`, a local addition to vendored libremidi; its C API exposed only `port_name`. `midi_port_label` in `projects/common/midi_open.c` builds the label.
+
+- **libremidi PipeWire backend is opt-in**: `-DMIDI_LANGS_PIPEWIRE=ON` enables it, and configure fails if the PipeWire headers are missing. It uses the vendored `thirdparty/readerwriterqueue`. Before this change, Linux configure always fetched readerwriterqueue from GitHub `master`, even when PipeWire was absent and the backend was skipped.
+
+- **alda-midi `#` is always a comment** (breaking): `c#` is now `c` followed by a comment, as in Alda. Spell sharp as `+` (or the `s` suffix extension). The `ALDA_MAX_PARTS` limit rose from 64 to 256, so `AldaContext` is about 147KB; the CLI holds it in static storage.
+
+- **joy-midi architecture**: Separated core Joy interpreter from MIDI extensions
+  - Moved `thirdparty/pyjoy-runtime/` to `projects/joy-midi/joy/`
+  - Renamed library from `pyjoy_runtime` to `joy_core`
+  - Core Joy interpreter is now a reusable static library
+  - MIDI-specific code remains in `projects/joy-midi/`
+
+- **joy-midi tokenizer**: Fixed `.` handling for Joy compatibility
+  - `.` is now tokenized as a separate token (not part of symbols like `=.`)
+  - Enables proper parsing of Joy test files that use `.` as statement terminator
+
 ### Fixed
+
+- **mhs-midi `pitchBendCents` sent full bend up for 0 cents**: `centsToBend` returns 0-16383 with 8192 as centre, but `midiPitchBend` takes -8192..8191, so the centre offset was added twice and clamped. Bends from -200 cents up all reached or neared the maximum.
+
+- **mhs-midi `read-mid` printed every channel one too high**: `midi_file` already reports channels as 1-16, and `midi_ffi` added 1 again. Written files were correct.
+
+- **mhs-midi `midiListPorts` found no ports**: `midi_init` left the observer's `track_*` flags at the C API's zero values, so libremidi tracked nothing. It now tracks hardware, virtual and other ports, as the other bindings do.
+
+- **mhs-midi executable-path lookup copied a string onto itself**: `dirname()` may return a pointer into its argument, so the following `strncpy` had overlapping arguments, which is undefined behaviour. ASan aborted `mhs_midi_test_suite` on it.
+
+- **alda-midi interpreter ported from psnd 0.4.0**: it fixes chords, voices, rests, crams, per-part tempo, instrument names, rounding and channel allocation, and `(key-sig! ...)` now applies to parts declared after it. `docs/alda-midi/conformance.md` points to psnd's list of causes. **Most scores sound different**: every channel now starts at Alda's pan and track volume, and the default velocity is 69 (`mf`), not 80.
+
+- **alda-midi playback timing**: `alda_ticks_to_ms()` computed `ticks * 60000` in `int`, which overflows above 35791 ticks (about 74 beats). A long gap before an event then gave a negative delay; async playback passed it to libuv as a huge unsigned timeout. Both players also rounded each event-to-event delay to whole ms, so the error accumulated over a score. Events are now timed from the last tempo change; async playback also measures against `uv_hrtime()`, so timer latency does not accumulate.
+
+- **alda-midi async playback threading**: `alda_events_play_async()` started the libuv timer from the caller's thread while the loop thread ran it. libuv handles are not thread-safe. Playback now starts on the loop thread through a `uv_async_t`. A stopped slot now sends All Notes Off from the loop thread, so no later note-on from that slot can follow it.
+
+- **alda-midi parse errors leaked the partial AST**: `alda_parse()` returned NULL without freeing the tree built during error recovery, so every REPL line with a syntax error leaked it. Found with LeakSanitizer; psnd has the same leak.
+
+- **alda-midi `midi-channel-management.alda`**: restored a `V0:` line missing from the upstream score.
+
+- **joy-midi unit test files**: fixed 8 tests for the compiled Joy implementation
+  - `argv.joy`: Simplified to verify `argv` returns non-empty list (path-independent)
+  - `eql2.joy`: Replaced `'\002` character literal syntax with `2 chr` function call
+  - `ftell.joy`: Fixed stack management (`swap` → `pop`), added `fclose` cleanup, position-based assertion
+  - `get.joy`: Removed runtime `get` usage (requires runtime parser); now smoke test only
+  - `maxint.joy`: Removed large number tests causing overflow; simplified to maxint value check
+  - `mktime.joy`: Changed `gmtime` → `localtime` for correct mktime roundtrip
+  - `null.joy`: Replaced `'\002` with `2 chr`, removed failing `ifte` tests
+  - `run_single_joy_test.sh`: Added `$` line filtering, end-of-line comment stripping, `cd` to test directory for relative paths
+
+- **joy-midi SEQ parallel parts timing**: Fixed multiple timing issues in scheduled playback
+  - Fixed LIFO stack order: notes pushed onto stack now play in correct order (not reversed)
+  - Rests (pitch=-1) no longer scheduled as events, just advance time
+  - Updated example files (ode_to_joy.joy, frere_jacques.joy) with correct beat counts
+  - Fixed file execution: post_eval_hook (accumulator_flush) now called after loading files
+  - Debug output shows schedule even without MIDI port open (`midi-debug` works in test mode)
+  - Added automated timing verification test (`joy_midi_timing` in ctest)
+
+- **joy-midi `.` primitive**: Now prints-and-pops, with graceful empty stack handling
+  - `.` prints top of stack and pops it (standard Joy behavior)
+  - If stack is empty, `.` is a no-op (for smoke tests)
+  - Tests correctly clear results from stack after assertions
+
+- **joy-midi `typeof`**: Now correctly distinguishes user-defined (2) from builtin (3) words
+  - Looks up symbols in dictionary to determine if primitive or user-defined
+  - Matches reference Joy implementation behavior
+
+- **joy-midi `sametype`**: Now compares function pointers for primitives
+  - Two different builtins (like `pop` and `dup`) return false
+  - Two user-defined words return true (same type category)
+  - Matches reference Joy implementation behavior
+
+- **joy-midi `concat`**: Added SET and STRING support
+  - SET concat is union operation
+  - STRING concat joins two strings
+
+- **joy-midi `body`**: Returns empty quotation for undefined symbols instead of erroring
+
+- **joy-midi `treerec`/`treegenrec`**: Fixed tree recursion combinators
+  - Correctly preserve tree structure when mapping over nested lists
+  - Fixed iteration strategy (C parameter specifies how to recurse, not post-processing)
+
+- **joy-midi parser**: Fixed semicolon tokenization for multi-line DEFINE
+  - `;` now correctly separates multiple definitions in a single DEFINE block
+  - Example: `DEFINE a == 1; b == 2.` now correctly defines both `a` and `b`
+
+- **joy-midi parser**: User definitions now override note name transformations
+  - Dictionary is checked before the symbol transformer at parse time
+  - Allows defining symbols like `e`, `a`, `b` that would otherwise become MIDI notes
+  - Example: `CONST e == 2.71828 .` now works (e is 2.71828, not MIDI note 64)
+  - Undefined note names still convert to MIDI numbers as expected
+
+- **joy-midi character arithmetic**: Added character support to arithmetic operations
+  - `+`: char + int -> char, int + char -> char
+  - `-`: char - int -> char, char - char -> int (distance)
+  - `succ`/`pred`: Work on characters ('A succ -> 'B)
+  - `max`/`min`: Compare characters by ASCII value
+
+- **joy-midi aggregate operations**: Extended to support all aggregate types
+  - `cons`: Now supports strings (char + string) and sets
+  - `uncons`: Now supports strings and sets
+  - `has`: Now supports lists and strings (not just sets)
+  - `first`/`rest`: Now support sets (lowest element, remaining elements)
 
 - **alda-midi cram timing**: Fixed nested cram expressions and notes with explicit durations inside cram
   - Nested crams now use allocated duration from parent instead of recalculating
@@ -314,7 +322,6 @@ All notable changes to midi-langs are documented in this file.
 
 - **alda-midi comment parsing**: Fixed `#` comments being ignored at start of file or after whitespace
   - Comments (`# ...`) are now properly skipped to end of line
-  - Sharp accidentals (`c#4`) still work correctly (only `#` followed by space/newline/alpha is a comment)
   - Fixes parsing of example files like `twinkle.alda` that have leading comments
 
 - **Windows build compatibility**: All MIDI language implementations now build and test on Windows

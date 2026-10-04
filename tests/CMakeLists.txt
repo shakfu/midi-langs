@@ -10,72 +10,72 @@ if(NOT WIN32)
     )
 endif()
 
-# C unit tests for forth_midi
-add_executable(test_forth_midi_unit test_forth_midi_unit.c)
-target_link_libraries(test_forth_midi_unit PRIVATE forth_midi_lib)
-target_include_directories(test_forth_midi_unit PRIVATE ${CMAKE_SOURCE_DIR}/projects/forth-midi)
+# C unit tests for stack_midi
+add_executable(test_stack_midi_unit test_stack_midi_unit.c)
+target_link_libraries(test_stack_midi_unit PRIVATE stack_midi_lib)
+target_include_directories(test_stack_midi_unit PRIVATE ${CMAKE_SOURCE_DIR}/projects/stack-midi)
 
 add_test(
-    NAME forth_midi_unit_tests
-    COMMAND test_forth_midi_unit
+    NAME stack_midi_unit_tests
+    COMMAND test_stack_midi_unit
 )
-set_tests_properties(forth_midi_unit_tests PROPERTIES LABELS "quick")
+set_tests_properties(stack_midi_unit_tests PROPERTIES LABELS "quick")
 
 # Shell-based tests (Unix only)
 if(NOT WIN32)
 
 # Test using the comprehensive shell script
 add_test(
-    NAME forth_midi_test_suite
-    COMMAND ${MIDI_KEEPALIVE} ${CMAKE_CURRENT_SOURCE_DIR}/test_forth_midi.sh $<TARGET_FILE:forth_midi>
+    NAME stack_midi_test_suite
+    COMMAND ${MIDI_KEEPALIVE} ${CMAKE_CURRENT_SOURCE_DIR}/test_stack_midi.sh $<TARGET_FILE:stack_midi>
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Set test properties (includes midi label because it tests MIDI functionality)
-set_tests_properties(forth_midi_test_suite PROPERTIES
+set_tests_properties(stack_midi_test_suite PROPERTIES
     TIMEOUT 60
     LABELS "integration;midi"
 )
 
 # Individual quick tests for faster feedback during development
 add_test(
-    NAME forth_midi_smoke
-    COMMAND sh -c "echo 'midi-list' | $<TARGET_FILE:forth_midi>"
+    NAME stack_midi_smoke
+    COMMAND sh -c "echo 'midi-list' | $<TARGET_FILE:stack_midi>"
 )
 
 add_test(
-    NAME forth_midi_arithmetic
-    COMMAND sh -c "echo '3 4 + .' | $<TARGET_FILE:forth_midi> | grep -q '7'"
+    NAME stack_midi_arithmetic
+    COMMAND sh -c "echo '3 4 + .' | $<TARGET_FILE:stack_midi> | grep -q '7'"
 )
 
 add_test(
-    NAME forth_midi_pitch_parsing
-    COMMAND sh -c "echo 'c4 .' | $<TARGET_FILE:forth_midi> | grep -q '60'"
+    NAME stack_midi_pitch_parsing
+    COMMAND sh -c "echo 'c4 .' | $<TARGET_FILE:stack_midi> | grep -q '60'"
 )
 
 add_test(
-    NAME forth_midi_conditionals
-    COMMAND sh -c "echo '1 if 42 . then' | $<TARGET_FILE:forth_midi> | grep -q '42'"
+    NAME stack_midi_conditionals
+    COMMAND sh -c "echo '1 if 42 . then' | $<TARGET_FILE:stack_midi> | grep -q '42'"
 )
 
 add_test(
-    NAME forth_midi_word_definitions
-    COMMAND sh -c "echo ': double 2 * ; 7 double .' | $<TARGET_FILE:forth_midi> | grep -q '14'"
+    NAME stack_midi_word_definitions
+    COMMAND sh -c "echo ': double 2 * ; 7 double .' | $<TARGET_FILE:stack_midi> | grep -q '14'"
 )
 
 add_test(
-    NAME forth_midi_blocks
-    COMMAND sh -c "echo '{ 1 . } 3 *' | $<TARGET_FILE:forth_midi> | grep -q '1 1 1'"
+    NAME stack_midi_blocks
+    COMMAND sh -c "echo '{ 1 . } 3 *' | $<TARGET_FILE:stack_midi> | grep -q '1 1 1'"
 )
 
 # Label quick tests
 set_tests_properties(
-    forth_midi_smoke
-    forth_midi_arithmetic
-    forth_midi_pitch_parsing
-    forth_midi_conditionals
-    forth_midi_word_definitions
-    forth_midi_blocks
+    stack_midi_smoke
+    stack_midi_arithmetic
+    stack_midi_pitch_parsing
+    stack_midi_conditionals
+    stack_midi_word_definitions
+    stack_midi_blocks
     PROPERTIES LABELS "quick"
 )
 
@@ -220,6 +220,18 @@ set_tests_properties(mhs_midi_test_suite PROPERTIES
     LABELS "integration"
 )
 
+# pforth-midi tests
+add_test(
+    NAME pforth_midi_test_suite
+    COMMAND ${MIDI_KEEPALIVE} ${CMAKE_CURRENT_SOURCE_DIR}/test_pforth_midi.sh $<TARGET_FILE:pforth_midi>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(pforth_midi_test_suite PROPERTIES
+    TIMEOUT 120
+    LABELS "integration;midi"
+)
+
 # Every binding lists ports as "client: port"; skips without an ALSA sequencer
 add_test(
     NAME port_labels
@@ -231,54 +243,54 @@ set_tests_properties(port_labels PROPERTIES
     LABELS "integration;midi"
 )
 
-# Golden .4th test programs for forth_midi
+# Golden .stk test programs for stack_midi
 add_test(
-    NAME forth_midi_golden_basic
-    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_basic.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_basic.4th | grep -q ' 0 '"
+    NAME stack_midi_golden_basic
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_basic.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_basic.stk | grep -q ' 0 '"
 )
 
 add_test(
-    NAME forth_midi_golden_notation
-    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_notation.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_notation.4th | grep -q ' 0 '"
+    NAME stack_midi_golden_notation
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_notation.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_notation.stk | grep -q ' 0 '"
 )
 
 add_test(
-    NAME forth_midi_golden_blocks
-    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_blocks.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_blocks.4th | grep -q ' 0 '"
+    NAME stack_midi_golden_blocks
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_blocks.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_blocks.stk | grep -q ' 0 '"
 )
 
 add_test(
-    NAME forth_midi_golden_generative
-    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_generative.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_generative.4th | grep -q ' 0 '"
+    NAME stack_midi_golden_generative
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_generative.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_generative.stk | grep -q ' 0 '"
 )
 
 add_test(
-    NAME forth_midi_golden_sequences
-    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_sequences.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_sequences.4th | grep -q ' 0 '"
+    NAME stack_midi_golden_sequences
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_sequences.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_sequences.stk | grep -q ' 0 '"
 )
 
 add_test(
-    NAME forth_midi_golden_async
-    COMMAND ${MIDI_KEEPALIVE} sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.4th | grep -q ' 0 '"
+    NAME stack_midi_golden_async
+    COMMAND ${MIDI_KEEPALIVE} sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async.stk | grep -q ' 0 '"
 )
 
 add_test(
-    NAME forth_midi_golden_seq_record
-    COMMAND sh -c "$<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_seq_record.4th | grep -q '999' && ! $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_seq_record.4th | grep -q ' 0 '"
+    NAME stack_midi_golden_seq_record
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_seq_record.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_seq_record.stk | grep -q ' 0 '"
 )
 
 set_tests_properties(
-    forth_midi_golden_basic
-    forth_midi_golden_notation
-    forth_midi_golden_blocks
-    forth_midi_golden_generative
-    forth_midi_golden_sequences
-    forth_midi_golden_seq_record
+    stack_midi_golden_basic
+    stack_midi_golden_notation
+    stack_midi_golden_blocks
+    stack_midi_golden_generative
+    stack_midi_golden_sequences
+    stack_midi_golden_seq_record
     PROPERTIES LABELS "golden"
 )
 
 set_tests_properties(
-    forth_midi_golden_async
+    stack_midi_golden_async
     PROPERTIES LABELS "golden;midi"
 )
 
@@ -427,8 +439,8 @@ add_test(
 )
 
 add_test(
-    NAME demo_example_forth
-    COMMAND $<TARGET_FILE:forth_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/examples/demo_forth.4th
+    NAME demo_example_stack
+    COMMAND $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/examples/demo_stack.stk
 )
 
 add_test(
@@ -453,7 +465,7 @@ add_test(
 
 set_tests_properties(
     demo_example_alda
-    demo_example_forth
+    demo_example_stack
     demo_example_pktpy
     demo_example_s7
     demo_example_joy

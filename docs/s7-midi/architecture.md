@@ -379,9 +379,9 @@ This is preferred for:
 
 ## Comparison with Other Implementations
 
-| Aspect | s7-midi | pktpy-midi | forth-midi |
+| Aspect | s7-midi | pktpy-midi | stack-midi |
 | -------- | --------- | ------------ | ------------ |
-| Language | Scheme | Python | Forth |
+| Language | Scheme | Python | Forth-like |
 | Paradigm | Functional | Object-oriented | Stack-based |
 | FFI Style | s7_define_function | py_bindfunc | Direct C calls |
 | Custom Types | s7_make_c_type | py_newtype | None |

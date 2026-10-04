@@ -46,7 +46,7 @@ int midi_program(int channel, int program);
 /* Send pitch bend: channel (1-16), value (-8192 to 8191, 0 = center) */
 int midi_pitch_bend(int channel, int value);
 
-/* Convert cents offset to pitch bend value (-8192 to 8191) */
+/* Convert cents offset to pitch bend value (0 to 16383, 8192 = centre) */
 int midi_cents_to_bend(int cents);
 
 /* Sleep for given milliseconds */

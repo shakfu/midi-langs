@@ -4,7 +4,7 @@ This guide helps you choose the right MIDI language implementation for your need
 
 ## Quick Comparison
 
-| Feature | alda-midi | forth-midi | guile-midi | joy-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
+| Feature | alda-midi | stack-midi | guile-midi | joy-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
 | --------- | ----------- | ------------ | ------------ | ---------- | ---------- | --------- | ------------ | ---------- |
 | **Language** | Alda | Forth-like | Scheme (Guile) | Joy | Lua 5.5 | Scheme (s7) | Python (PocketPy) | Haskell (MicroHs) |
 | **Paradigm** | Declarative | Stack-based | Functional/Lisp | Concatenative | Imperative | Functional/Lisp | Object-oriented | Pure functional |
@@ -48,7 +48,7 @@ o3 c1~1
 
 ---
 
-### forth-midi
+### stack-midi
 
 **Best for:** Live coding, minimal syntax, experimentation
 
@@ -170,7 +170,7 @@ m:close()
 
 **Weaknesses:**
 
-- More verbose than forth-midi
+- More verbose than stack-midi
 - No built-in probability syntax
 
 **Choose if:** You know Lua or want a mainstream scripting language with good documentation.
@@ -283,7 +283,7 @@ main = do
 | Language | Example | Notes |
 | ---------- | --------- | ------- |
 | alda-midi | `c4` `c#4` `db4` | Duration suffix (4=quarter) |
-| forth-midi | `c4,` `C#4,` `Db4,` | Comma triggers, case-insensitive |
+| stack-midi | `c4,` `C#4,` `Db4,` | Comma triggers, case-insensitive |
 | guile-midi | `c4` `cs4` | Scheme symbols (same as s7) |
 | joy-midi | `c` `c5` `c+` `c-` | Parse-time integers, octave/accidentals |
 | lua-midi | `midi.c4` or `midi.note("C4")` | Constants or string parsing |
@@ -296,7 +296,7 @@ main = do
 | Language | Major Triad | Dominant 7th |
 | ---------- | ------------- | -------------- |
 | alda-midi | `c/e/g` | `c/e/g/b-` |
-| forth-midi | `(c4 e4 g4),` | `(c4 e4 g4 bb4),` |
+| stack-midi | `(c4 e4 g4),` | `(c4 e4 g4 bb4),` |
 | guile-midi | `(major c4)` | `(dom7 c4)` |
 | joy-midi | `c major chord` or `[c e g] chord` | `c dom7 chord` |
 | lua-midi | `midi.major(c4)` | `midi.dom7(c4)` |
@@ -309,7 +309,7 @@ main = do
 | Language | Play 4 times |
 | ---------- | -------------- |
 | alda-midi | `c4 c c c` or `[c4 c]*2` (limited) |
-| forth-midi | `melody 4 times` or `{ c4, } 4 *` |
+| stack-midi | `melody 4 times` or `{ c4, } 4 *` |
 | guile-midi | `(times 4 (lambda () (midi-note m c4 mf quarter)))` |
 | joy-midi | `4 [[c] play] times` or `[c c c c] play` |
 | lua-midi | `for i=1,4 do m:note(c4,mf,quarter) end` |
@@ -322,7 +322,7 @@ main = do
 | Language | 50% chance | Random selection |
 | ---------- | ------------ | ------------------ |
 | alda-midi | N/A | N/A |
-| forth-midi | `c4 50%,` | `c4\|e4\|g4,` |
+| stack-midi | `c4 50%,` | `c4\|e4\|g4,` |
 | guile-midi | `(chance 50 ...)` | `(pick (list c4 e4 g4))` |
 | joy-midi | `rand 50 < [[c] play] [] ifte` | `[c e g] dup size rand swap rem at` |
 | lua-midi | `if math.random() < 0.5 then ... end` | `midi.pick({c4,e4,g4})` |
@@ -337,7 +337,7 @@ All implementations support MIDI event recording:
 | Language | Start | Stop | Save |
 | ---------- | ------- | ------ | ------ |
 | alda-midi | N/A | N/A | N/A (file-based) |
-| forth-midi | `rec-midi` | `stop` | `save-midi file.4th` |
+| stack-midi | `rec-midi` | `stop` | `save-midi file.stk` |
 | guile-midi | `(record-midi)` | `(record-stop)` | `(save-midi "file.scm")` |
 | joy-midi | N/A | N/A | N/A (planned) |
 | lua-midi | `record_midi()` | `record_stop()` | `save_midi("file.lua")` |
@@ -357,9 +357,9 @@ Traditional music notation is instantly familiar. Write `c4 d e f | g2` and hear
 
 ### Live Performance
 
-**Recommended:** forth-midi or alda-midi
+**Recommended:** stack-midi or alda-midi
 
-Both offer immediate feedback. forth-midi for programmers who want stack manipulation; alda-midi for musicians who think in notes.
+Both offer immediate feedback. stack-midi for programmers who want stack manipulation; alda-midi for musicians who think in notes.
 
 ### Teaching/Learning
 
@@ -393,7 +393,7 @@ Type safety catches errors early. Pure functional style makes code easier to rea
 
 ## Performance Comparison
 
-| Metric | alda-midi | forth-midi | guile-midi | joy-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
+| Metric | alda-midi | stack-midi | guile-midi | joy-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
 | -------- | ----------- | ------------ | ------------ | ---------- | ---------- | --------- | ------------ | ---------- |
 | Startup | <1ms | <1ms | <1ms | <1ms | <1ms | <1ms | <1ms | ~500ms |
 | Note latency | <1ms | <1ms | <1ms | <1ms | <1ms | <1ms | <1ms | <1ms |
@@ -410,7 +410,7 @@ This section analyzes each implementation's ability to create complex multi-voic
 
 ### Capability Matrix
 
-| Feature | alda-midi | forth-midi | guile-midi | joy-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
+| Feature | alda-midi | stack-midi | guile-midi | joy-midi | lua-midi | s7-midi | pktpy-midi | mhs-midi |
 | --------- | ----------- | ------------ | ------------ | ---------- | ---------- | --------- | ------------ | ---------- |
 | **MIDI Channels** | 16 | 16 | 16 | 16 | 16 | 16 | 16 | 16 |
 | **Simultaneous Notes** | Chords/Voices | Chords | Chords/Arpeggio | Chords | Chords/Arpeggio | Chords/Arpeggio | Chords/Arpeggio | Chords/Melody |
@@ -434,7 +434,7 @@ violin:          # Different instrument, auto-assigned channel
 c4 d e f
 ```
 
-**forth-midi** has structured sequence support:
+**stack-midi** has structured sequence support:
 
 ```forth
 \ Explicit channel per note in sequences
@@ -482,7 +482,7 @@ chord (major c4)     -- Simultaneous on same channel
 All implementations now support non-blocking async playback:
 
 - **alda-midi**: Always async - REPL stays responsive, concurrent mode for layering parts
-- **forth-midi**: `seq-play&` and `seq-loop&` for background sequence playback
+- **stack-midi**: `seq-play&` and `seq-loop&` for background sequence playback
 - **guile-midi/s7-midi**: `spawn` and `run` for voice-based async; `poll` for non-blocking checks
 - **lua-midi/pktpy-midi**: `spawn()` and `run()` for voice-based async; `poll()` for non-blocking checks
 - **mhs-midi**: Native Haskell threads via `forkIO`; `spawn` and `run` functions
@@ -525,7 +525,7 @@ All implementations now use one or more of these patterns:
 1. **Event scheduler**: alda-midi uses tick-based event scheduling with libuv timers
 2. **Thread-per-voice**: mhs-midi uses native Haskell threads (`forkIO`)
 3. **Coroutine integration**: lua-midi, pktpy-midi, s7-midi use host language concurrency primitives with libuv timers
-4. **Background event loop**: forth-midi uses a dedicated libuv thread for sequence playback
+4. **Background event loop**: stack-midi uses a dedicated libuv thread for sequence playback
 
 ### Practical Guidance
 
@@ -534,7 +534,7 @@ For complex multi-voice compositions:
 | Approach | Recommended Implementation |
 | ---------- | --------------------------- |
 | **Multi-part scores** | alda-midi with parts (piano:, violin:) and voices (V1:, V2:) |
-| **Interleaved timeline** | forth-midi sequences with manual time offsets |
+| **Interleaved timeline** | stack-midi sequences with manual time offsets |
 | **Polyphonic chords** | Any implementation using chord functions |
 | **Algorithmic voices** | mhs-midi, s7-midi, guile-midi, or joy-midi with functional composition |
 | **Live layering** | alda-midi concurrent mode, or DAW receiving from multiple instances |
@@ -554,7 +554,7 @@ Run any implementation:
 
 ```bash
 ./build/alda_midi     # Alda
-./build/forth_midi    # Forth
+./build/stack_midi    # Forth-like
 ./build/guile_midi    # GNU Guile Scheme
 ./build/joy_midi      # Joy
 ./build/lua_midi      # Lua

@@ -9,7 +9,7 @@ All six languages now support concurrent voice playback, but each uses a differe
 | Language | Model | Threading | Blocking | Non-blocking |
 | ---------- | ------- | ----------- | ---------- | -------------- |
 | **alda-midi** | libuv event loop | Background thread | N/A | Always async |
-| **forth-midi** | libuv event loop | Background thread | N/A | `seq-play&` (always async) |
+| **stack-midi** | libuv event loop | Background thread | N/A | `seq-play&` (always async) |
 | **lua-midi** | libuv + Lua coroutines | Background thread | `run()` | `poll()` |
 | **pktpy-midi** | libuv + Python generators | Background thread | `run()` | `poll()` |
 | **s7-midi** | libuv + Scheme thunks | Main thread | `(run)` | `(poll)` |
@@ -60,11 +60,11 @@ c2~2          # Sustained bass
 - Up to 8 concurrent playback slots
 - Auto-connects to first available MIDI port
 
-## forth-midi
+## stack-midi
 
 **Model**: Sequence-based async with libuv event loop
 
-Forth-midi uses a dedicated libuv thread for timing. Sequences can be played asynchronously while the REPL remains responsive.
+stack-midi uses a dedicated libuv thread for timing. Sequences can be played asynchronously while the REPL remains responsive.
 
 ```forth
 \ Create and play sequences asynchronously
@@ -248,14 +248,14 @@ main = do
 | ---------- | -------- | -------------- |
 | alda-midi (music notation) | lua-midi (yield_ms) | s7-midi (thunks) |
 | mhs-midi (normal IO) | pktpy-midi (generators) | |
-| forth-midi (seq-play&) | | |
+| stack-midi (seq-play&) | | |
 
 ### Performance
 
 | Most Efficient | Medium | Least Efficient |
 | ---------------- | -------- | ----------------- |
 | mhs-midi (native threads) | alda-midi (libuv) | s7-midi (main thread) |
-| | forth-midi (libuv) | |
+| | stack-midi (libuv) | |
 | | lua-midi/pktpy-midi | |
 
 ### REPL Responsiveness
@@ -263,7 +263,7 @@ main = do
 | Always Non-blocking | Non-blocking via `poll()` | Blocking only |
 | --------------------- | --------------------------- | --------------- |
 | alda-midi | lua-midi | mhs-midi |
-| forth-midi | pktpy-midi | |
+| stack-midi | pktpy-midi | |
 | | s7-midi | |
 
 ## Cross-Language Example
@@ -280,7 +280,7 @@ violin:
 (volume 100) c2~2
 ```
 
-### forth-midi
+### stack-midi
 
 ```forth
 midi-virtual
@@ -351,7 +351,7 @@ main = do
 ## When to Use Which
 
 - **alda-midi**: Best for traditional music notation, quick sketching of musical ideas
-- **forth-midi**: Best for live coding and interactive exploration (REPL stays responsive)
+- **stack-midi**: Best for live coding and interactive exploration (REPL stays responsive)
 - **lua-midi**: Best for scripted compositions with clear timing control
 - **pktpy-midi**: Best for Python programmers, generator-based patterns
 - **s7-midi**: Best for functional/Lisp approach, complex voice transformations

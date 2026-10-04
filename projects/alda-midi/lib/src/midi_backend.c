@@ -2,7 +2,7 @@
  * @file midi_backend.c
  * @brief MIDI I/O backend using libremidi.
  *
- * Adapted from forth-midi/midi_core.c
+ * Adapted from stack-midi/midi_core.c
  */
 
 #include "alda/midi_backend.h"

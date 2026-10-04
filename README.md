@@ -7,7 +7,8 @@ Each implementation leverages [libremidi](https://github.com/celtera/libremidi) 
 | Implementation | Language| Style & Approach |
 | ---------- | ---------- | ------- |
 | **alda-midi** | [Alda](https://alda.io/) | Music-first notation--compose with elegant, human-readable syntax. |
-| **forth-midi** | Custom Forth | Concise stack-based programming for minimalist control over MIDI events. |
+| **stack-midi** | Forth-like stack language | Concise stack-based programming for minimalist control over MIDI events. |
+| **pforth-midi** | [pForth](https://github.com/philburk/pforth) | Standard ANS-style Forth: defining words, deferred words and compiled definitions. |
 | **guile-midi** | [GNU Guile](https://www.gnu.org/software/guile/) | Full-featured Scheme with macros, modules, and powerful FFI. |
 | **joy-midi** | [Joy](https://hypercubed.github.io/joy/joy.html) | Concatenative functional programming with algebraic note composition. |
 | **lua-midi** | [Lua 5.5](https://www.lua.org/) | Lightweight scripting with tables, closures, and event-driven workflows. |
@@ -34,7 +35,8 @@ make help         # Show all targets
 
 ```sh
 make alda-midi    # Alda interpreter
-make forth-midi   # Forth interpreter
+make stack-midi   # Forth-like stack language
+make pforth-midi  # pForth interpreter
 make guile-midi   # GNU Guile interpreter (requires Guile 3.0)
 make joy-midi     # Joy interpreter
 make lua-midi     # Lua interpreter
@@ -104,11 +106,11 @@ By default, alda-midi uses concurrent mode where multiple parts play simultaneou
 
 [Full documentation](docs/alda-midi/README.md) | [Language Reference](docs/alda-midi/language-reference.md)
 
-### forth-midi
+### stack-midi
 
 ```sh
-% ./build/forth_midi --help
-Usage: ./build/forth_midi [options] [file.4th ...]
+% ./build/stack_midi --help
+Usage: ./build/stack_midi [options] [file.stk ...]
 Options:
   --script FILE   Run FILE in batch mode (no REPL, exit on error)
   --no-sleep      Disable all sleep/delay calls (for testing)
@@ -134,7 +136,31 @@ seq-new 0 seq-start
 seq-play&                    \ non-blocking playback
 ```
 
-[Full documentation](docs/forth-midi/README.md) | [API](docs/forth-midi/api-reference.md) | [Tutorial](docs/forth-midi/tutorial.md)
+[Full documentation](docs/stack-midi/README.md) | [API](docs/stack-midi/api-reference.md) | [Tutorial](docs/stack-midi/tutorial.md)
+
+### pforth-midi
+
+```sh
+% ./build/pforth_midi --help
+Usage: ./build/pforth_midi [-q] [file.fs]
+
+pForth with MIDI words. With no file, starts the interactive prompt.
+Type MIDI-HELP at the prompt for the MIDI words, BYE to exit.
+```
+
+```forth
+midi-open
+c4 major chord  a3 minor chord               \ chords are pitches + count
+c4 scale-major build-scale arpeggio
+
+\ Standard Forth: a defining word for instruments
+: instrument ( ch prog "name" -- )
+    create , ,  does> dup cell+ @ to chan  chan swap @ program ;
+2 33 instrument bass
+bass c2 note
+```
+
+[Full documentation](docs/pforth-midi/README.md)
 
 ### guile-midi
 
@@ -384,7 +410,8 @@ Most implementations share functionality from a common C library (`projects/comm
 | Implementation | Uses music_theory.c |
 | ---------------- | --------------------- |
 | alda-midi | No (uses own parser/interpreter) |
-| forth-midi | Yes |
+| stack-midi | Yes |
+| pforth-midi | Yes |
 | guile-midi | Yes |
 | joy-midi | No (uses pyjoy-runtime) |
 | lua-midi | Yes |
@@ -415,6 +442,8 @@ projects/pktpy-midi/prelude.py  -> Python constants and helpers
 
 These are converted to C headers at build time via `scripts/prelude2c.py`.
 
+pforth-midi's vocabulary, `projects/pforth-midi/midi.fth`, is compiled into pForth's dictionary at build time and embedded in the binary.
+
 ```sh
 make preludes     # Regenerate all prelude headers
 ```
@@ -425,7 +454,8 @@ make preludes     # Regenerate all prelude headers
 projects/
   alda-midi/        # Alda interpreter (~3000 lines C)
   common/           # Shared music theory library
-  forth-midi/       # Forth interpreter (~2700 lines C)
+  stack-midi/       # Forth-like stack language (~2700 lines C)
+  pforth-midi/      # pForth + MIDI words
   guile-midi/       # GNU Guile + MIDI bindings
   joy-midi/         # Joy interpreter with MIDI extensions
   lua-midi/         # Lua 5.5 + MIDI bindings
@@ -434,17 +464,35 @@ projects/
   s7-midi/          # s7 Scheme + MIDI bindings
 thirdparty/
   libremidi/        # MIDI I/O library (auto-built)
-  MicroHs/          # Haskell compiler
-  pyjoy-runtime/    # Joy language runtime
-  s7/               # Scheme interpreter
+  libuv/            # Event loop for async playback
   lua-5.5.0/        # Lua interpreter
+  MicroHs/          # Haskell compiler
+  miniaudio/        # Audio output for alda-midi's built-in synth
+  pforth/           # pForth (Forth interpreter)
+  pocketpy/         # Python interpreter
+  readerwriterqueue/  # Lock-free queue for libremidi's PipeWire backend
+  s7/               # Scheme interpreter
+  TinySoundFont/    # SoundFont synth for alda-midi
+  zstd-1.5.7/       # Compression for mhs-midi standalone variants
 docs/               # Per-language documentation
 tests/              # Test suite
 ```
 
 ## MIDI Playback
 
-All languages output MIDI via virtual ports. To hear sound, connect to a General MIDI synthesizer.
+All languages can create a virtual MIDI port or open an existing one. To hear sound, connect to a General MIDI synthesizer.
+
+### Opening a running synth
+
+Port lists show `client: port`. Start the synth, list the ports, then open the synth's port by name or index:
+
+```sh
+fluidsynth                                    # or: timidity -iA -x "soundfont /usr/share/sounds/sf2/FluidR3_GM.sf2"
+./build/alda_midi -l                          # 1: FLUID Synth (1234): Synth input port (1234:0)
+./build/alda_midi -o FLUID song.alda          # -o matches a substring of the label, case-sensitive
+```
+
+The other languages list ports with `midi-list`, `midi.list_ports()` or `(midi-list-ports)`, and open one by index. stack-midi also opens by name: `midi-open-as FLUID`.
 
 ### FluidSynth (Recommended)
 
@@ -462,7 +510,8 @@ python scripts/fluidsynth-gm.py ~/Music/sf2/FluidR3_GM.sf2
 
 # Run any midi-langs interpreter (in another terminal)
 ./build/alda_midi
-./build/forth_midi
+./build/stack_midi
+./build/pforth_midi
 ./build/lua_midi
 ```
 
@@ -487,7 +536,8 @@ Download a GM SoundFont like [FluidR3_GM.sf2](https://musical-artifacts.com/arti
 | Language | Docs |
 | ---------- | ------ |
 | alda-midi | [README](docs/alda-midi/README.md), [Language](docs/alda-midi/language-reference.md), [Examples](docs/alda-midi/examples.md) |
-| forth-midi | [README](docs/forth-midi/README.md), [API](docs/forth-midi/api-reference.md), [Tutorial](docs/forth-midi/tutorial.md) |
+| stack-midi | [README](docs/stack-midi/README.md), [API](docs/stack-midi/api-reference.md), [Tutorial](docs/stack-midi/tutorial.md) |
+| pforth-midi | [README](docs/pforth-midi/README.md) |
 | guile-midi | See s7-midi (compatible API) |
 | joy-midi | [README](docs/joy-midi/README.md), [Next Steps](docs/joy-midi/next-steps.md) |
 | lua-midi | [README](docs/lua-midi/README.md), [API](docs/lua-midi/api-reference.md), [Examples](docs/lua-midi/examples.md) |

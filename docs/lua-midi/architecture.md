@@ -412,9 +412,9 @@ This is preferred for:
 
 ## Comparison with Other Implementations
 
-| Aspect | lua-midi | s7-midi | pktpy-midi | forth-midi |
+| Aspect | lua-midi | s7-midi | pktpy-midi | stack-midi |
 | -------- | ---------- | --------- | ------------ | ------------ |
-| Language | Lua | Scheme | Python | Forth |
+| Language | Lua | Scheme | Python | Forth-like |
 | Paradigm | Imperative | Functional | Object-oriented | Stack-based |
 | FFI Style | luaL_newlib | s7_define_function | py_bindfunc | Direct C calls |
 | Custom Types | Userdata+metatable | s7_make_c_type | py_newtype | None |

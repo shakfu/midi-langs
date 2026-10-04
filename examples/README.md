@@ -5,8 +5,8 @@ Runnable examples demonstrating each language's unique strengths.
 ## Running Examples
 
 ```bash
-# Forth - concise stack-based notation
-./build/forth_midi examples/melody_forth.4th
+# stack-midi - concise stack-based notation
+./build/stack_midi examples/melody_stack.stk
 
 # Joy - algebraic composition with combinators
 ./build/joy_midi examples/algebraic_joy.joy
@@ -28,7 +28,7 @@ Runnable examples demonstrating each language's unique strengths.
 
 | File | Language | Key Features |
 | ------ | ---------- | -------------- |
-| `melody_forth.4th` | Forth | Concise notation, word definitions, dynamics |
+| `melody_stack.stk` | stack-midi | Concise notation, word definitions, dynamics |
 | `algebraic_joy.joy` | Joy | Parse-time notes, combinators, `def`, `play`/`chord` |
 | `concurrent_lua.lua` | Lua | Coroutines, `spawn`/`run`, `play()` helpers |
 | `generative_pktpy.py` | PocketPy | Generators, `yield` pattern, concurrent voices |
@@ -39,4 +39,4 @@ Runnable examples demonstrating each language's unique strengths.
 
 - Examples use fast tempos (480 BPM) for quick execution
 - Connect a MIDI synthesizer or DAW to hear output
-- Use `midi-list` (Forth) or equivalent to find hardware ports
+- Use `midi-list` (stack-midi) or equivalent to find hardware ports

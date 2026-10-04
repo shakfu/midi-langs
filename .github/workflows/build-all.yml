@@ -65,7 +65,7 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          cp build/forth_midi artifacts/
+          cp build/stack_midi artifacts/
           cp build/joy_midi artifacts/
           cp build/lua_midi artifacts/
           cp build/pktpy_midi artifacts/
@@ -107,8 +107,8 @@ jobs:
       - name: Configure CMake
         run: cmake -B build -DBUILD_MHS_MIDI=OFF
 
-      - name: Build forth_midi
-        run: cmake --build build --config Release --target forth_midi
+      - name: Build stack_midi
+        run: cmake --build build --config Release --target stack_midi
 
       - name: Build lua_midi
         run: cmake --build build --config Release --target lua_midi
@@ -125,8 +125,8 @@ jobs:
       - name: Build joy_midi
         run: cmake --build build --config Release --target joy_midi
 
-      - name: Build test_forth_midi_unit
-        run: cmake --build build --config Release --target test_forth_midi_unit
+      - name: Build test_stack_midi_unit
+        run: cmake --build build --config Release --target test_stack_midi_unit
 
       - name: List built executables
         run: |
@@ -140,7 +140,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          cp build/Release/forth_midi.exe artifacts/ || true
+          cp build/Release/stack_midi.exe artifacts/ || true
           cp build/Release/joy_midi.exe artifacts/ || true
           cp build/Release/lua_midi.exe artifacts/ || true
           cp build/Release/pktpy_midi.exe artifacts/ || true

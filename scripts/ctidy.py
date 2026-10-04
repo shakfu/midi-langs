@@ -104,7 +104,7 @@ def main() -> int:
 
     projects = [
         ("alda-midi", ["alda-midi/include"], ["TinySoundFont", "miniaudio"]),
-        ("forth-midi", ["forth-midi/include"], []),
+        ("stack-midi", ["stack-midi/include"], []),
         ("lua-midi", ["lua-midi/include"], ["lua-5.5.0/src"]),
         ("s7-midi", ["s7-midi/include"], ["s7"]),
         ("pktpy-midi", ["pktpy-midi/include"], ["pocketpy"]),

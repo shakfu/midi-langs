@@ -62,7 +62,7 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          cp build/forth_midi artifacts/
+          cp build/stack_midi artifacts/
           cp build/joy_midi artifacts/
           cp build/lua_midi artifacts/
           cp build/pktpy_midi artifacts/

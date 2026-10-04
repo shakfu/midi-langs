@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(midi_langs_project VERSION 1.0.0 LANGUAGES C CXX)
+project(midi_langs_project VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -84,7 +84,11 @@ add_subdirectory(thirdparty/libuv)
 add_subdirectory(projects/common)
 
 # Add project subdirectories
-add_subdirectory(projects/forth-midi)
+add_subdirectory(projects/stack-midi)
+# pforth-midi has not been built on Windows yet
+if(NOT WIN32)
+    add_subdirectory(projects/pforth-midi)
+endif()
 if(BUILD_MHS_MIDI)
     add_subdirectory(projects/mhs-midi)
 endif()
@@ -98,9 +102,12 @@ add_subdirectory(projects/guile-midi)
 # ============================================
 # Alias targets for consistent naming
 # ============================================
-# Provides hyphenated target names (e.g., forth-midi instead of forth_midi)
+# Provides hyphenated target names (e.g., stack-midi instead of stack_midi)
 
-add_custom_target(forth-midi DEPENDS forth_midi)
+add_custom_target(stack-midi DEPENDS stack_midi)
+if(TARGET pforth_midi)
+    add_custom_target(pforth-midi DEPENDS pforth_midi)
+endif()
 add_custom_target(lua-midi DEPENDS lua_midi)
 add_custom_target(pktpy-midi DEPENDS pktpy_midi)
 add_custom_target(s7-midi DEPENDS s7_midi)
@@ -114,11 +121,14 @@ endif()
 
 # Convenience target to build all midi-langs
 add_custom_target(all-midi-langs
-    DEPENDS forth_midi lua_midi pktpy_midi s7_midi alda_midi joy_midi
+    DEPENDS stack_midi lua_midi pktpy_midi s7_midi alda_midi joy_midi
 )
 # Add guile_midi to all-midi-langs if available
 if(TARGET guile_midi)
     add_dependencies(all-midi-langs guile_midi)
+endif()
+if(TARGET pforth_midi)
+    add_dependencies(all-midi-langs pforth_midi)
 endif()
 if(BUILD_MHS_MIDI)
     add_dependencies(all-midi-langs mhs-midi)
