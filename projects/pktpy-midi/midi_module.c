@@ -197,17 +197,15 @@ static bool midi_list_ports(int argc, py_StackRef argv) {
 
     // Build list
     py_newlist(py_retval());
+    char label[256];
     for (int i = 0; i < out_port_count; i++) {
-        const char* name = NULL;
-        size_t len = 0;
-        if (libremidi_midi_out_port_name(out_ports[i], &name, &len) == 0) {
-            // Create tuple on temp stack, get data pointer
-            py_TValue tmp;
-            py_Ref p = py_newtuple(&tmp, 2);
-            py_newint(&p[0], i);
-            py_newstr(&p[1], name);
-            py_list_append(py_retval(), &tmp);
-        }
+        midi_port_label(out_ports[i], label, sizeof(label));
+        // Create tuple on temp stack, get data pointer
+        py_TValue tmp;
+        py_Ref p = py_newtuple(&tmp, 2);
+        py_newint(&p[0], i);
+        py_newstr(&p[1], label);
+        py_list_append(py_retval(), &tmp);
     }
     return true;
 }

@@ -1,6 +1,7 @@
 /* midi_core.c - MIDI I/O operations for MIDI Forth interpreter */
 
 #include "forth_midi.h"
+#include "midi_open.h"
 
 /* All globals now accessed via g_ctx macros defined in forth_midi.h */
 
@@ -151,12 +152,10 @@ void op_midi_output_list(Stack* s) {
     if (out_port_count == 0) {
         printf("  (none - use midi-output-virtual to create a virtual port)\n");
     } else {
+        char label[256];
         for (int i = 0; i < out_port_count; i++) {
-            const char* name = NULL;
-            size_t len = 0;
-            if (libremidi_midi_out_port_name(out_ports[i], &name, &len) == 0) {
-                printf("  %d: %s\n", i, name);
-            }
+            midi_port_label(out_ports[i], label, sizeof(label));
+            printf("  %d: %s\n", i, label);
         }
     }
 }
@@ -206,10 +205,9 @@ void op_midi_output_open(Stack* s) {
         return;
     }
 
-    const char* name = NULL;
-    size_t len = 0;
-    libremidi_midi_out_port_name(out_ports[port_idx], &name, &len);
-    printf("Opened MIDI output: %s\n", name);
+    char label[256];
+    midi_port_label(out_ports[port_idx], label, sizeof(label));
+    printf("Opened MIDI output: %s\n", label);
 }
 
 /* Helper to open port by name (searches hardware ports first, then creates virtual) */
@@ -224,42 +222,40 @@ int open_virtual_port(const char* name) {
     out_port_count = 0;
     libremidi_midi_observer_enumerate_output_ports(midi_observer, NULL, on_output_port_found);
 
-    /* Search for substring match in hardware port names */
+    /* Search for substring match in "device: port" labels */
+    char label[256];
     for (int i = 0; i < out_port_count; i++) {
-        const char* port_name = NULL;
-        size_t len = 0;
-        if (libremidi_midi_out_port_name(out_ports[i], &port_name, &len) == 0) {
-            if (strstr(port_name, name) != NULL) {
-                /* Found a match - open this hardware port */
-                if (midi_out != NULL) {
-                    libremidi_midi_out_free(midi_out);
-                    midi_out = NULL;
-                }
-
-                libremidi_midi_configuration midi_conf;
-                if (libremidi_midi_configuration_init(&midi_conf) != 0) {
-                    printf("Failed to init MIDI config\n");
-                    return -1;
-                }
-                midi_conf.version = MIDI1;
-                midi_conf.out_port = out_ports[i];
-
-                libremidi_api_configuration api_conf;
-                if (libremidi_midi_api_configuration_init(&api_conf) != 0) {
-                    printf("Failed to init API config\n");
-                    return -1;
-                }
-                api_conf.configuration_type = Output;
-                api_conf.api = UNSPECIFIED;
-
-                int ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
-                if (ret != 0) {
-                    printf("Failed to open MIDI output: %d\n", ret);
-                    return ret;
-                }
-                printf("Opened MIDI output: %s\n", port_name);
-                return 0;
+        midi_port_label(out_ports[i], label, sizeof(label));
+        if (strstr(label, name) != NULL) {
+            /* Found a match - open this hardware port */
+            if (midi_out != NULL) {
+                libremidi_midi_out_free(midi_out);
+                midi_out = NULL;
             }
+
+            libremidi_midi_configuration midi_conf;
+            if (libremidi_midi_configuration_init(&midi_conf) != 0) {
+                printf("Failed to init MIDI config\n");
+                return -1;
+            }
+            midi_conf.version = MIDI1;
+            midi_conf.out_port = out_ports[i];
+
+            libremidi_api_configuration api_conf;
+            if (libremidi_midi_api_configuration_init(&api_conf) != 0) {
+                printf("Failed to init API config\n");
+                return -1;
+            }
+            api_conf.configuration_type = Output;
+            api_conf.api = UNSPECIFIED;
+
+            int ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
+            if (ret != 0) {
+                printf("Failed to open MIDI output: %d\n", ret);
+                return ret;
+            }
+            printf("Opened MIDI output: %s\n", label);
+            return 0;
         }
     }
 

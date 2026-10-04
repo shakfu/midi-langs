@@ -149,6 +149,36 @@ echo "Test 12: REPL quit command..."
 OUTPUT=$(echo "quit" | "$ALDA_MIDI" 2>&1 || true)
 echo "  PASS: REPL quit command works"
 
+# Test 13: -l shows ALSA client names, and -o matches them
+echo "Test 13: Port labels include client name..."
+if [ -c /dev/snd/seq ] && command -v aseqdump > /dev/null; then
+    DUMP_LOG=$(mktemp)
+    stdbuf -oL aseqdump > "$DUMP_LOG" 2>&1 &
+    DUMP_PID=$!
+    for _ in $(seq 1 50); do
+        "$ALDA_MIDI" -l | grep -q "aseqdump: aseqdump" && break
+        sleep 0.1
+    done
+    if ! "$ALDA_MIDI" -l | grep -q "aseqdump: aseqdump"; then
+        kill "$DUMP_PID"; rm -f "$DUMP_LOG"
+        echo "  FAIL: -l does not show 'aseqdump: aseqdump'"
+        exit 1
+    fi
+    "$ALDA_MIDI" -o "aseqdump: " "$SCRIPT_DIR/alda/basic.alda" > /dev/null 2>&1
+    sleep 0.2
+    kill "$DUMP_PID"; wait "$DUMP_PID" 2>/dev/null || true
+    if grep -q "Note on" "$DUMP_LOG"; then
+        rm -f "$DUMP_LOG"
+        echo "  PASS: -o matched client name and sent notes"
+    else
+        rm -f "$DUMP_LOG"
+        echo "  FAIL: no notes reached aseqdump via -o 'aseqdump: '"
+        exit 1
+    fi
+else
+    echo "  SKIP: no ALSA sequencer or aseqdump"
+fi
+
 # Cleanup
 rm -f /tmp/chords.alda /tmp/voices.alda /tmp/dynamics.alda
 rm -f /tmp/accidentals.alda /tmp/verify_accidentals.alda

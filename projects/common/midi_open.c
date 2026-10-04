@@ -2,6 +2,7 @@
 
 #include "midi_open.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static char g_last_error[256];
@@ -31,4 +32,19 @@ int midi_out_open(const libremidi_midi_configuration* conf,
 
 const char* midi_out_last_error(void) {
     return g_last_error;
+}
+
+void midi_port_label(const libremidi_midi_out_port* port, char* buf, size_t size) {
+    const char* dev = NULL;
+    const char* name = NULL;
+    size_t dev_len = 0, name_len = 0;
+    if (libremidi_midi_out_port_name(port, &name, &name_len) != 0) {
+        name = "";
+        name_len = 0;
+    }
+    if (libremidi_midi_out_port_device_name(port, &dev, &dev_len) == 0 && dev_len > 0) {
+        snprintf(buf, size, "%.*s: %.*s", (int)dev_len, dev, (int)name_len, name);
+    } else {
+        snprintf(buf, size, "%.*s", (int)name_len, name);
+    }
 }

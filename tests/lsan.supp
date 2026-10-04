@@ -1,8 +1,9 @@
 # LeakSanitizer suppressions for vendored code, used by `make test-asan`.
-# Each entry is allocated once and held until exit.
 
-# MicroHs: decompressed bundle buffer, never freed (src/runtime/bfile.c)
+# MicroHs 0.15: closeb_lz77 frees its buffer only in write mode, so each
+# compressed read leaks it. A real per-load leak, left until MicroHs is
+# upgraded; psnd patches the same bug in 0.16 (closeb_lzma).
 leak:lz77d
 
-# s7: permanent strings made by s7_init
+# s7: permanent strings made by s7_init, deliberately outside all s7 GCs
 leak:make_permanent_string

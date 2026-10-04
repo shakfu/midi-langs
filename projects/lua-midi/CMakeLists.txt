@@ -70,7 +70,7 @@ else()
 endif()
 
 # Lua requires libuv for async scheduler
-target_link_libraries(lua_midi PRIVATE music_theory midi_file uv_a)
+target_link_libraries(lua_midi PRIVATE music_theory midi_file midi_open uv_a)
 
 # Platform-specific dependencies
 if(APPLE)

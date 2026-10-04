@@ -209,6 +209,11 @@ LIBREMIDI_EXPORT
 int libremidi_midi_out_port_name(
     const libremidi_midi_out_port* port, const char** name, size_t* len);
 
+/// midi-langs patch: device_name (ALSA: client name; CoreMIDI: model)
+LIBREMIDI_EXPORT
+int libremidi_midi_out_port_device_name(
+    const libremidi_midi_out_port* port, const char** name, size_t* len);
+
 /// Observer API
 LIBREMIDI_EXPORT
 int libremidi_midi_observer_new(

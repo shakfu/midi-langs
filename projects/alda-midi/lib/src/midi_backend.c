@@ -7,6 +7,7 @@
 
 #include "alda/midi_backend.h"
 #include "alda/tsf_backend.h"
+#include "midi_open.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -137,12 +138,10 @@ void alda_midi_list_ports(AldaContext* ctx) {
     if (ctx->out_port_count == 0) {
         printf("  (none - use virtual port)\n");
     } else {
+        char label[256];
         for (int i = 0; i < ctx->out_port_count; i++) {
-            const char* name = NULL;
-            size_t len = 0;
-            if (libremidi_midi_out_port_name(ctx->out_ports[i], &name, &len) == 0) {
-                printf("  %d: %s\n", i, name);
-            }
+            midi_port_label(ctx->out_ports[i], label, sizeof(label));
+            printf("  %d: %s\n", i, label);
         }
     }
 }
@@ -195,11 +194,10 @@ int alda_midi_open_port(AldaContext* ctx, int port_idx) {
         return -1;
     }
 
-    const char* name = NULL;
-    size_t len = 0;
-    libremidi_midi_out_port_name(ctx->out_ports[port_idx], &name, &len);
     if (ctx->verbose_mode) {
-        printf("Opened MIDI output: %s\n", name);
+        char label[256];
+        midi_port_label(ctx->out_ports[port_idx], label, sizeof(label));
+        printf("Opened MIDI output: %s\n", label);
     }
 
     return 0;
@@ -260,15 +258,12 @@ int alda_midi_open_by_name(AldaContext* ctx, const char* name) {
 
     alda_midi_init_observer(ctx);
 
-    /* Search for substring match in hardware port names */
+    /* Search for substring match in "device: port" labels, as -l prints them */
+    char label[256];
     for (int i = 0; i < ctx->out_port_count; i++) {
-        const char* port_name = NULL;
-        size_t len = 0;
-        if (libremidi_midi_out_port_name(ctx->out_ports[i], &port_name, &len) == 0) {
-            if (strstr(port_name, name) != NULL) {
-                /* Found a match */
-                return alda_midi_open_port(ctx, i);
-            }
+        midi_port_label(ctx->out_ports[i], label, sizeof(label));
+        if (strstr(label, name) != NULL) {
+            return alda_midi_open_port(ctx, i);
         }
     }
 

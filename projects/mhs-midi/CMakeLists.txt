@@ -45,7 +45,7 @@ target_include_directories(midi_ffi PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/thirdparty/libremidi/include
 )
-target_link_libraries(midi_ffi PUBLIC music_theory midi_file)
+target_link_libraries(midi_ffi PUBLIC music_theory midi_file midi_open)
 
 # Platform-specific dependencies for midi_ffi
 if(APPLE)
@@ -197,6 +197,7 @@ endif()
 target_link_libraries(mhs-midi PRIVATE
     music_theory
     midi_file
+    midi_open
 )
 
 # Platform-specific dependencies
@@ -516,6 +517,7 @@ function(add_mhs_standalone_variant TARGET_NAME EMBEDDED_HEADER)
     target_link_libraries(${TARGET_NAME} PRIVATE
         music_theory
         midi_file
+        midi_open
         m
     )
 

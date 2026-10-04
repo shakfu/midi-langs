@@ -44,6 +44,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 #include "scm_prelude.h"
 #include "music_theory.h"
 #include "midi_file.h"
+#include "midi_open.h"
 #include "scheduler.h"
 
 #define MAX_PORTS 64
@@ -248,13 +249,11 @@ static SCM g_midi_list_ports(void) {
 
     /* Build list */
     SCM result = SCM_EOL;
+    char label[256];
     for (int i = out_port_count - 1; i >= 0; i--) {
-        const char* name = NULL;
-        size_t len = 0;
-        if (libremidi_midi_out_port_name(out_ports[i], &name, &len) == 0) {
-            SCM entry = scm_list_2(scm_from_int(i), scm_from_utf8_string(name));
-            result = scm_cons(entry, result);
-        }
+        midi_port_label(out_ports[i], label, sizeof(label));
+        SCM entry = scm_list_2(scm_from_int(i), scm_from_utf8_string(label));
+        result = scm_cons(entry, result);
     }
     return result;
 }

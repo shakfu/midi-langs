@@ -16,6 +16,8 @@ set(LIBALDA_SOURCES
     src/finalize.c
     src/attributes.c
     src/async.c
+    # Compiled in, not linked: the midi_open target is not in aldaTargets
+    ${CMAKE_SOURCE_DIR}/projects/common/midi_open.c
 )
 
 set(LIBALDA_HEADERS
@@ -51,6 +53,7 @@ target_include_directories(alda
     PRIVATE
         ${CMAKE_SOURCE_DIR}/thirdparty/TinySoundFont
         ${CMAKE_SOURCE_DIR}/thirdparty/miniaudio
+        ${CMAKE_SOURCE_DIR}/projects/common
 )
 
 # Link dependencies

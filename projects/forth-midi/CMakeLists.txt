@@ -19,7 +19,7 @@ set(FORTH_MIDI_CORE_SOURCES
 
 # Create a static library for unit testing
 add_library(forth_midi_lib STATIC ${FORTH_MIDI_CORE_SOURCES})
-target_link_libraries(forth_midi_lib PUBLIC music_theory midi_file uv_a)
+target_link_libraries(forth_midi_lib PUBLIC music_theory midi_file midi_open uv_a)
 target_include_directories(forth_midi_lib PUBLIC ${CMAKE_SOURCE_DIR}/thirdparty/libuv/include)
 
 # Main executable

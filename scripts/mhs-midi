@@ -140,6 +140,7 @@ def cmd_compile(args, paths):
             str(paths['midi_src'] / 'midi_ffi.c'),
             str(paths['project'] / 'build' / 'projects' / 'common' / 'libmusic_theory.a'),
             str(paths['project'] / 'build' / 'projects' / 'common' / 'libmidi_file.a'),
+            str(paths['project'] / 'build' / 'projects' / 'common' / 'libmidi_open.a'),
             str(paths['libremidi']),
             '-lm',
             '-lstdc++',

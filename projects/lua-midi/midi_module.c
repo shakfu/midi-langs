@@ -46,6 +46,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 #include "lua_prelude.h"
 #include "music_theory.h"
 #include "midi_file.h"
+#include "midi_open.h"
 
 #define MAX_PORTS 64
 #define MIDI_OUT_MT "MidiOut"
@@ -251,17 +252,15 @@ static int l_list_ports(lua_State *L) {
 
     /* Build table */
     lua_newtable(L);
+    char label[256];
     for (int i = 0; i < out_port_count; i++) {
-        const char* name = NULL;
-        size_t len = 0;
-        if (libremidi_midi_out_port_name(out_ports[i], &name, &len) == 0) {
-            lua_newtable(L);
-            lua_pushinteger(L, i);
-            lua_rawseti(L, -2, 1);
-            lua_pushstring(L, name);
-            lua_rawseti(L, -2, 2);
-            lua_rawseti(L, -2, i + 1);
-        }
+        midi_port_label(out_ports[i], label, sizeof(label));
+        lua_newtable(L);
+        lua_pushinteger(L, i);
+        lua_rawseti(L, -2, 1);
+        lua_pushstring(L, label);
+        lua_rawseti(L, -2, 2);
+        lua_rawseti(L, -2, i + 1);
     }
     return 1;
 }

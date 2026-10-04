@@ -78,6 +78,7 @@ if(GUILE_STATIC)
         iconv        # Dynamic - system library
         music_theory
         midi_file
+        midi_open
         uv_a
     )
 else()
@@ -86,6 +87,7 @@ else()
         ${GUILE_LIBRARIES}
         music_theory
         midi_file
+        midi_open
         uv_a
     )
 endif()

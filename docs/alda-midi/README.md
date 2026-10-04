@@ -84,7 +84,7 @@ Type `help` for commands, `quit` or Ctrl-D to exit.
 | `-v, --verbose` | Enable verbose output |
 | `-l, --list` | List available MIDI ports |
 | `-p, --port N` | Use hardware port by index |
-| `-o, --output NAME` | Use port matching name |
+| `-o, --output NAME` | Use first port whose `-l` label contains NAME (case-sensitive) |
 | `--virtual NAME` | Create virtual port with name |
 | `--no-sleep` | Disable timing (for testing) |
 | `-s, --sequential` | Use sequential playback mode |
@@ -93,6 +93,20 @@ Type `help` for commands, `quit` or Ctrl-D to exit.
 By default, alda-midi connects to the first available MIDI port (or creates a virtual port if none exist) and uses concurrent mode for polyphonic playback.
 
 Use `-sf` with a SoundFont file to use the built-in synthesizer instead of MIDI output.
+
+`-l` labels ports as `client: port`. To play through FluidSynth or TiMidity, start the synth, then select it by client name:
+
+```bash
+# terminal 1: start one synth
+fluidsynth
+timidity -iA -x "soundfont /usr/share/sounds/sf2/FluidR3_GM.sf2"
+
+# terminal 2
+./build/alda_midi -o FLUID song.alda
+./build/alda_midi -o "TiMidity port 0" song.alda
+```
+
+Without `-x "soundfont ..."`, TiMidity uses the patch set in `/etc/timidity/timidity.cfg`.
 
 ## REPL Commands
 

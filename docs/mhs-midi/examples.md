@@ -383,8 +383,8 @@ MIDI open
 > import MidiPerform
 > ports
 2 MIDI port(s):
-  0: IAC Driver Bus 1
-  1: USB MIDI Device
+  0: Midi Through: Midi Through Port-0
+  1: FLUID Synth (1234): Synth input port (1234:0)
 ```
 
 ---

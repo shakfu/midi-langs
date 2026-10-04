@@ -6,7 +6,7 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
-- **`make test-asan`**: runs the full suite with ASan and UBSan in `build-asan/`. A separate build dir keeps the cached `ENABLE_SANITIZERS` out of `make test`, which `build-debug` does not. `tests/lsan.supp` suppresses exit-time leaks in vendored MicroHs and s7. `joy_midi_timing` still fails on joy parser leaks.
+- **`make test-asan`**: runs the full suite with ASan and UBSan in `build-asan/`. A separate build dir keeps the cached `ENABLE_SANITIZERS` out of `make test`, which `build-debug` does not. `tests/lsan.supp` suppresses s7's permanent strings and a MicroHs per-load leak that awaits the MicroHs upgrade. `joy_midi_timing` still fails on joy parser leaks.
 
 - **alda-midi conformance tests**: `alda_conformance_examples` compares the output of all 40 examples with Alda 2.4.7's `alda export`, and `alda_midi_test_suite` now does the same for the 20 shared-suite scores. Both pass. Method and deviations: `docs/alda-midi/conformance.md`. psnd's scanner, parser, fuzz and interpreter unit tests are ported as well.
 
@@ -109,6 +109,8 @@ All notable changes to midi-langs are documented in this file.
 
 ### Fixed
 
+- **mhs-midi `midiListPorts` found no ports**: `midi_init` left the observer's `track_*` flags at the C API's zero values, so libremidi tracked nothing. It now tracks hardware, virtual and other ports, as the other bindings do.
+
 - **mhs-midi executable-path lookup copied a string onto itself**: `dirname()` may return a pointer into its argument, so the following `strncpy` had overlapping arguments, which is undefined behaviour. ASan aborted `mhs_midi_test_suite` on it.
 
 - **alda-midi interpreter ported from psnd 0.4.0**: it fixes chords, voices, rests, crams, per-part tempo, instrument names, rounding and channel allocation, and `(key-sig! ...)` now applies to parts declared after it. `docs/alda-midi/conformance.md` points to psnd's list of causes. **Most scores sound different**: every channel now starts at Alda's pan and track volume, and the default velocity is 69 (`mf`), not 80.
@@ -140,6 +142,8 @@ All notable changes to midi-langs are documented in this file.
   - Added automated timing verification test (`joy_midi_timing` in ctest)
 
 ### Changed
+
+- **Port lists show client names in every language**: ports print as `client: port`, e.g. `FLUID Synth (1234): Synth input port (1234:0)`. Before, only the port name was printed, and FluidSynth's port name does not identify the synth. alda `-o` and forth `midi-open-as` match against the full label, so `-o FLUID` selects FluidSynth. The client name comes from `libremidi_midi_out_port_device_name`, a local addition to vendored libremidi; its C API exposed only `port_name`. `midi_port_label` in `projects/common/midi_open.c` builds the label.
 
 - **libremidi PipeWire backend is opt-in**: `-DMIDI_LANGS_PIPEWIRE=ON` enables it, and configure fails if the PipeWire headers are missing. It uses the vendored `thirdparty/readerwriterqueue`. Before this change, Linux configure always fetched readerwriterqueue from GitHub `master`, even when PipeWire was absent and the backend was skipped.
 

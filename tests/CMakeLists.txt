@@ -220,6 +220,17 @@ set_tests_properties(mhs_midi_test_suite PROPERTIES
     LABELS "integration"
 )
 
+# Every binding lists ports as "client: port"; skips without an ALSA sequencer
+add_test(
+    NAME port_labels
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_port_labels.sh ${CMAKE_BINARY_DIR}
+)
+
+set_tests_properties(port_labels PROPERTIES
+    TIMEOUT 180
+    LABELS "integration;midi"
+)
+
 # Golden .4th test programs for forth_midi
 add_test(
     NAME forth_midi_golden_basic

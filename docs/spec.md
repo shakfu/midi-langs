@@ -22,7 +22,7 @@ Implementations may use the shared `music_theory` C library or implement these f
 
 | Function | Description |
 | ---------- | ------------- |
-| `list-ports` | List available MIDI output ports with indices and names |
+| `list-ports` | List available MIDI output ports with indices and `client: port` labels |
 | `open` | Open a virtual MIDI port with default name |
 | `open(name)` | Open a virtual MIDI port with custom name |
 | `open(index)` | Open a hardware port by index |

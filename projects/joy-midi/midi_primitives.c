@@ -5,6 +5,7 @@
 #include "joy_runtime.h"
 #include "midi_primitives.h"
 #include "music_theory.h"
+#include "midi_open.h"
 #include "music_context.h"
 #include "music_notation.h"
 #include <libremidi/libremidi-c.h>
@@ -116,12 +117,10 @@ void midi_list_(JoyContext* ctx) {
     if (out_port_count == 0) {
         printf("  (none - use midi-virtual to create a virtual port)\n");
     } else {
+        char label[256];
         for (int i = 0; i < out_port_count; i++) {
-            const char* name = NULL;
-            size_t len = 0;
-            if (libremidi_midi_out_port_name(out_ports[i], &name, &len) == 0) {
-                printf("  %d: %s\n", i, name);
-            }
+            midi_port_label(out_ports[i], label, sizeof(label));
+            printf("  %d: %s\n", i, label);
         }
     }
 }
@@ -206,10 +205,9 @@ void midi_open_(JoyContext* ctx) {
         return;
     }
 
-    const char* name = NULL;
-    size_t len = 0;
-    libremidi_midi_out_port_name(out_ports[port_idx], &name, &len);
-    printf("Opened MIDI output: %s\n", name);
+    char label[256];
+    midi_port_label(out_ports[port_idx], label, sizeof(label));
+    printf("Opened MIDI output: %s\n", label);
 }
 
 void midi_close_(JoyContext* ctx) {

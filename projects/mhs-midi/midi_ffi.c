@@ -2,6 +2,7 @@
 #include "midi_ffi.h"
 #include "music_theory.h"
 #include "midi_file.h"
+#include "midi_open.h"
 #include <libremidi/libremidi-c.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -99,14 +100,8 @@ static void port_callback(void* ctx, const libremidi_midi_out_port* port) {
         return;
     }
 
-    /* Get the port name */
-    const char* name = NULL;
-    size_t len = 0;
-    if (libremidi_midi_out_port_name(port, &name, &len) == 0 && name) {
-        size_t copy_len = len < MAX_PORT_NAME - 1 ? len : MAX_PORT_NAME - 1;
-        memcpy(g_port_names[g_port_count], name, copy_len);
-        g_port_names[g_port_count][copy_len] = '\0';
-    } else {
+    midi_port_label(port, g_port_names[g_port_count], MAX_PORT_NAME);
+    if (g_port_names[g_port_count][0] == '\0') {
         snprintf(g_port_names[g_port_count], MAX_PORT_NAME, "Port %d", g_port_count);
     }
 
@@ -119,6 +114,9 @@ int midi_init(void) {
     /* Initialize observer configuration */
     libremidi_observer_configuration obs_conf;
     libremidi_midi_observer_configuration_init(&obs_conf);
+    obs_conf.track_hardware = true;
+    obs_conf.track_virtual = true;
+    obs_conf.track_any = true;
 
     /* Initialize API configuration */
     libremidi_api_configuration api_conf;

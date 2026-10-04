@@ -152,6 +152,18 @@ int libremidi_midi_out_port_name(
   return 0;
 }
 
+int libremidi_midi_out_port_device_name(
+    const libremidi_midi_out_port* port, const char** name, size_t* len)
+{
+  if (!port || !name || !len)
+    return -EINVAL;
+
+  auto& p = *reinterpret_cast<const libremidi::output_port*>(port);
+  *name = p.device_name.data();
+  *len = p.device_name.size();
+  return 0;
+}
+
 int libremidi_midi_observer_new(
     const libremidi_observer_configuration* c, libremidi_api_configuration* api,
     libremidi_midi_observer_handle** out)

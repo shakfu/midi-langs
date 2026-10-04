@@ -14,7 +14,7 @@ List available MIDI output ports. Returns list of `(index name)` pairs.
 
 ```scheme
 (midi-list-ports)
-; => ((0 "IAC Driver Bus 1") (1 "USB MIDI Device"))
+; => ((0 "Midi Through: Midi Through Port-0") (1 "FLUID Synth (1234): Synth input port (1234:0)"))
 ```
 
 ### midi-open

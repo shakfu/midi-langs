@@ -13,7 +13,7 @@ add_executable(joy_midi
 )
 
 # Link against joy_core (the standalone Joy interpreter)
-target_link_libraries(joy_midi PRIVATE joy_core music_theory libremidi)
+target_link_libraries(joy_midi PRIVATE joy_core music_theory midi_open libremidi)
 
 # Include paths
 target_include_directories(joy_midi PRIVATE

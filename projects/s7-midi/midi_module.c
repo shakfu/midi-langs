@@ -250,15 +250,13 @@ static s7_pointer g_midi_list_ports(s7_scheme *sc, s7_pointer args) {
 
     /* Build list */
     s7_pointer result = s7_nil(sc);
+    char label[256];
     for (int i = out_port_count - 1; i >= 0; i--) {
-        const char* name = NULL;
-        size_t len = 0;
-        if (libremidi_midi_out_port_name(out_ports[i], &name, &len) == 0) {
-            s7_pointer entry = s7_list(sc, 2,
-                s7_make_integer(sc, i),
-                s7_make_string(sc, name));
-            result = s7_cons(sc, entry, result);
-        }
+        midi_port_label(out_ports[i], label, sizeof(label));
+        s7_pointer entry = s7_list(sc, 2,
+            s7_make_integer(sc, i),
+            s7_make_string(sc, label));
+        result = s7_cons(sc, entry, result);
     }
     return result;
 }
