@@ -6,6 +6,8 @@ Ideas for common features and enhancements to all implementations.
 
 ## High
 
+- [ ] test all documentation examples
+
 ## Medium
 
 ## Low
