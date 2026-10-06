@@ -30,7 +30,7 @@ void midi_init_observer(void) {
     libremidi_observer_configuration observer_conf;
     ret = libremidi_midi_observer_configuration_init(&observer_conf);
     if (ret != 0) {
-        printf("Failed to init observer config: %d\n", ret);
+        stack_error("Failed to init observer config: %d", ret);
         return;
     }
 
@@ -41,16 +41,16 @@ void midi_init_observer(void) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) {
-        printf("Failed to init api config: %d\n", ret);
+        stack_error("Failed to init api config: %d", ret);
         return;
     }
 
     api_conf.configuration_type = Observer;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_observer_new(&observer_conf, &api_conf, &midi_observer);
     if (ret != 0) {
-        printf("Failed to create MIDI observer: %d\n", ret);
+        stack_error("Failed to create MIDI observer: %d", ret);
         return;
     }
 
@@ -58,17 +58,26 @@ void midi_init_observer(void) {
     out_port_count = 0;
     ret = libremidi_midi_observer_enumerate_output_ports(midi_observer, NULL, on_output_port_found);
     if (ret != 0) {
-        printf("Failed to enumerate ports: %d\n", ret);
+        stack_error("Failed to enumerate ports: %d", ret);
     }
 }
 
 /* Cleanup MIDI observer */
+/* Free the output after stopping background playback, whose thread sends to it */
+static void free_midi_out(void) {
+    if (midi_out == NULL) return;
+    if (async_player_is_playing()) {
+        async_player_stop_all();
+    }
+    libremidi_midi_out_free(midi_out);
+    midi_out = NULL;
+}
+
 void midi_cleanup_observer(void) {
     /* Cleanup output */
     if (midi_out != NULL) {
         op_all_notes_off(NULL);
-        libremidi_midi_out_free(midi_out);
-        midi_out = NULL;
+        free_midi_out();
     }
 
     for (int i = 0; i < out_port_count; i++) {
@@ -167,22 +176,19 @@ void op_midi_output_open(Stack* s) {
     midi_init_observer();
 
     if (port_idx < 0 || port_idx >= out_port_count) {
-        printf("Invalid port index: %d (have %d ports)\n", port_idx, out_port_count);
+        stack_error("Invalid port index: %d (have %d ports)", port_idx, out_port_count);
         return;
     }
 
     /* Close existing output if open */
-    if (midi_out != NULL) {
-        libremidi_midi_out_free(midi_out);
-        midi_out = NULL;
-    }
+    free_midi_out();
 
     int ret = 0;
 
     libremidi_midi_configuration midi_conf;
     ret = libremidi_midi_configuration_init(&midi_conf);
     if (ret != 0) {
-        printf("Failed to init MIDI config\n");
+        stack_error("Failed to init MIDI config");
         return;
     }
 
@@ -192,16 +198,16 @@ void op_midi_output_open(Stack* s) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) {
-        printf("Failed to init API config\n");
+        stack_error("Failed to init API config");
         return;
     }
 
     api_conf.configuration_type = Output;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
     if (ret != 0) {
-        printf("Failed to open MIDI output: %d\n", ret);
+        stack_error("Failed to open MIDI output: %d", ret);
         return;
     }
 
@@ -228,14 +234,11 @@ int open_virtual_port(const char* name) {
         midi_port_label(out_ports[i], label, sizeof(label));
         if (strstr(label, name) != NULL) {
             /* Found a match - open this hardware port */
-            if (midi_out != NULL) {
-                libremidi_midi_out_free(midi_out);
-                midi_out = NULL;
-            }
+            free_midi_out();
 
             libremidi_midi_configuration midi_conf;
             if (libremidi_midi_configuration_init(&midi_conf) != 0) {
-                printf("Failed to init MIDI config\n");
+                stack_error("Failed to init MIDI config");
                 return -1;
             }
             midi_conf.version = MIDI1;
@@ -243,15 +246,15 @@ int open_virtual_port(const char* name) {
 
             libremidi_api_configuration api_conf;
             if (libremidi_midi_api_configuration_init(&api_conf) != 0) {
-                printf("Failed to init API config\n");
+                stack_error("Failed to init API config");
                 return -1;
             }
             api_conf.configuration_type = Output;
-            api_conf.api = UNSPECIFIED;
+            api_conf.api = midi_backend_api();
 
             int ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
             if (ret != 0) {
-                printf("Failed to open MIDI output: %d\n", ret);
+                stack_error("Failed to open MIDI output: %d", ret);
                 return ret;
             }
             printf("Opened MIDI output: %s\n", label);
@@ -260,17 +263,14 @@ int open_virtual_port(const char* name) {
     }
 
     /* No hardware port matched - create virtual port */
-    if (midi_out != NULL) {
-        libremidi_midi_out_free(midi_out);
-        midi_out = NULL;
-    }
+    free_midi_out();
 
     int ret = 0;
 
     libremidi_midi_configuration midi_conf;
     ret = libremidi_midi_configuration_init(&midi_conf);
     if (ret != 0) {
-        printf("Failed to init MIDI config\n");
+        stack_error("Failed to init MIDI config");
         return ret;
     }
 
@@ -281,16 +281,16 @@ int open_virtual_port(const char* name) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) {
-        printf("Failed to init API config\n");
+        stack_error("Failed to init API config");
         return ret;
     }
 
     api_conf.configuration_type = Output;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
     if (ret != 0) {
-        printf("Failed to create virtual MIDI output: %d\n", ret);
+        stack_error("Failed to create virtual MIDI output: %d", ret);
         return ret;
     }
 
@@ -308,8 +308,7 @@ void op_midi_output_virtual(Stack* s) {
 void op_midi_output_close(Stack* s) {
     (void)stack;
     if (midi_out != NULL) {
-        libremidi_midi_out_free(midi_out);
-        midi_out = NULL;
+        free_midi_out();
         printf("MIDI output closed\n");
     }
 }
@@ -318,7 +317,7 @@ void op_midi_output_close(Stack* s) {
 void op_all_notes_off(Stack* s) {
     (void)stack;
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         return;
     }
 
@@ -461,7 +460,7 @@ void op_midi_input_open(Stack* s) {
     midi_input_init();
 
     if (port_idx < 0 || port_idx >= in_port_count) {
-        printf("Invalid input port index: %d (have %d ports)\n", port_idx, in_port_count);
+        stack_error("Invalid input port index: %d (have %d ports)", port_idx, in_port_count);
         return;
     }
 
@@ -480,7 +479,7 @@ void op_midi_input_open(Stack* s) {
     libremidi_midi_configuration midi_conf;
     ret = libremidi_midi_configuration_init(&midi_conf);
     if (ret != 0) {
-        printf("Failed to init MIDI config\n");
+        stack_error("Failed to init MIDI config");
         return;
     }
 
@@ -495,16 +494,16 @@ void op_midi_input_open(Stack* s) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) {
-        printf("Failed to init API config\n");
+        stack_error("Failed to init API config");
         return;
     }
 
     api_conf.configuration_type = Input;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_in_new(&midi_conf, &api_conf, &midi_in);
     if (ret != 0) {
-        printf("Failed to open MIDI input: %d\n", ret);
+        stack_error("Failed to open MIDI input: %d", ret);
         return;
     }
 
@@ -535,7 +534,7 @@ void op_midi_input_open_virtual(Stack* s) {
     libremidi_midi_configuration midi_conf;
     ret = libremidi_midi_configuration_init(&midi_conf);
     if (ret != 0) {
-        printf("Failed to init MIDI config\n");
+        stack_error("Failed to init MIDI config");
         return;
     }
 
@@ -551,16 +550,16 @@ void op_midi_input_open_virtual(Stack* s) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) {
-        printf("Failed to init API config\n");
+        stack_error("Failed to init API config");
         return;
     }
 
     api_conf.configuration_type = Input;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_in_new(&midi_conf, &api_conf, &midi_in);
     if (ret != 0) {
-        printf("Failed to create virtual MIDI input: %d\n", ret);
+        stack_error("Failed to create virtual MIDI input: %d", ret);
         return;
     }
 

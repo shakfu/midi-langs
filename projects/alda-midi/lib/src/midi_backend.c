@@ -81,7 +81,7 @@ void alda_midi_init_observer(AldaContext* ctx) {
     }
 
     api_conf.configuration_type = Observer;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     /* Create observer */
     ret = libremidi_midi_observer_new(&observer_conf, &api_conf, &ctx->midi_observer);
@@ -185,7 +185,7 @@ int alda_midi_open_port(AldaContext* ctx, int port_idx) {
     }
 
     api_conf.configuration_type = Output;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     /* Open output */
     ret = libremidi_midi_out_new(&midi_conf, &api_conf, &ctx->midi_out);
@@ -237,7 +237,7 @@ int alda_midi_open_virtual(AldaContext* ctx, const char* name) {
     }
 
     api_conf.configuration_type = Output;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     /* Create virtual output */
     ret = libremidi_midi_out_new(&midi_conf, &api_conf, &ctx->midi_out);

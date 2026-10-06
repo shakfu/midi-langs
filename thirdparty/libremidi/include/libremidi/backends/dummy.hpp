@@ -25,14 +25,17 @@ class midi_in_dummy final
     , public error_handler
 {
 public:
+  // midi-langs patch: report an open client so ports open (MIDI_LANGS_BACKEND=null)
   explicit midi_in_dummy(const input_configuration& configuration, const input_api_configuration&)
   {
     libremidi_handle_warning(configuration, "This class provides no functionality.");
+    client_open_ = stdx::error{};
   }
   explicit midi_in_dummy(
       const ump_input_configuration& configuration, const input_api_configuration&)
   {
     libremidi_handle_warning(configuration, "This class provides no functionality.");
+    client_open_ = stdx::error{};
   }
 
   libremidi::API get_current_api() const noexcept override { return libremidi::API::DUMMY; }
@@ -65,6 +68,7 @@ public:
       const output_configuration& configuration, const output_api_configuration&)
   {
     libremidi_handle_warning(configuration, "This class provides no functionality.");
+    client_open_ = stdx::error{};  // midi-langs patch, as above
   }
 
   libremidi::API get_current_api() const noexcept override { return libremidi::API::DUMMY; }

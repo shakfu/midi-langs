@@ -41,6 +41,7 @@ MIDI numbers (0-127) can also be used directly: `60` = middle C.
 The comma `,` is the universal play trigger:
 
 ```forth
+midi-open
 c4,                     \ Play C4 with defaults (ch=1, vel=80, dur=500ms)
 60,                     \ Same note using MIDI number
 c#4,                    \ C sharp 4
@@ -52,6 +53,7 @@ db4,                    \ D flat 4
 Notes separated by commas play one after another (blocking):
 
 ```forth
+midi-open
 c4, d4, e4,             \ Play C, D, E in sequence
 ```
 
@@ -60,6 +62,7 @@ c4, d4, e4,             \ Play C, D, E in sequence
 Parentheses group notes to play simultaneously:
 
 ```forth
+midi-open
 (c4 e4 g4),             \ C major chord
 (c4 eb4 g4),            \ C minor chord
 (60 64 67),             \ Same as C major, using MIDI numbers
@@ -78,6 +81,7 @@ Inside parentheses:
 Override channel, velocity, and duration:
 
 ```forth
+midi-open
 \ Single note: ch pitch vel dur
 1 c4 100 500,           \ Channel 1, C4, velocity 100, duration 500ms
 2 60 80 250,            \ Channel 2, MIDI 60, vel 80, dur 250ms
@@ -92,6 +96,7 @@ Override channel, velocity, and duration:
 Set defaults to avoid repetition:
 
 ```forth
+midi-open
 2 ch!                   \ Set default channel to 2
 100 vel!                \ Set default velocity to 100
 250 dur!                \ Set default duration to 250ms
@@ -101,7 +106,7 @@ c4,                     \ Now plays on ch 2, vel 100, dur 250ms
 
 ## MIDI Setup
 
-```forth
+```forth norun
 midi-list               \ List available MIDI output ports
 midi-open               \ Create virtual port "StackMIDI"
 midi-open-as <name>     \ Create virtual port with custom name
@@ -113,6 +118,7 @@ panic                   \ All notes off (emergency stop)
 ## Control Messages
 
 ```forth
+midi-open
 \ Control Change: ch cc val
 1 64 127 cc             \ Sustain pedal on (CC 64)
 1 64 0 cc               \ Sustain pedal off
@@ -123,7 +129,7 @@ panic                   \ All notes off (emergency stop)
 
 Forth-style stack words:
 
-```forth
+```forth norun
 dup                     \ Duplicate top
 drop                    \ Discard top
 swap                    \ Swap top two
@@ -134,7 +140,7 @@ rot                     \ Rotate top three
 
 ## Arithmetic
 
-```forth
+```forth norun
 +  -  *  /              \ Basic math
 and  or  xor  not       \ Bitwise
 =  <  >                  \ Comparison (returns -1 true, 0 false)
@@ -161,6 +167,7 @@ Foundation for composition and reuse.
 Forth-style colon definitions for reusable patterns:
 
 ```forth
+midi-open
 : cmaj (c4 e4 g4), ;
 : cmin (c4 eb4 g4), ;
 : melody c4, e4, g4, c5, ;
@@ -177,11 +184,12 @@ melody                  \ Play the melody
 
 - Execute by interpreting stored tokens
 
-- Warn if stack not empty after `;` (catches missing trailing comma)
+- At the REPL, note when a word leaves values on the stack (catches a missing trailing comma)
 
-```forth
-: broken c4, e4, g4, c5 ;
-Warning: definition 'broken' ended with 1 item(s) on stack
+```forth norun
+> : broken c4, e4, g4, c5 ;
+> broken
+Note: 'broken' left 1 item(s) on stack
 ```
 
 ### Rests
@@ -189,6 +197,7 @@ Warning: definition 'broken' ended with 1 item(s) on stack
 Silence for the default (or explicit) duration:
 
 ```forth
+midi-open
 r,                      \ Rest with default duration
 r 250,                  \ Rest with explicit duration (ms)
 c4, r, e4, r, g4,       \ Notes with rests between
@@ -201,6 +210,7 @@ c4, r, e4, r, g4,       \ Notes with rests between
 Repeat patterns using defined words:
 
 ```forth
+midi-open
 : phrase c4, d4, e4, ;
 4 0 do phrase loop      \ Forth-style loop
 
@@ -217,6 +227,7 @@ Enable generative music and expressive notation.
 Velocity presets using standard musical terms:
 
 ```forth
+midi-open
 ff                      \ Set velocity to 112 (fortissimo)
 mf                      \ Set velocity to 80 (mezzo-forte)
 pp                      \ Set velocity to 32 (pianissimo)
@@ -244,6 +255,7 @@ Two complementary syntaxes for probabilistic note selection:
 The `%` modifier specifies probability of playing vs. silence:
 
 ```forth
+midi-open
 c4 75%,                 \ 75% chance to play, 25% silence
 c4 90%,                 \ 90% chance to play
 c4 50%,                 \ Coin flip
@@ -260,6 +272,7 @@ c4, e4 50%, g4,         \ C always, E maybe, G always
 The `|` separates alternatives with equal probability:
 
 ```forth
+midi-open
 c4|e4,                  \ 50% C4, 50% E4
 c4|e4|g4,               \ 33.33% each
 c4|e4|g4|a4,            \ 25% each
@@ -298,6 +311,7 @@ Use cases:
 Brackets now create first-class sequence values:
 
 ```forth
+midi-open
 [ c4 e4 g4 ],           \ Create and play sequence
 [ c4 e4 g4 ] shuffle,   \ Manipulate then play
 ```
@@ -305,6 +319,7 @@ Brackets now create first-class sequence values:
 For explicit parameters, use the Forth-style context variables:
 
 ```forth
+midi-open
 1 ch! 100 vel! 500 dur!
 c4,                     \ Plays with those parameters
 ```
@@ -315,9 +330,10 @@ Quality of life improvements.
 
 ### Relative Intervals
 
-Move by semitones from last pitch:
+Move by semitones from last pitch. `+N` and `-N` are intervals directly before `,` and inside `[ ]`; elsewhere they are numbers:
 
 ```forth
+midi-open
 c4, +2, +2, +1,         \ C D E F (whole, whole, half step)
 c4, +7, +5,             \ C G C (up fifth, up fourth)
 g4, -2, -2,             \ G F Eb (down whole steps)
@@ -328,6 +344,7 @@ g4, -2, -2,             \ G F Eb (down whole steps)
 ### Octave Shifts
 
 ```forth
+midi-open
 c4, ^,                  \ C4 then C5 (up octave)
 c4, v,                  \ C4 then C3 (down octave)
 ```
@@ -335,6 +352,7 @@ c4, v,                  \ C4 then C3 (down octave)
 ### Program Change
 
 ```forth
+midi-open
 1 0 pc                  \ Channel 1, program 0 (Acoustic Grand Piano)
 1 25 pc                 \ Channel 1, program 25 (Acoustic Guitar)
 10 0 pc                 \ Channel 10 (drums), program 0
@@ -347,6 +365,7 @@ Extended features for complex compositions.
 ### Articulation
 
 ```forth
+midi-open
 c4.,                    \ Staccato (50% duration)
 c4-,                    \ Tenuto (full duration, slight emphasis)
 c4>,                    \ Accent (higher velocity)
@@ -357,6 +376,7 @@ c4>,                    \ Accent (higher velocity)
 ### Pitch Bend
 
 ```forth
+midi-open
 1 8192 pb               \ Center (no bend)
 1 0 pb                  \ Full bend down
 1 16383 pb              \ Full bend up
@@ -367,6 +387,7 @@ c4>,                    \ Accent (higher velocity)
 If word definitions feel too heavy for one-off patterns:
 
 ```forth
+midi-open
 { c4, e4, g4, } 4 *     \ Play phrase 4 times
 ```
 
@@ -534,6 +555,7 @@ This section demonstrates advanced composition techniques using nested definitio
 Brackets create first-class sequence values that can be manipulated before playback:
 
 ```forth
+midi-open
 [ c4 e4 g4 ],           \ Create and play sequence
 [ c4 e4 g4 ] shuffle,   \ Shuffle then play
 [ c4 e4 g4 ] reverse,   \ Reverse then play
@@ -543,7 +565,7 @@ Brackets create first-class sequence values that can be manipulated before playb
 [ mf c4 r ff e4 (g4 b4) ],   \ dynamics, pitches, rests, chords
 
 \ Plain numbers for generative operations
-[ 1 2 3 4 5 ] shuffle       \ Shuffle numbers
+[ 1 2 3 4 5 ] shuffle drop  \ Shuffle numbers, then discard the result
 [ c4 50 e4 30 g4 20 ] weighted-pick,  \ Weighted random selection
 ```
 
@@ -755,6 +777,7 @@ song
 Use `{ }` for quick variations without defining words:
 
 ```forth
+midi-open
 \ Repeat a phrase
 { c4, e4, g4, } 4 *
 

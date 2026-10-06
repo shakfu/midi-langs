@@ -5,6 +5,7 @@
  */
 
 #include "scheduler.h"
+#include "midi_sleep.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,7 +99,7 @@ static void cleanup_voice(Voice* v) {
 }
 
 /* ============================================================================
- * Timer Callback (runs in libuv thread)
+ * Timer Callback (runs on the main thread, inside run() or poll())
  * ============================================================================ */
 
 static void on_timer(uv_timer_t* handle) {
@@ -114,42 +115,6 @@ static void on_timer(uv_timer_t* handle) {
         sched.pending_resumes[sched.pending_count++] = v->voice_id;
     }
     uv_mutex_unlock(&sched.pending_mutex);
-
-    /* Signal main thread */
-    uv_async_send(&sched.resume_async);
-}
-
-/* ============================================================================
- * Async Signal Handlers
- * ============================================================================ */
-
-static void on_wake(uv_async_t* handle) {
-    (void)handle;
-    if (sched.shutdown_requested) {
-        uv_stop(sched.loop);
-    }
-}
-
-static void on_resume_signal(uv_async_t* handle) {
-    (void)handle;
-    /* This just wakes the main thread; actual processing happens in run() */
-}
-
-/* ============================================================================
- * Event Loop Thread
- * ============================================================================ */
-
-static void loop_thread_fn(void* arg) {
-    (void)arg;
-
-    while (!sched.shutdown_requested) {
-        uv_run(sched.loop, UV_RUN_DEFAULT);
-
-        if (!sched.shutdown_requested) {
-            /* Brief sleep to avoid busy-waiting when loop has no handles */
-            uv_sleep(10);
-        }
-    }
 }
 
 /* ============================================================================
@@ -209,7 +174,6 @@ int scheduler_init(lua_State *L) {
     sched.next_voice_id = 1;
     sched.active_count = 0;
     sched.running = 0;
-    sched.shutdown_requested = 0;
     sched.pending_count = 0;
 
     /* Initialize mutexes */
@@ -228,10 +192,6 @@ int scheduler_init(lua_State *L) {
         return -1;
     }
 
-    /* Initialize async handles */
-    uv_async_init(sched.loop, &sched.wake_async, on_wake);
-    uv_async_init(sched.loop, &sched.resume_async, on_resume_signal);
-
     /* Initialize voice slots */
     for (int i = 0; i < MAX_VOICES; i++) {
         Voice* v = &sched.voices[i];
@@ -244,13 +204,8 @@ int scheduler_init(lua_State *L) {
         v->timer.data = v;
     }
 
-    /* Start event loop thread */
-    if (uv_thread_create(&sched.thread, loop_thread_fn, NULL) != 0) {
-        uv_loop_close(sched.loop);
-        free(sched.loop);
-        sched.loop = NULL;
-        return -1;
-    }
+    /* The loop runs on the main thread, inside run() and poll(). libuv
+     * handles are not thread-safe, and only the main thread resumes voices. */
 
     return 0;
 }
@@ -266,19 +221,10 @@ void scheduler_cleanup(void) {
         }
     }
 
-    /* Signal shutdown */
-    sched.shutdown_requested = 1;
-    uv_async_send(&sched.wake_async);
-
-    /* Wait for thread */
-    uv_thread_join(&sched.thread);
-
     /* Close handles */
     for (int i = 0; i < MAX_VOICES; i++) {
         uv_close((uv_handle_t*)&sched.voices[i].timer, NULL);
     }
-    uv_close((uv_handle_t*)&sched.wake_async, NULL);
-    uv_close((uv_handle_t*)&sched.resume_async, NULL);
 
     /* Process remaining close callbacks */
     uv_run(sched.loop, UV_RUN_DEFAULT);
@@ -300,6 +246,7 @@ int scheduler_has_pending(void) {
 }
 
 int scheduler_process_pending(lua_State *L) {
+    uv_run(sched.loop, UV_RUN_NOWAIT);
     process_pending_resumes(L);
     return sched.active_count;
 }
@@ -356,9 +303,6 @@ static int l_spawn(lua_State *L) {
     /* Schedule immediate resume (0ms timer) */
     uv_timer_start(&v->timer, on_timer, 0, 0);
 
-    /* Wake the event loop to notice the new timer */
-    uv_async_send(&sched.wake_async);
-
     lua_pushinteger(L, voice_id);
     return 1;
 }
@@ -390,10 +334,7 @@ static int l_yield_ms(lua_State *L) {
     /* Set wake time and start timer */
     v->wake_time_ms = now_ms() + (uint64_t)ms;
     v->waiting = 1;
-    uv_timer_start(&v->timer, on_timer, (uint64_t)ms, 0);
-
-    /* Wake the event loop to notice the new timer */
-    uv_async_send(&sched.wake_async);
+    uv_timer_start(&v->timer, on_timer, (uint64_t)midi_wait_ms(ms), 0);
 
     /* Yield the coroutine */
     return lua_yield(L, 0);
@@ -411,11 +352,11 @@ static int l_run(lua_State *L) {
     sched.running = 1;
 
     while (sched.active_count > 0 && sched.running) {
-        /* Process any pending resumes */
+        /* Block until a voice's timer fires, then resume it */
+        int result = uv_run(sched.loop, UV_RUN_ONCE);
         process_pending_resumes(L);
-
-        /* Brief sleep if nothing pending */
-        if (!scheduler_has_pending() && sched.active_count > 0) {
+        if (result == 0 && !scheduler_has_pending() && sched.active_count > 0) {
+            /* No timers pending but voices still active - brief sleep */
             uv_sleep(1);
         }
     }
@@ -440,7 +381,8 @@ static int l_poll(lua_State *L) {
         return 1;
     }
 
-    /* Process any pending resumes */
+    /* Fire ready timers without blocking, then resume their voices */
+    uv_run(sched.loop, UV_RUN_NOWAIT);
     process_pending_resumes(L);
 
     /* Return true if voices still active */

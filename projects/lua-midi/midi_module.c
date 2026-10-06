@@ -40,6 +40,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 #endif
 
 #include "lua.h"
+#include "midi_sleep.h"
 #include "lauxlib.h"
 #include <libremidi/libremidi-c.h>
 
@@ -150,6 +151,7 @@ static int midi_init_observer(void) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) return ret;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_observer_new(&observer_conf, &api_conf, &midi_observer);
     if (ret != 0) return ret;
@@ -288,6 +290,7 @@ static int l_open(lua_State *L) {
     if (ret != 0) {
         return luaL_error(L, "Failed to initialize API configuration");
     }
+    api_conf.api = midi_backend_api();
 
     if (lua_gettop(L) == 0 || lua_isnil(L, 1)) {
         /* No argument - create virtual port */
@@ -443,7 +446,7 @@ static int l_note(lua_State *L) {
     capture_add_event(0, channel - 1, pitch, velocity);
 
     /* Sleep (scaled by tempo) */
-    usleep(scale_duration_for_tempo(duration) * 1000);
+    midi_sleep(scale_duration_for_tempo(duration));
 
     /* Note off */
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
@@ -494,7 +497,7 @@ static int l_chord(lua_State *L) {
     }
 
     /* Sleep (scaled by tempo) */
-    usleep(scale_duration_for_tempo(duration) * 1000);
+    midi_sleep(scale_duration_for_tempo(duration));
 
     /* Note off for all */
     for (int i = 0; i < count; i++) {
@@ -540,7 +543,7 @@ static int l_arpeggio(lua_State *L) {
             capture_add_event(0, channel - 1, pitch, velocity);
 
             /* Sleep (scaled by tempo) */
-            usleep(scale_duration_for_tempo(duration) * 1000);
+            midi_sleep(scale_duration_for_tempo(duration));
 
             /* Note off */
             msg[0] = 0x80 | ((channel - 1) & 0x0F);
@@ -641,7 +644,7 @@ static int l_parse_note(lua_State *L) {
 static int l_sleep(lua_State *L) {
     int ms = luaL_checkinteger(L, 1);
     if (ms > 0) {
-        usleep(scale_duration_for_tempo(ms) * 1000);
+        midi_sleep(scale_duration_for_tempo(ms));
     }
     return 0;
 }

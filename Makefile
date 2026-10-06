@@ -10,12 +10,14 @@ PRELUDE2C := ./scripts/prelude2c.py
 PRELUDE_SCM := projects/s7-midi/prelude.scm
 PRELUDE_LUA := projects/lua-midi/prelude.lua
 PRELUDE_PY  := projects/pktpy-midi/prelude.py
+PRELUDE_GUILE := projects/guile-midi/prelude.scm
 
 HEADER_SCM := projects/s7-midi/scm_prelude.h
 HEADER_LUA := projects/lua-midi/lua_prelude.h
 HEADER_PY  := projects/pktpy-midi/py_prelude.h
+HEADER_GUILE := projects/guile-midi/scm_prelude.h
 
-PRELUDE_HEADERS := $(HEADER_SCM) $(HEADER_LUA) $(HEADER_PY)
+PRELUDE_HEADERS := $(HEADER_SCM) $(HEADER_LUA) $(HEADER_PY) $(HEADER_GUILE)
 
 .PHONY: all build configure clean test test-quick test-verbose test-asan \
 		rebuild ctidy help reset preludes build-debug \
@@ -35,6 +37,9 @@ $(HEADER_LUA): $(PRELUDE_LUA) $(PRELUDE2C)
 	@$(PRELUDE2C) $<
 
 $(HEADER_PY): $(PRELUDE_PY) $(PRELUDE2C)
+	@$(PRELUDE2C) $<
+
+$(HEADER_GUILE): $(PRELUDE_GUILE) $(PRELUDE2C)
 	@$(PRELUDE2C) $<
 
 preludes: $(PRELUDE_HEADERS)

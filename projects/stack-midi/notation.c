@@ -53,7 +53,7 @@ static void record_note(int pitch, int velocity, int duration, int channel, int 
 
     Sequence* seq = &sequences[seq_recording_id];
     if (seq->length >= MAX_SEQ_EVENTS - 2) {
-        printf("Sequence full during recording\n");
+        stack_error("Sequence full during recording");
         return;
     }
 
@@ -112,23 +112,23 @@ void play_single_note(Stack* s, int pitch) {
     }
 
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         clear_pending_params();
         return;
     }
 
     if (channel < 1 || channel > 16) {
-        printf("Channel must be 1-16\n");
+        stack_error("Channel must be 1-16");
         clear_pending_params();
         return;
     }
     if (pitch < 0 || pitch > 127) {
-        printf("Pitch must be 0-127\n");
+        stack_error("Pitch must be 0-127");
         clear_pending_params();
         return;
     }
     if (velocity < 0 || velocity > 127) {
-        printf("Velocity must be 0-127\n");
+        stack_error("Velocity must be 0-127");
         clear_pending_params();
         return;
     }
@@ -160,7 +160,7 @@ static void record_chord(int* pitches, int count, int velocity, int duration, in
 
     Sequence* seq = &sequences[seq_recording_id];
     if (seq->length >= MAX_SEQ_EVENTS - count * 2) {
-        printf("Sequence full during chord recording\n");
+        stack_error("Sequence full during chord recording");
         return;
     }
 
@@ -204,13 +204,13 @@ void play_chord_notes(Stack* s) {
     }
 
     if (marker_pos < 0) {
-        printf("No chord marker found\n");
+        stack_error("No chord marker found");
         return;
     }
 
     int count = stack.top - marker_pos;
     if (count < 1 || count > 16) {
-        printf("Chord must have 1-16 notes\n");
+        stack_error("Chord must have 1-16 notes");
         while (stack.top >= marker_pos) pop(&stack);
         clear_pending_params();
         return;
@@ -254,7 +254,7 @@ void play_chord_notes(Stack* s) {
     }
 
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         clear_pending_params();
         return;
     }
@@ -286,7 +286,7 @@ void play_chord_notes(Stack* s) {
 /* , ( stack contents -- ) The comma - universal play trigger */
 void op_comma(Stack* s) {
     if (stack.top < 0) {
-        printf("Stack empty\n");
+        stack_error("Stack empty");
         return;
     }
 
@@ -295,6 +295,10 @@ void op_comma(Stack* s) {
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
         int idx = top_val & 0x00FFFFFF;
         pop(&stack);
+        if (midi_out == NULL) {
+            stack_error("No MIDI output open");
+            return;
+        }
         if (idx >= 0 && idx < bracket_seq_count && bracket_seq_storage[idx]) {
             execute_bracket_sequence(bracket_seq_storage[idx]);
         }
@@ -317,7 +321,7 @@ void op_comma(Stack* s) {
         /* Alternatives mode: pick one randomly */
         int alt_count = stack.top - alt_pos;
         if (alt_count < 1) {
-            printf("Empty alternatives\n");
+            stack_error("Empty alternatives");
             pop(&stack);
             return;
         }
@@ -351,7 +355,7 @@ void op_comma(Stack* s) {
     } else if (explicit_pos >= 0) {
         /* Explicit mode with [ ] brackets: ch pitch vel dur */
         if (count != 4) {
-            printf("Explicit mode [ch pitch vel dur] requires exactly 4 values, got %d\n", count);
+            stack_error("Explicit mode [ch pitch vel dur] requires exactly 4 values, got %d", count);
             while (stack.top >= explicit_pos) pop(&stack);
             return;
         }
@@ -364,7 +368,7 @@ void op_comma(Stack* s) {
         current_pitch = pitch;
 
         if (midi_out == NULL) {
-            printf("No MIDI output open\n");
+            stack_error("No MIDI output open");
             return;
         }
 
@@ -389,7 +393,7 @@ void op_comma(Stack* s) {
             if (first == REST_MARKER) {
                 midi_sleep_ms(dur_or_pitch);
             } else {
-                printf("Invalid note: expected 1 (pitch) or 4 (ch pitch vel dur) items, got 2\n");
+                stack_error("Invalid note: expected 1 (pitch) or 4 (ch pitch vel dur) items, got 2");
             }
         } else if (count == 4) {
             /* Explicit: ch pitch vel dur */
@@ -401,7 +405,7 @@ void op_comma(Stack* s) {
             current_pitch = pitch;
 
             if (midi_out == NULL) {
-                printf("No MIDI output open\n");
+                stack_error("No MIDI output open");
                 return;
             }
 
@@ -411,7 +415,7 @@ void op_comma(Stack* s) {
             midi_send_note_off(pitch, channel);
             capture_add_event(1, channel - 1, pitch, 0);
         } else {
-            printf("Invalid note: expected 1 (pitch) or 4 (ch pitch vel dur) items, got %d\n", count);
+            stack_error("Invalid note: expected 1 (pitch) or 4 (ch pitch vel dur) items, got %d", count);
             for (int i = 0; i < count; i++) pop(&stack);
         }
     }
@@ -431,7 +435,7 @@ void op_chord_close(Stack* s) {
 /* | ( val -- ALT_MARKER val ) Alternative grouping */
 void op_alt_open(Stack* s) {
     if (stack.top < 0) {
-        printf("Stack empty for |\n");
+        stack_error("Stack empty for |");
         return;
     }
 
@@ -459,7 +463,7 @@ void op_alt_open(Stack* s) {
 /* % ( val probability -- val | REST_MARKER ) Probability gate */
 void op_percent(Stack* s) {
     if (stack.top < 1) {
-        printf("Stack needs value and probability for %%\n");
+        stack_error("Stack needs value and probability for %%");
         return;
     }
 
@@ -480,7 +484,7 @@ void op_percent(Stack* s) {
 /* pb ( ch val -- ) Pitch bend */
 void op_pitch_bend(Stack* s) {
     if (stack.top < 1) {
-        printf("pb needs channel and value (0-16383)\n");
+        stack_error("pb needs channel and value (0-16383)");
         return;
     }
 
@@ -488,14 +492,14 @@ void op_pitch_bend(Stack* s) {
     int32_t channel = pop(&stack);
 
     if (channel < 1 || channel > 16) {
-        printf("Channel must be 1-16\n");
+        stack_error("Channel must be 1-16");
         return;
     }
     if (value < 0) value = 0;
     if (value > 16383) value = 16383;
 
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         return;
     }
 
@@ -506,7 +510,7 @@ void op_pitch_bend(Stack* s) {
 void op_ch_store(Stack* s) {
     int32_t ch = pop(&stack);
     if (ch < 1 || ch > 16) {
-        printf("Channel must be 1-16\n");
+        stack_error("Channel must be 1-16");
         return;
     }
     default_channel = ch;
@@ -521,7 +525,7 @@ void op_ch_fetch_default(Stack* s) {
 void op_vel_store(Stack* s) {
     int32_t vel = pop(&stack);
     if (vel < 0 || vel > 127) {
-        printf("Velocity must be 0-127\n");
+        stack_error("Velocity must be 0-127");
         return;
     }
     default_velocity = vel;
@@ -536,7 +540,7 @@ void op_vel_fetch_default(Stack* s) {
 void op_dur_store(Stack* s) {
     int32_t dur = pop(&stack);
     if (dur < 1) {
-        printf("Duration must be positive\n");
+        stack_error("Duration must be positive");
         return;
     }
     default_duration = dur;
@@ -551,7 +555,7 @@ void op_dur_fetch_default(Stack* s) {
 void op_gate_store(Stack* s) {
     int32_t gate = pop(&stack);
     if (gate < 1 || gate > 100) {
-        printf("Gate must be 1-100\n");
+        stack_error("Gate must be 1-100");
         return;
     }
     default_gate = gate;
@@ -579,7 +583,7 @@ void op_octave_down(Stack* s) {
 /* pc ( ch prog -- ) Program change */
 void op_program_change(Stack* s) {
     if (stack.top < 1) {
-        printf("pc needs channel and program\n");
+        stack_error("pc needs channel and program");
         return;
     }
 
@@ -587,16 +591,16 @@ void op_program_change(Stack* s) {
     int channel = pop(&stack);
 
     if (channel < 1 || channel > 16) {
-        printf("Channel must be 1-16\n");
+        stack_error("Channel must be 1-16");
         return;
     }
     if (program < 0 || program > 127) {
-        printf("Program must be 0-127\n");
+        stack_error("Program must be 0-127");
         return;
     }
 
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         return;
     }
 

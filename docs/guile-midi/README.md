@@ -44,7 +44,7 @@ make
 
 Using convenience functions:
 
-```scheme
+```scheme norun
 > (open)
 #<midi-out virtual "guileMIDI">
 > (n c4)
@@ -54,7 +54,7 @@ Using convenience functions:
 
 Or using explicit port management:
 
-```scheme
+```scheme norun
 > (define m (midi-open))
 #<midi-out virtual "guileMIDI">
 > (midi-note m c4 mf quarter)
@@ -87,7 +87,7 @@ Type `(help)` for available functions, `(quit)` to exit.
 
 ### Run Wisp File
 
-guile-midi supports [Wisp syntax](wisp-syntax.md) - an indentation-based alternative to S-expressions:
+guile-midi supports [Wisp syntax](wisp-syntax.md) - an indentation-based alternative to S-expressions. It needs Guile 3.0.10 or later, which ships the `(language wisp)` module:
 
 ```bash
 ./build/guile_midi song.w

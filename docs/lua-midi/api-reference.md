@@ -1,12 +1,20 @@
 # API Reference
 
+## Setup
+
+Examples use `m` for an open port. `open()` also makes it the port that `n`, `ch` and `arp` use:
+
+```lua setup
+m = open()
+```
+
 ## Global Constants
 
 All constants are available as globals for concise syntax. The `midi.` prefix also works.
 
 ### Pitch Constants
 
-```lua
+```lua norun
 -- All pitches from C0 to B8 (examples)
 c4, cs4, d4, ds4, e4, f4, fs4, g4, gs4, a4, as4, b4   -- Octave 4 (middle C = c4 = 60)
 
@@ -57,7 +65,7 @@ min7(c4)     -- => {60, 63, 67, 70}  Minor 7th
 
 All scales are available in the `midi.scales` table. Each scale is an array of semitone intervals from the root.
 
-```lua
+```lua norun
 -- Diatonic modes
 midi.scales.major          -- {0, 2, 4, 5, 7, 9, 11}
 midi.scales.dorian         -- {0, 2, 3, 5, 7, 9, 10}
@@ -98,7 +106,7 @@ See `midi.scales` for all 55 available scales.
 
 For scales with quarter tones, use `midi.scales_cents`. Values are in cents (100 cents = 1 semitone).
 
-```lua
+```lua norun
 midi.scales_cents.maqam_bayati   -- {0, 150, 300, 500, 700, 800, 1000}
 midi.scales_cents.maqam_rast     -- {0, 200, 350, 500, 700, 900, 1050}
 midi.scales_cents.shruti         -- 22-shruti Indian scale
@@ -121,7 +129,7 @@ sleep(500)          -- Sleep for milliseconds
 
 ### midi.list_ports
 
-```lua
+```lua norun
 midi.list_ports() -> table
 ```
 
@@ -134,7 +142,7 @@ midi.list_ports()
 
 ### midi.open
 
-```lua
+```lua norun
 midi.open() -> MidiOut
 midi.open(name) -> MidiOut
 midi.open(index) -> MidiOut
@@ -158,7 +166,7 @@ Close the MIDI port. Automatically sends all-notes-off on all channels.
 
 ### m:is_open
 
-```lua
+```lua norun
 m:is_open() -> boolean
 ```
 
@@ -170,7 +178,7 @@ Check if the MIDI port is open.
 
 ### m:note
 
-```lua
+```lua norun
 m:note(pitch, [velocity], [duration], [channel])
 ```
 
@@ -195,7 +203,7 @@ m:note(c4, 80, 500, 2)      -- On channel 2
 
 ### m:chord
 
-```lua
+```lua norun
 m:chord(pitches, [velocity], [duration], [channel])
 ```
 
@@ -210,7 +218,7 @@ m:chord(dom7(g3), f, quarter, 2)  -- On channel 2
 
 ### m:arpeggio
 
-```lua
+```lua norun
 m:arpeggio(pitches, [velocity], [duration], [channel])
 ```
 
@@ -223,7 +231,7 @@ m:arpeggio(min7(a3), mf, sixteenth)  -- Fast arpeggio
 
 ### m:note_on
 
-```lua
+```lua norun
 m:note_on(pitch, [velocity], [channel])
 ```
 
@@ -237,7 +245,7 @@ m:note_on(c4, 100, 2)   -- On channel 2
 
 ### m:note_off
 
-```lua
+```lua norun
 m:note_off(pitch, [velocity], [channel])
 ```
 
@@ -254,7 +262,7 @@ m:note_off(c4, 64, 2)   -- With release velocity on channel 2
 
 ### m:cc
 
-```lua
+```lua norun
 m:cc(control, value, [channel])
 ```
 
@@ -285,7 +293,7 @@ Common CC numbers:
 
 ### m:program
 
-```lua
+```lua norun
 m:program(program, [channel])
 ```
 
@@ -299,7 +307,7 @@ m:program(48, 2)   -- Strings on channel 2
 
 ### m:all_notes_off
 
-```lua
+```lua norun
 m:all_notes_off([channel])
 ```
 
@@ -316,7 +324,7 @@ m:all_notes_off(1)     -- Channel 1 only
 
 ### midi.note
 
-```lua
+```lua norun
 midi.note(name) -> integer
 ```
 
@@ -343,7 +351,7 @@ octave_down(c4)      -- => 48 (C3)
 
 ### midi.build_scale
 
-```lua
+```lua norun
 midi.build_scale(root, intervals) -> table
 ```
 
@@ -357,7 +365,7 @@ midi.build_scale(d4, midi.scales.dorian)       -- D dorian scale
 
 ### scale (helper)
 
-```lua
+```lua norun
 scale(root, name) -> table
 ```
 
@@ -373,7 +381,7 @@ scale(c4, "raga_bhairav")    -- C Bhairav (Indian)
 
 ### midi.scale_degree
 
-```lua
+```lua norun
 midi.scale_degree(root, intervals, degree) -> integer
 ```
 
@@ -388,7 +396,7 @@ midi.scale_degree(60, midi.scales.major, 9)   -- 74 (ninth = 2nd + octave)
 
 ### degree (helper)
 
-```lua
+```lua norun
 degree(root, name, n) -> integer
 ```
 
@@ -404,7 +412,7 @@ degree(c4, "major", 11)   -- 77 (F5, eleventh)
 
 ### midi.in_scale
 
-```lua
+```lua norun
 midi.in_scale(pitch, root, intervals) -> boolean
 ```
 
@@ -418,7 +426,7 @@ midi.in_scale(76, 60, midi.scales.major)  -- true (E5 is in C major)
 
 ### in_scale (helper)
 
-```lua
+```lua norun
 in_scale(pitch, root, name) -> boolean
 ```
 
@@ -432,7 +440,7 @@ in_scale(fs4, g4, "major")   -- true (F# is in G major)
 
 ### midi.quantize
 
-```lua
+```lua norun
 midi.quantize(pitch, root, intervals) -> integer
 ```
 
@@ -445,7 +453,7 @@ midi.quantize(61, 60, midi.scales.major)   -- 60 (C# -> C) or 62 (-> D)
 
 ### quantize (helper)
 
-```lua
+```lua norun
 quantize(pitch, root, name) -> integer
 ```
 
@@ -462,7 +470,7 @@ quantize(61, c4, "pentatonic") -- Snap C# to C pentatonic
 
 ### m:pitch_bend
 
-```lua
+```lua norun
 m:pitch_bend(cents, [channel])
 ```
 
@@ -477,7 +485,7 @@ m:pitch_bend(50, 2)   -- Quarter tone up on channel 2
 
 ### midi.cents_to_note
 
-```lua
+```lua norun
 midi.cents_to_note(root, cents) -> note, bend
 ```
 
@@ -514,7 +522,7 @@ m:close()
 
 ### midi.set_tempo
 
-```lua
+```lua norun
 midi.set_tempo(bpm)
 ```
 
@@ -523,12 +531,12 @@ Set tempo and update all duration constants.
 ```lua
 midi.set_tempo(120)     -- 120 BPM (default)
 midi.set_tempo(60)      -- 60 BPM - durations double
-quarter                 -- => 1000 at 60 BPM
+print(quarter)          -- => 1000 at 60 BPM
 ```
 
 ### midi.get_tempo
 
-```lua
+```lua norun
 midi.get_tempo() -> integer
 ```
 
@@ -536,7 +544,7 @@ Get current tempo in BPM.
 
 ### midi.bpm
 
-```lua
+```lua norun
 midi.bpm(tempo) -> integer
 ```
 
@@ -553,7 +561,7 @@ midi.bpm(60)     -- => 1000
 
 ### sleep
 
-```lua
+```lua norun
 sleep(ms)
 ```
 
@@ -566,7 +574,7 @@ sleep(1000)     -- Wait one second
 
 ### rest
 
-```lua
+```lua norun
 rest([duration])
 ```
 
@@ -580,7 +588,7 @@ rest(1000)      -- 1 second rest
 
 ### dotted
 
-```lua
+```lua norun
 dotted(duration) -> integer
 ```
 
@@ -608,7 +616,7 @@ close()             -- Close default port
 
 ### n
 
-```lua
+```lua norun
 n(pitch, [velocity], [duration], [channel])
 ```
 
@@ -623,7 +631,7 @@ n(c4, 80, 500, 2)       -- On channel 2
 
 ### ch
 
-```lua
+```lua norun
 ch(pitches, [velocity], [duration], [channel])
 ```
 
@@ -636,7 +644,7 @@ ch(minor(a3), mf, half)     -- A minor, half note
 
 ### arp
 
-```lua
+```lua norun
 arp(pitches, [velocity], [duration], [channel])
 ```
 
@@ -665,42 +673,42 @@ Display available functions and usage information.
 
 Record MIDI events for replay or export. Records note-on, note-off, and CC events with timestamps.
 
-### record_midi
+### midi.record_midi
 
-```lua
-record_midi([bpm])
+```lua norun
+midi.record_midi([bpm])
 ```
 
 Start recording MIDI events. Optional BPM parameter (default 120) is stored with the recording for reference.
 
 ```lua
-record_midi()        -- Start at 120 BPM
-record_midi(140)     -- Start at 140 BPM
+midi.record_midi()        -- Start at 120 BPM
+midi.record_midi(140)     -- Start at 140 BPM
 ```
 
-### record_stop
+### midi.record_stop
 
 ```lua
-record_stop()
+midi.record_stop()
 ```
 
 Stop recording MIDI events. Prints the number of events recorded.
 
 ```lua
-record_stop()
+midi.record_stop()
 -- => MIDI recording stopped. 42 events recorded.
 ```
 
-### save_midi
+### midi.save_midi
 
-```lua
-save_midi(filename)
+```lua norun
+midi.save_midi(filename)
 ```
 
 Save recorded events to a Lua replay script. The generated file can be executed to replay the recorded performance.
 
 ```lua
-save_midi("my_song.lua")
+midi.save_midi("my_song.lua")
 -- => Saved 42 events to my_song.lua
 ```
 
@@ -710,16 +718,16 @@ The generated file contains:
 
 - Replay code that recreates the timing
 
-### record_status
+### midi.record_status
 
-```lua
-record_status() -> (active, count, bpm)
+```lua norun
+midi.record_status() -> (active, count, bpm)
 ```
 
 Get current recording status. Returns three values: whether recording is active, event count, and BPM.
 
 ```lua
-local active, count, bpm = record_status()
+local active, count, bpm = midi.record_status()
 print(active)   -- true/false
 print(count)    -- number of events
 print(bpm)      -- recording BPM
@@ -730,14 +738,14 @@ print(bpm)      -- recording BPM
 ```lua
 m = midi.open()
 
-record_midi(120)
+midi.record_midi(120)
 
 m:note(c4, mf, quarter)
 m:note(e4, mf, quarter)
 m:chord(major(g4), f, half)
 
-record_stop()
-save_midi("melody.lua")
+midi.record_stop()
+midi.save_midi("melody.lua")
 
 m:close()
 ```
@@ -748,38 +756,43 @@ m:close()
 
 Read and write standard MIDI files (.mid format).
 
-### write_mid
+### midi.write_mid
 
-```lua
-write_mid(filename)
+```lua norun
+midi.write_mid(filename)
 ```
 
 Write recorded events to a standard MIDI file. The file can be opened in any DAW or MIDI player.
 
 ```lua
 m = midi.open()
-record_midi(120)
+midi.record_midi(120)
 
 m:note(c4, mf, quarter)
 m:note(e4, mf, quarter)
 m:chord(major(g4), f, half)
 
-record_stop()
-write_mid("melody.mid")   -- Standard MIDI file
+midi.record_stop()
+midi.write_mid("melody.mid")   -- Standard MIDI file
 
 m:close()
 ```
 
-### read_mid
+### midi.read_mid
 
-```lua
-read_mid(filename) -> table
+```lua norun
+midi.read_mid(filename) -> table
 ```
 
 Read a standard MIDI file and return its contents as a table with metadata and events.
 
 ```lua
-local data = read_mid("song.mid")
+midi.record_midi()
+m:note(c4)
+midi.record_stop()
+midi.write_mid("song.mid")
+
+local data = midi.read_mid("song.mid")
 
 -- Metadata
 print(data.num_tracks)  -- Number of tracks
@@ -789,24 +802,57 @@ print(data.duration)    -- Duration in milliseconds
 print(data.format)      -- MIDI format (0, 1, or 2)
 
 -- Events
-for _, event in ipairs(data.events) do
-    local track, tick, channel, type, data1, data2 = table.unpack(event)
-    print(string.format("t=%d ch=%d type=%02X d1=%d d2=%d",
-                        tick, channel, type, data1, data2))
+for _, e in ipairs(data.events) do
+    if e.type == "note_on" then
+        print(string.format("t=%d ch=%d pitch=%d vel=%d", e.tick, e.channel, e.pitch, e.velocity))
+    end
 end
 ```
 
-Event types (in the `type` field):
+Each event has `track`, `tick`, `channel` and `type`. The other fields depend on `type`:
 
-- `0x90` = Note On
+| `type` | Fields |
+|-|-|
+| `"note_on"`, `"note_off"` | `pitch`, `velocity` |
+| `"cc"` | `control`, `value` |
+| `"program"` | `program` |
+| `"pitch_bend"` | `value` (0-16383) |
+| `"poly_pressure"`, `"aftertouch"` | `data1`, `data2` |
 
-- `0x80` = Note Off
+---
 
-- `0xB0` = Control Change
+## Generative Functions
 
-- `0xC0` = Program Change
+Pure functions on pitch lists. Random functions take an explicit `seed`, so the same seed gives the same result. Functions that return `next_seed` let you chain calls. Each is also a global without the `midi.` prefix.
 
-- `0xE0` = Pitch Bend
+| Function | Returns | Description |
+|-|-|-|
+| `midi.next_random(seed)` | `value, next_seed` | Linear congruential generator (glibc constants) |
+| `midi.random_range(seed, lo, hi)` | `value, next_seed` | Integer in `[lo, hi]` |
+| `midi.random_list(seed, n, lo, hi)` | `list, next_seed` | `n` integers in `[lo, hi]` |
+| `midi.chance(seed, probability)` | `bool, next_seed` | True with `probability` percent |
+| `midi.euclidean(hits, steps)` | `list` | Bjorklund rhythm: `true` = hit, `false` = rest |
+| `midi.arp_up(list)` | `list` | Copy in order |
+| `midi.arp_down(list)` | `list` | Reversed copy |
+| `midi.arp_up_down(list)` | `list` | Up, then down without repeating the ends |
+| `midi.retrograde(list)` | `list` | Reversed copy |
+| `midi.invert(list, axis)` | `list` | Mirror each pitch around `axis` |
+| `midi.shuffle(seed, list)` | `list` | Fisher-Yates shuffle |
+| `midi.pick(seed, list)` | `value` | One element, or `nil` for an empty list |
+| `midi.pick_n(seed, n, list)` | `list` | `n` elements, with replacement |
+| `midi.random_walk(seed, start, max_step, n)` | `list` | `n` pitches, each within `max_step` semitones of the last |
+| `midi.drunk_walk(seed, start, scale_pitches, max_degrees, n)` | `list` | Random walk over `scale_pitches`, moving at most `max_degrees` |
+| `midi.weighted_pick(seed, weights)` | `value` | `weights` is a list of `{value, weight}` pairs |
+
+```lua
+local rhythm = midi.euclidean(3, 8)           -- {true, false, false, true, false, false, true, false}
+local melody = midi.shuffle(42, scale(c4, "pentatonic"))
+local walk = midi.random_walk(7, c4, 2, 8)
+local hit, seed = midi.chance(1, 75)
+for i, on in ipairs(rhythm) do
+    if on then m:note(melody[(i - 1) % #melody + 1], mf, sixteenth) end
+end
+```
 
 ---
 
@@ -816,7 +862,7 @@ The async scheduler enables concurrent playback of multiple musical voices using
 
 ### spawn
 
-```lua
+```lua norun
 spawn(func, [name]) -> voice_id
 ```
 
@@ -846,7 +892,7 @@ run()  -- Both voices play concurrently
 
 ### yield_ms
 
-```lua
+```lua norun
 yield_ms(ms)
 ```
 
@@ -876,7 +922,7 @@ run()  -- Blocks until both voices finish
 
 ### stop
 
-```lua
+```lua norun
 stop([voice_id]) -> boolean
 ```
 
@@ -896,7 +942,7 @@ stop()      -- Stop all voices
 
 ### voices
 
-```lua
+```lua norun
 voices() -> integer
 ```
 
@@ -910,7 +956,7 @@ print(voices())  -- => 2
 
 ### scheduler.status
 
-```lua
+```lua norun
 scheduler.status() -> table
 ```
 
@@ -933,7 +979,7 @@ These functions are designed for use inside spawned voices. They play notes usin
 
 ### play
 
-```lua
+```lua norun
 play(pitch, [velocity], [duration], [channel])
 ```
 
@@ -951,7 +997,7 @@ run()
 
 ### play_chord
 
-```lua
+```lua norun
 play_chord(pitches, [velocity], [duration], [channel])
 ```
 
@@ -969,7 +1015,7 @@ run()
 
 ### play_arp
 
-```lua
+```lua norun
 play_arp(pitches, [velocity], [duration], [channel])
 ```
 

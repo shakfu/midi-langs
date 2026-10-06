@@ -79,7 +79,7 @@ void op_play_chord(Stack* s) {
     int32_t n = pop(&stack);
 
     if (n < 1 || n > 8) {
-        printf("Chord size must be 1-8\n");
+        stack_error("Chord size must be 1-8");
         return;
     }
 
@@ -89,7 +89,7 @@ void op_play_chord(Stack* s) {
     }
 
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         return;
     }
 
@@ -128,11 +128,11 @@ void op_chord_to_seq(Stack* s) {
     int32_t vel = pop(&stack);
 
     if (n < 1 || n > 8) {
-        printf("Chord size must be 1-8\n");
+        stack_error("Chord size must be 1-8");
         return;
     }
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
 
@@ -144,7 +144,7 @@ void op_chord_to_seq(Stack* s) {
     Sequence* seq = &sequences[current_seq];
     for (int i = 0; i < n; i++) {
         if (seq->length >= MAX_SEQ_EVENTS - 2) {
-            printf("Sequence full\n");
+            stack_error("Sequence full");
             return;
         }
         MidiEvent* e_on = &seq->events[seq->length++];
@@ -172,11 +172,11 @@ void op_arp_to_seq(Stack* s) {
     int32_t vel = pop(&stack);
 
     if (n < 1 || n > 8) {
-        printf("Arp size must be 1-8\n");
+        stack_error("Arp size must be 1-8");
         return;
     }
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
 
@@ -188,7 +188,7 @@ void op_arp_to_seq(Stack* s) {
     Sequence* seq = &sequences[current_seq];
     for (int i = 0; i < n; i++) {
         if (seq->length >= MAX_SEQ_EVENTS - 2) {
-            printf("Sequence full\n");
+            stack_error("Sequence full");
             return;
         }
         int t = time + (i * spacing);

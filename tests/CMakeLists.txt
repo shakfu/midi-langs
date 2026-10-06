@@ -279,7 +279,34 @@ add_test(
     COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_seq_record.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_seq_record.stk | grep -q ' 0 '"
 )
 
+add_test(
+    NAME stack_midi_golden_comments
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_comments.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_comments.stk | grep -q ' 0 '"
+)
+
+add_test(
+    NAME stack_midi_golden_dictionary
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_dictionary.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_dictionary.stk | grep -q ' 0 '"
+)
+
+add_test(
+    NAME stack_midi_golden_intervals
+    COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_intervals.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_intervals.stk | grep -q ' 0 '"
+)
+set_tests_properties(stack_midi_golden_intervals PROPERTIES ENVIRONMENT "MIDI_LANGS_BACKEND=null")
+
+add_test(
+    NAME stack_midi_golden_async_churn
+    # 200 cycles and one final check each print -1; sequence messages also contain " 0 "
+    COMMAND sh -c "out=$($<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async_churn.stk); [ $(echo \"$out\" | tr ' ' '\\n' | grep -cx -- -1) -eq 201 ] && ! echo \"$out\" | grep -q 'not playing'"
+)
+set_tests_properties(stack_midi_golden_async_churn PROPERTIES ENVIRONMENT "MIDI_LANGS_BACKEND=null")
+
 set_tests_properties(
+    stack_midi_golden_async_churn
+    stack_midi_golden_intervals
+    stack_midi_golden_dictionary
+    stack_midi_golden_comments
     stack_midi_golden_basic
     stack_midi_golden_notation
     stack_midi_golden_blocks
@@ -310,6 +337,11 @@ endif()
 
 # Tests for scripts/sync_alda_from_psnd.py (pytest, run through uv)
 find_program(UV_EXECUTABLE uv)
+# CI sets this so a missing uv fails configure instead of skipping docs_examples
+option(MIDI_LANGS_REQUIRE_DOC_TESTS "Fail configure if uv is missing" OFF)
+if(MIDI_LANGS_REQUIRE_DOC_TESTS AND NOT UV_EXECUTABLE)
+    message(FATAL_ERROR "MIDI_LANGS_REQUIRE_DOC_TESTS is ON but uv was not found; docs_examples needs it")
+endif()
 if(UV_EXECUTABLE)
     add_test(
         NAME alda_sync_script
@@ -318,6 +350,22 @@ if(UV_EXECUTABLE)
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
     set_tests_properties(alda_sync_script PROPERTIES LABELS "unit")
+
+    # Code blocks in README.md and docs/ (docs/dev/doc-tests.md)
+    if(NOT WIN32)
+        add_test(
+            NAME docs_examples
+            COMMAND ${UV_EXECUTABLE} run --no-project --with pytest
+                    pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test_docs.py
+                              ${CMAKE_CURRENT_SOURCE_DIR}/test_api_docs.py
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        set_tests_properties(docs_examples PROPERTIES
+            ENVIRONMENT "MIDI_LANGS_BUILD=${CMAKE_BINARY_DIR}"
+            LABELS "docs"
+            TIMEOUT 600
+        )
+    endif()
 endif()
 
 # Quick alda_midi tests (shell-based, Unix only)
@@ -476,3 +524,46 @@ set_tests_properties(
     demo_example_lua
     PROPERTIES LABELS "quick;midi"
 )
+
+# A script error must give a non-zero exit status (WILL_FAIL inverts the result)
+add_test(
+    NAME error_exit_stack
+    COMMAND $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/errors/unknown_word.stk
+)
+
+add_test(
+    NAME error_exit_s7
+    COMMAND $<TARGET_FILE:s7_midi> ${CMAKE_CURRENT_SOURCE_DIR}/errors/unbound.scm
+)
+
+set_tests_properties(
+    error_exit_stack
+    error_exit_s7
+    PROPERTIES WILL_FAIL TRUE LABELS "quick"
+)
+
+if(TARGET guile_midi)
+    add_test(
+        NAME error_exit_guile
+        COMMAND $<TARGET_FILE:guile_midi> ${CMAKE_CURRENT_SOURCE_DIR}/errors/unbound.scm
+    )
+    set_tests_properties(error_exit_guile PROPERTIES WILL_FAIL TRUE LABELS "quick")
+endif()
+
+# README examples on the null backend (MIDI_LANGS_BACKEND=null): no MIDI
+# server or keepalive client needed
+function(add_null_backend_test lang)
+    add_test(NAME null_backend_${lang} COMMAND ${ARGN})
+    set_tests_properties(null_backend_${lang} PROPERTIES
+        ENVIRONMENT "MIDI_LANGS_BACKEND=null"
+        LABELS "quick"
+    )
+endfunction()
+
+set(EX ${CMAKE_CURRENT_SOURCE_DIR}/examples)
+add_null_backend_test(alda $<TARGET_FILE:alda_midi> --no-sleep ${EX}/demo_alda.alda)
+add_null_backend_test(stack $<TARGET_FILE:stack_midi> --no-sleep --script ${EX}/demo_stack.stk)
+add_null_backend_test(lua $<TARGET_FILE:lua_midi> ${EX}/demo_lua.lua)
+add_null_backend_test(pktpy $<TARGET_FILE:pktpy_midi> ${EX}/demo_pktpy.py)
+add_null_backend_test(s7 $<TARGET_FILE:s7_midi> ${EX}/demo_s7.scm)
+add_null_backend_test(joy $<TARGET_FILE:joy_midi> ${EX}/demo_joy.joy)

@@ -581,7 +581,7 @@ Start the REPL:
 
 The simplest way to use s7-midi interactively:
 
-```scheme
+```scheme norun
 > (open)
 #<midi-out virtual "s7MIDI">
 > (n c4)
@@ -594,7 +594,7 @@ The simplest way to use s7-midi interactively:
 
 ### Quick Note Test (Explicit Port)
 
-```scheme
+```scheme norun
 > (define m (midi-open))
 #<midi-out virtual "s7MIDI">
 > (midi-note m c4)
@@ -625,14 +625,14 @@ The simplest way to use s7-midi interactively:
 
 ### List MIDI Ports
 
-```scheme
+```scheme norun
 > (midi-list-ports)
 ((0 "Midi Through: Midi Through Port-0") (1 "FLUID Synth (1234): Synth input port (1234:0)"))
 ```
 
 ### Checking Values
 
-```scheme
+```scheme norun
 > c4
 60
 > (major c4)

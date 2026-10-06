@@ -26,6 +26,8 @@ typedef struct {
     int event_index;
     int bpm;
     int stop_requested;
+    int start_requested;    /* Set by the main thread; the loop thread starts the timer */
+    int first_ms;           /* Delay before the first event */
     int looping;            /* Should sequence loop? */
 
     /* libuv handles */
@@ -45,6 +47,7 @@ typedef struct {
 
     /* Mutex for thread-safe access */
     uv_mutex_t mutex;
+    uv_cond_t stopped;      /* Broadcast when a slot finishes */
 } AsyncPlayerSystem;
 
 static AsyncPlayerSystem async_system = {0};
@@ -56,6 +59,30 @@ static AsyncPlayerSystem async_system = {0};
 static void on_timer(uv_timer_t* handle);
 static void schedule_next_event(AsyncPlayerSlot* slot);
 
+/* Mark slot finished; idempotent. Runs on the loop thread. */
+static void slot_finished_locked(AsyncPlayerSlot* slot) {
+    if (slot->active) {
+        slot->active = 0;
+        async_system.active_count--;
+    }
+    uv_cond_broadcast(&async_system.stopped);
+}
+
+static void slot_finished(AsyncPlayerSlot* slot) {
+    uv_mutex_lock(&async_system.mutex);
+    slot_finished_locked(slot);
+    uv_mutex_unlock(&async_system.mutex);
+}
+
+/* Block until the loop thread has finished slot, so stop is synchronous */
+static void wait_until_finished(AsyncPlayerSlot* slot) {
+    uv_mutex_lock(&async_system.mutex);
+    while (slot->active) {
+        uv_cond_wait(&async_system.stopped, &async_system.mutex);
+    }
+    uv_mutex_unlock(&async_system.mutex);
+}
+
 /* ============================================================================
  * Timer Callback - Fires for each MIDI event
  * ============================================================================ */
@@ -64,10 +91,7 @@ static void on_timer(uv_timer_t* handle) {
     AsyncPlayerSlot* slot = (AsyncPlayerSlot*)handle->data;
 
     if (slot->stop_requested || slot->event_index >= slot->seq_copy.length) {
-        slot->active = 0;
-        uv_mutex_lock(&async_system.mutex);
-        async_system.active_count--;
-        uv_mutex_unlock(&async_system.mutex);
+        slot_finished(slot);
         return;
     }
 
@@ -107,10 +131,7 @@ static void on_timer(uv_timer_t* handle) {
 
 static void schedule_next_event(AsyncPlayerSlot* slot) {
     if (slot->stop_requested) {
-        slot->active = 0;
-        uv_mutex_lock(&async_system.mutex);
-        async_system.active_count--;
-        uv_mutex_unlock(&async_system.mutex);
+        slot_finished(slot);
         return;
     }
 
@@ -121,10 +142,7 @@ static void schedule_next_event(AsyncPlayerSlot* slot) {
             slot->event_index = 0;
         } else {
             /* Done playing */
-            slot->active = 0;
-            uv_mutex_lock(&async_system.mutex);
-            async_system.active_count--;
-            uv_mutex_unlock(&async_system.mutex);
+            slot_finished(slot);
             return;
         }
     }
@@ -147,14 +165,17 @@ static void schedule_next_event(AsyncPlayerSlot* slot) {
 
 static void on_stop_signal(uv_async_t* handle) {
     AsyncPlayerSlot* slot = (AsyncPlayerSlot*)handle->data;
-    slot->stop_requested = 1;
-    uv_timer_stop(&slot->timer);
-    if (slot->active) {
-        slot->active = 0;
-        uv_mutex_lock(&async_system.mutex);
-        async_system.active_count--;
-        uv_mutex_unlock(&async_system.mutex);
+
+    /* A late signal for a slot already finished and restarted finds the new
+     * start's cleared flag, and leaves the new playback alone. Check and
+     * finish under one lock, so a restart cannot slip in between. */
+    uv_mutex_lock(&async_system.mutex);
+    if (slot->stop_requested) {
+        slot->start_requested = 0;
+        uv_timer_stop(&slot->timer);
+        slot_finished_locked(slot);
     }
+    uv_mutex_unlock(&async_system.mutex);
 }
 
 /* ============================================================================
@@ -165,7 +186,21 @@ static void on_wake(uv_async_t* handle) {
     (void)handle;
     if (async_system.shutdown_requested) {
         uv_stop(async_system.loop);
+        return;
     }
+
+    /* Start requested playback here: libuv handles belong to this thread */
+    uv_mutex_lock(&async_system.mutex);
+    for (int i = 0; i < MAX_ASYNC_PLAYERS; i++) {
+        AsyncPlayerSlot* slot = &async_system.slots[i];
+        if (slot->start_requested) {
+            slot->start_requested = 0;
+            if (slot->active && !slot->stop_requested) {
+                uv_timer_start(&slot->timer, on_timer, slot->first_ms, 0);
+            }
+        }
+    }
+    uv_mutex_unlock(&async_system.mutex);
 }
 
 /* ============================================================================
@@ -227,6 +262,7 @@ int async_player_init(void) {
     }
 
     uv_mutex_init(&async_system.mutex);
+    uv_cond_init(&async_system.stopped);
 
     /* Initialize wake async handle */
     uv_async_init(async_system.loop, &async_system.wake_async, on_wake);
@@ -284,6 +320,7 @@ void async_player_cleanup(void) {
     /* Run loop to process close callbacks */
     uv_run(async_system.loop, UV_RUN_DEFAULT);
 
+    uv_cond_destroy(&async_system.stopped);
     uv_mutex_destroy(&async_system.mutex);
     uv_loop_close(async_system.loop);
     free(async_system.loop);
@@ -315,24 +352,24 @@ static AsyncPlayerSlot* find_slot_for_seq(int seq_id) {
 static int async_player_start_internal(int seq_id, int looping) {
     if (async_system.loop == NULL) {
         if (async_player_init() != 0) {
-            printf("Failed to initialize async player\n");
+            stack_error("Failed to initialize async player");
             return -1;
         }
     }
 
     if (seq_id < 0 || seq_id >= sequence_count) {
-        printf("Invalid sequence id: %d\n", seq_id);
+        stack_error("Invalid sequence id: %d", seq_id);
         return -1;
     }
 
     Sequence* seq = &sequences[seq_id];
     if (seq->length == 0) {
-        printf("Sequence %d is empty\n", seq_id);
+        stack_error("Sequence %d is empty", seq_id);
         return -1;
     }
 
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         return -1;
     }
 
@@ -350,7 +387,7 @@ static int async_player_start_internal(int seq_id, int looping) {
     AsyncPlayerSlot* slot = find_free_slot();
     if (slot == NULL) {
         uv_mutex_unlock(&async_system.mutex);
-        printf("No free async player slots (max %d)\n", MAX_ASYNC_PLAYERS);
+        stack_error("No free async player slots (max %d)", MAX_ASYNC_PLAYERS);
         return -1;
     }
 
@@ -367,17 +404,18 @@ static int async_player_start_internal(int seq_id, int looping) {
     slot->active = 1;
     async_system.active_count++;
 
+    /* Time to first event */
+    slot->first_ms = 0;
+    if (slot->seq_copy.length > 0 && slot->seq_copy.events[0].time > 0) {
+        slot->first_ms = (slot->seq_copy.events[0].time * 60000) /
+                         (TICKS_PER_QUARTER * slot->bpm);
+    }
+    slot->start_requested = 1;
+
     uv_mutex_unlock(&async_system.mutex);
 
-    /* Calculate time to first event */
-    int first_ms = 0;
-    if (slot->seq_copy.length > 0 && slot->seq_copy.events[0].time > 0) {
-        first_ms = (slot->seq_copy.events[0].time * 60000) /
-                   (TICKS_PER_QUARTER * slot->bpm);
-    }
-
-    /* Start timer for first event */
-    uv_timer_start(&slot->timer, on_timer, first_ms, 0);
+    /* The loop thread starts the timer in on_wake */
+    uv_async_send(&async_system.wake_async);
 
     printf("Started %s playback of sequence %d\n",
            looping ? "looping" : "async", seq_id);
@@ -396,16 +434,18 @@ int async_player_loop(int seq_id) {
 
 /* Stop async playback of a specific sequence */
 int async_player_stop_seq(int seq_id) {
+    if (async_system.loop == NULL) return -1;  /* mutex not initialised yet */
     uv_mutex_lock(&async_system.mutex);
     AsyncPlayerSlot* slot = find_slot_for_seq(seq_id);
     if (slot == NULL) {
         uv_mutex_unlock(&async_system.mutex);
         return -1;
     }
+    slot->stop_requested = 1;
     uv_mutex_unlock(&async_system.mutex);
 
-    slot->stop_requested = 1;
     uv_async_send(&slot->stop_async);
+    wait_until_finished(slot);
 
     printf("Stopped sequence %d\n", seq_id);
     return 0;
@@ -413,11 +453,23 @@ int async_player_stop_seq(int seq_id) {
 
 /* Stop all async playback */
 void async_player_stop_all(void) {
+    if (async_system.loop == NULL) {
+        printf("Stopped all async playback\n");
+        return;
+    }
     for (int i = 0; i < MAX_ASYNC_PLAYERS; i++) {
-        if (async_system.slots[i].active) {
+        uv_mutex_lock(&async_system.mutex);
+        int active = async_system.slots[i].active;
+        if (active) {
             async_system.slots[i].stop_requested = 1;
+        }
+        uv_mutex_unlock(&async_system.mutex);
+        if (active) {
             uv_async_send(&async_system.slots[i].stop_async);
         }
+    }
+    for (int i = 0; i < MAX_ASYNC_PLAYERS; i++) {
+        wait_until_finished(&async_system.slots[i]);
     }
     printf("Stopped all async playback\n");
 }
@@ -429,6 +481,7 @@ void async_player_stop(void) {
 
 /* Check if any async playback is active */
 int async_player_is_playing(void) {
+    if (async_system.loop == NULL) return 0;
     uv_mutex_lock(&async_system.mutex);
     int count = async_system.active_count;
     uv_mutex_unlock(&async_system.mutex);
@@ -437,6 +490,7 @@ int async_player_is_playing(void) {
 
 /* Get count of active players */
 int async_player_active_count(void) {
+    if (async_system.loop == NULL) return 0;
     uv_mutex_lock(&async_system.mutex);
     int count = async_system.active_count;
     uv_mutex_unlock(&async_system.mutex);
@@ -451,7 +505,7 @@ int async_player_active_count(void) {
 void op_seq_play_async(Stack* s) {
     (void)s;
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
     async_player_start(current_seq);
@@ -461,7 +515,7 @@ void op_seq_play_async(Stack* s) {
 void op_seq_loop_async(Stack* s) {
     (void)s;
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
     async_player_loop(current_seq);
@@ -471,7 +525,7 @@ void op_seq_loop_async(Stack* s) {
 void op_seq_stop(Stack* s) {
     (void)s;
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
     if (async_player_stop_seq(current_seq) != 0) {

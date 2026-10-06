@@ -24,24 +24,28 @@ midi-open
 Now play a note using pitch name and comma:
 
 ```forth
+midi-open
 c4,
 ```
 
 The comma `,` is the play trigger. Try different notes:
 
 ```forth
+midi-open
 d4, e4, f4, g4,
 ```
 
 Sharps use `#`, flats use `b`:
 
 ```forth
+midi-open
 c#4, db4, f#4,
 ```
 
 You can also use MIDI note numbers directly:
 
 ```forth
+midi-open
 60, 64, 67,
 ```
 
@@ -50,12 +54,14 @@ You can also use MIDI note numbers directly:
 Wrap notes in parentheses to play them together:
 
 ```forth
+midi-open
 (c4 e4 g4),
 ```
 
 This plays a C major chord. Try others:
 
 ```forth
+midi-open
 (d4 f4 a4),
 (e4 g4 b4),
 ```
@@ -65,6 +71,7 @@ This plays a C major chord. Try others:
 Set defaults for channel, velocity, and duration:
 
 ```forth
+midi-open
 2 ch!           \ Use MIDI channel 2
 100 vel!        \ Velocity 100 (louder)
 250 dur!        \ 250ms duration (shorter)
@@ -82,6 +89,7 @@ Reset to defaults:
 Use dynamic markings to set velocity:
 
 ```forth
+midi-open
 pp c4,          \ Very soft (velocity 32)
 mf e4,          \ Medium (velocity 80)
 ff g4,          \ Very loud (velocity 112)
@@ -94,12 +102,14 @@ Available dynamics: `ppp` `pp` `p` `mp` `mf` `f` `ff` `fff`
 Use `r` for silence:
 
 ```forth
+midi-open
 c4, r, e4, r, g4,
 ```
 
 Specify rest duration:
 
 ```forth
+midi-open
 c4, r 1000,     \ 1 second rest
 e4,
 ```
@@ -109,6 +119,7 @@ e4,
 Define reusable patterns with `: name ... ;`
 
 ```forth
+midi-open
 : cmaj (c4 e4 g4), ;
 : gmaj (g3 b3 d4), ;
 cmaj gmaj cmaj
@@ -117,6 +128,7 @@ cmaj gmaj cmaj
 Define melodies:
 
 ```forth
+midi-open
 : melody c4, e4, g4, c5, g4, e4, c4, ;
 melody
 ```
@@ -126,6 +138,7 @@ melody
 Repeat a word with `times`:
 
 ```forth
+midi-open
 : phrase c4, e4, g4, ;
 phrase 4 times
 ```
@@ -139,6 +152,7 @@ This plays the phrase 4 times total (1 initial + 3 repeats).
 Add chance with `%`:
 
 ```forth
+midi-open
 c4 75%,         \ 75% chance to play
 c4 50%,         \ Coin flip
 ```
@@ -148,6 +162,7 @@ c4 50%,         \ Coin flip
 Choose randomly between options with `|`:
 
 ```forth
+midi-open
 c4|e4,          \ 50% C4, 50% E4
 c4|e4|g4,       \ 33% each
 c4|r,           \ 50% play, 50% silence
@@ -156,6 +171,7 @@ c4|r,           \ 50% play, 50% silence
 Combine for generative patterns:
 
 ```forth
+midi-open
 : gen c4|e4|g4 75%, ;
 gen 16 times
 ```
@@ -165,12 +181,14 @@ gen 16 times
 Use `+N` and `-N` for semitone intervals:
 
 ```forth
+midi-open
 c4, +2, +2, +1, +2,    \ C D E F G (whole, whole, half, whole)
 ```
 
 Octave shifts with `^` and `v`:
 
 ```forth
+midi-open
 c4, ^, ^, v, v,        \ C4, C5, C6, C5, C4
 ```
 
@@ -179,6 +197,7 @@ c4, ^, ^, v, v,        \ C4, C5, C6, C5, C4
 Add suffixes to pitch names:
 
 ```forth
+midi-open
 c4.,            \ Staccato (50% duration)
 c4>,            \ Accent (+20 velocity)
 c4-,            \ Tenuto (full duration)
@@ -187,6 +206,7 @@ c4-,            \ Tenuto (full duration)
 Combine with dynamics:
 
 ```forth
+midi-open
 ff c4., mf e4>, p g4-,
 ```
 
@@ -195,12 +215,14 @@ ff c4., mf e4>, p g4-,
 Use `{ ... }` for inline patterns with `*` to repeat:
 
 ```forth
+midi-open
 { c4, e4, g4, } 4 *
 ```
 
 Useful for quick experiments without naming:
 
 ```forth
+midi-open
 { c4., r, e4., r, } 8 *
 ```
 
@@ -209,12 +231,14 @@ Useful for quick experiments without naming:
 Use `if`/`else`/`then` with `random`:
 
 ```forth
+midi-open
 random 50 > if c4, else e4, then
 ```
 
 In a word:
 
 ```forth
+midi-open
 : coin random 50 > if c4, else e4, then ;
 coin coin coin coin
 ```
@@ -222,6 +246,7 @@ coin coin coin coin
 Without else:
 
 ```forth
+midi-open
 : maybe random 75 < if c4, then ;
 maybe maybe maybe maybe
 ```
@@ -231,6 +256,7 @@ maybe maybe maybe maybe
 Program change (instrument):
 
 ```forth
+midi-open
 1 0 pc          \ Channel 1, program 0 (piano)
 1 25 pc         \ Channel 1, program 25 (acoustic guitar)
 ```
@@ -238,6 +264,7 @@ Program change (instrument):
 Control change:
 
 ```forth
+midi-open
 1 7 100 cc      \ Channel 1, CC7 (volume), value 100
 1 1 64 cc       \ Channel 1, CC1 (mod wheel), value 64
 ```
@@ -245,6 +272,7 @@ Control change:
 Pitch bend:
 
 ```forth
+midi-open
 1 8192 pb       \ Center (no bend)
 1 16383 pb      \ Full bend up
 1 0 pb          \ Full bend down
@@ -255,12 +283,14 @@ Pitch bend:
 Brackets `[ ]` create sequences as first-class values:
 
 ```forth
+midi-open
 [ c4 e4 g4 ],           \ Create and play sequence
 ```
 
 Unlike comma-per-note, you can manipulate sequences before playing:
 
 ```forth
+midi-open
 [ c4 e4 g4 ] shuffle,   \ Shuffle then play
 [ c4 e4 g4 ] reverse,   \ Play backwards: g4 e4 c4
 ```
@@ -268,6 +298,7 @@ Unlike comma-per-note, you can manipulate sequences before playing:
 ### Dynamics and Rests in Sequences
 
 ```forth
+midi-open
 [ mf c4 ff e4 p g4 ],   \ Dynamics change mid-sequence
 [ c4 r e4 r g4 ],       \ Include rests
 [ quarter c4 eighth e4 e4 quarter g4 ],  \ Mix durations
@@ -276,6 +307,7 @@ Unlike comma-per-note, you can manipulate sequences before playing:
 ### Chords in Sequences
 
 ```forth
+midi-open
 [ (c4 e4 g4) (f4 a4 c5) (g4 b4 d5) ],   \ Chord progression
 ```
 
@@ -284,8 +316,8 @@ Unlike comma-per-note, you can manipulate sequences before playing:
 Store sequences in words:
 
 ```forth
-[ c4 e4 g4 c5 ]
-: arpeggio ;
+midi-open
+: arpeggio [ c4 e4 g4 c5 ] ;   \ Each call pushes the sequence
 
 arpeggio,               \ Play it
 arpeggio shuffle,       \ Shuffle and play
@@ -295,6 +327,7 @@ arpeggio reverse,       \ Reverse and play
 ### Generative Operations
 
 ```forth
+midi-open
 [ c4 e4 g4 b4 ] pick,           \ Pick one random note
 [ c4 e4 g4 b4 ] 2 pick-n,       \ Pick 2 random notes
 [ c4 e4 g4 ] 64 invert,         \ Invert around E4
@@ -304,6 +337,7 @@ arpeggio reverse,       \ Reverse and play
 ### Random Walks
 
 ```forth
+midi-open
 60 3 8 random-walk,             \ 8 notes, starting C4, max 3 semitone steps
 ```
 
@@ -312,6 +346,7 @@ arpeggio reverse,       \ Reverse and play
 Sequences can hold numbers for weighted picks:
 
 ```forth
+midi-open
 [ c4 50 e4 30 g4 20 ] weighted-pick,   \ c4 has 50% weight, e4 30%, g4 20%
 ```
 
@@ -424,7 +459,7 @@ See `docs/scales.md` for the complete scale reference.
 
 - See [api-reference.md](api-reference.md) for complete API documentation
 
-- See [bracket_syntax.md](bracket_syntax.md) for advanced bracket sequence usage
+- See [bracket_syntax.md](../dev/stack-midi/bracket_syntax.md) for the design of bracket sequences
 
 - See [scales.md](scales.md) for the 49 built-in scales
 

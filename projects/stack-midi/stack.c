@@ -4,7 +4,7 @@
 
 void push(Stack* s, int32_t value) {
     if (s->top >= MAX_STACK_SIZE - 1) {
-        printf("Stack overflow!\n");
+        stack_error("Stack overflow!");
         return;
     }
     s->data[++(s->top)] = value;
@@ -12,7 +12,7 @@ void push(Stack* s, int32_t value) {
 
 int32_t pop(Stack* s) {
     if (s->top < 0) {
-        printf("Stack underflow!\n");
+        stack_error("Stack underflow!");
         return 0;
     }
     return s->data[(s->top)--];
@@ -20,7 +20,7 @@ int32_t pop(Stack* s) {
 
 int32_t peek(Stack* s) {
     if (s->top < 0) {
-        printf("Stack empty!\n");
+        stack_error("Stack empty!");
         return 0;
     }
     return s->data[s->top];

@@ -25,7 +25,7 @@ void op_div(Stack* s) {
     int32_t b = pop(&stack);
     int32_t a = pop(&stack);
     if (b == 0) {
-        printf("Division by zero!\n");
+        stack_error("Division by zero!");
         return;
     }
     push(&stack, a / b);
@@ -35,7 +35,7 @@ void op_mod(Stack* s) {
     int32_t b = pop(&stack);
     int32_t a = pop(&stack);
     if (b == 0) {
-        printf("Modulo by zero!\n");
+        stack_error("Modulo by zero!");
         return;
     }
     push(&stack, a % b);

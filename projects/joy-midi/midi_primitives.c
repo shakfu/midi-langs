@@ -3,6 +3,7 @@
  */
 
 #include "joy_runtime.h"
+#include "midi_sleep.h"
 #include "midi_primitives.h"
 #include "music_theory.h"
 #include "midi_open.h"
@@ -68,7 +69,7 @@ static void ensure_observer(void) {
     if (libremidi_midi_api_configuration_init(&api_conf) != 0) return;
 
     api_conf.configuration_type = Observer;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     libremidi_midi_observer_new(&observer_conf, &api_conf, &midi_observer);
 }
@@ -151,7 +152,7 @@ void midi_virtual_(JoyContext* ctx) {
     }
 
     api_conf.configuration_type = Output;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     int ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
     if (ret != 0) {
@@ -197,7 +198,7 @@ void midi_open_(JoyContext* ctx) {
     }
 
     api_conf.configuration_type = Output;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     int ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
     if (ret != 0) {
@@ -245,7 +246,7 @@ void midi_note_(JoyContext* ctx) {
 
     send_note_on(pitch, velocity);
     if (duration > 0) {
-        usleep(duration * 1000);
+        midi_sleep(duration);
     }
     send_note_off(pitch);
 }
@@ -305,7 +306,7 @@ void midi_chord_(JoyContext* ctx) {
     }
 
     if (duration > 0) {
-        usleep(duration * 1000);
+        midi_sleep(duration);
     }
 
     /* Note off for all pitches */
@@ -389,7 +390,7 @@ void midi_sleep_(JoyContext* ctx) {
 
     int ms = (int)ms_v.data.integer;
     if (ms > 0) {
-        usleep(ms * 1000);
+        midi_sleep(ms);
     }
 }
 
@@ -903,7 +904,7 @@ void schedule_play(MidiSchedule* sched) {
 
         /* Sleep until next event */
         if (next_time > current_time) {
-            usleep((next_time - current_time) * 1000);
+            midi_sleep(next_time - current_time);
             current_time = next_time;
         }
 

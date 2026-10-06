@@ -1,14 +1,19 @@
 # API Reference
 
-## Module Functions
+## Setup
 
-```python
+Examples import the module and use `m` for an open port:
+
+```python setup
 import midi
+m = midi.open()
 ```
+
+## Module Functions
 
 ### midi.open
 
-```python
+```python norun
 midi.open() -> MidiOut
 midi.open(name: str) -> MidiOut
 midi.open(index: int) -> MidiOut
@@ -22,7 +27,7 @@ Open a MIDI output port.
 
 - `open(0)` - Open hardware port by index
 
-```python
+```python norun
 m = midi.open()                  # Virtual port
 m = midi.open("MySynth")         # Named virtual port
 m = midi.open(0)                 # First hardware port
@@ -30,7 +35,7 @@ m = midi.open(0)                 # First hardware port
 
 ### midi.list_ports
 
-```python
+```python norun
 midi.list_ports() -> list[tuple[int, str]]
 ```
 
@@ -43,7 +48,7 @@ for idx, name in midi.list_ports():
 
 ### midi.note
 
-```python
+```python norun
 midi.note(name: str) -> int
 ```
 
@@ -78,7 +83,7 @@ with midi.open() as m:
 
 ### MidiOut.note
 
-```python
+```python norun
 m.note(pitch, velocity=80, duration=500, channel=1)
 ```
 
@@ -102,7 +107,7 @@ m.note("C5", 80, 500, 2)        # On channel 2
 
 ### MidiOut.chord
 
-```python
+```python norun
 m.chord(pitches, velocity=80, duration=500, channel=1)
 ```
 
@@ -124,7 +129,7 @@ m.chord(midi.major("C4"), midi.mf, midi.half)  # With helpers
 
 ### MidiOut.arpeggio
 
-```python
+```python norun
 m.arpeggio(pitches, velocity=80, note_duration=None, spacing=None, channel=1)
 ```
 
@@ -147,7 +152,7 @@ m.arpeggio(midi.min7("A3"), velocity=80, note_duration=100)
 
 ### MidiOut.note_on / note_off
 
-```python
+```python norun
 m.note_on(pitch, velocity=80, channel=1)
 m.note_off(pitch, velocity=0, channel=1)
 ```
@@ -162,7 +167,7 @@ m.note_off(60)
 
 ### MidiOut.cc
 
-```python
+```python norun
 m.cc(control, value, channel=1)
 ```
 
@@ -182,7 +187,7 @@ m.cc(64, 127)    # Sustain pedal on
 
 ### MidiOut.program_change
 
-```python
+```python norun
 m.program_change(program, channel=1)
 ```
 
@@ -199,7 +204,7 @@ m.program_change(25)    # Acoustic guitar
 
 ### MidiOut.all_notes_off
 
-```python
+```python norun
 m.all_notes_off(channel=None)
 ```
 
@@ -222,7 +227,7 @@ Note: All Notes Off is also sent automatically when a MidiOut object is garbage 
 
 ### MidiOut.is_open
 
-```python
+```python norun
 m.is_open -> bool
 ```
 
@@ -239,7 +244,7 @@ print(m.is_open)  # False
 
 Convenience methods for common control changes:
 
-```python
+```python norun
 m.modulation(value, channel=1)   # CC 1 - Modulation wheel
 m.volume(value, channel=1)       # CC 7 - Channel volume
 m.pan(value, channel=1)          # CC 10 - Pan (0=left, 64=center, 127=right)
@@ -292,7 +297,7 @@ Based on 120 BPM by default. Use `midi.set_tempo()` to change.
 
 ### midi.dotted
 
-```python
+```python norun
 midi.dotted(duration) -> int
 ```
 
@@ -309,7 +314,7 @@ midi.dotted(midi.half)     # 1500
 
 ### midi.set_tempo
 
-```python
+```python norun
 midi.set_tempo(bpm: int)
 ```
 
@@ -327,12 +332,12 @@ midi.set_tempo(60)   # 60 BPM - all durations double
 print(midi.quarter)  # 1000 at 60 BPM
 
 # Even raw millisecond values are scaled:
-out.note(60, 80, 500)  # At 60 BPM, plays for 1000ms (500 * 120/60)
+m.note(60, 80, 500)    # At 60 BPM, plays for 1000ms (500 * 120/60)
 ```
 
 ### midi.get_tempo
 
-```python
+```python norun
 midi.get_tempo() -> int
 ```
 
@@ -344,7 +349,7 @@ print(midi.get_tempo())  # 120
 
 ### midi.bpm
 
-```python
+```python norun
 midi.bpm(tempo: int) -> int
 ```
 
@@ -378,7 +383,7 @@ All chord builders accept a root pitch (int or str) and return a list of MIDI nu
 
 ### midi.major
 
-```python
+```python norun
 midi.major(root) -> list[int]
 ```
 
@@ -391,7 +396,7 @@ midi.major(60)    # [60, 64, 67]
 
 ### midi.minor
 
-```python
+```python norun
 midi.minor(root) -> list[int]
 ```
 
@@ -403,7 +408,7 @@ midi.minor("C4")  # [60, 63, 67]
 
 ### midi.dim
 
-```python
+```python norun
 midi.dim(root) -> list[int]
 ```
 
@@ -415,7 +420,7 @@ midi.dim("C4")  # [60, 63, 66]
 
 ### midi.aug
 
-```python
+```python norun
 midi.aug(root) -> list[int]
 ```
 
@@ -427,7 +432,7 @@ midi.aug("C4")  # [60, 64, 68]
 
 ### midi.dom7
 
-```python
+```python norun
 midi.dom7(root) -> list[int]
 ```
 
@@ -439,7 +444,7 @@ midi.dom7("C4")  # [60, 64, 67, 70]
 
 ### midi.maj7
 
-```python
+```python norun
 midi.maj7(root) -> list[int]
 ```
 
@@ -451,7 +456,7 @@ midi.maj7("C4")  # [60, 64, 67, 71]
 
 ### midi.min7
 
-```python
+```python norun
 midi.min7(root) -> list[int]
 ```
 
@@ -467,7 +472,7 @@ midi.min7("C4")  # [60, 63, 67, 70]
 
 ### midi.scale
 
-```python
+```python norun
 midi.scale(root, name) -> list[int]
 ```
 
@@ -485,7 +490,7 @@ midi.scale("D4", "dorian")   # Dorian mode starting on D
 
 ### midi.degree
 
-```python
+```python norun
 midi.degree(root, name, n) -> int
 ```
 
@@ -507,22 +512,22 @@ midi.degree(60, "major", 8)   # 72 (octave)
 midi.degree(60, "major", 9)   # 74 (ninth = octave + 2nd)
 ```
 
-### midi.in_scale
+### midi.in_scale_named
 
-```python
-midi.in_scale(pitch, root, name) -> bool
+```python norun
+midi.in_scale_named(pitch, root, name) -> bool
 ```
 
 Check if a pitch belongs to a named scale (in any octave).
 
 ```python
-midi.in_scale(64, 60, "major")  # True  (E is in C major)
-midi.in_scale(61, 60, "major")  # False (C# is not in C major)
+midi.in_scale_named(64, 60, "major")  # True  (E is in C major)
+midi.in_scale_named(61, 60, "major")  # False (C# is not in C major)
 ```
 
 ### midi.quantize
 
-```python
+```python norun
 midi.quantize(pitch, root, name) -> int
 ```
 
@@ -537,7 +542,7 @@ midi.quantize(66, 60, "major")  # 67 (F#/Gb -> G)
 
 For direct control with interval tuples:
 
-```python
+```python norun
 midi.build_scale(root, intervals) -> list[int]
 midi.scale_degree(root, intervals, degree) -> int
 midi.in_scale(pitch, root, intervals) -> bool
@@ -623,7 +628,7 @@ midi.scales["pentatonic"] # Returns (0, 2, 4, 7, 9)
 
 ### MidiOut.pitch_bend
 
-```python
+```python norun
 m.pitch_bend(cents, channel=1)
 ```
 
@@ -641,7 +646,7 @@ m.pitch_bend(0)     # Reset to center
 
 ### midi.cents_to_note
 
-```python
+```python norun
 midi.cents_to_note(root, cents) -> tuple[int, int]
 ```
 
@@ -698,7 +703,7 @@ with midi.open() as m:
 
 ### midi.transpose
 
-```python
+```python norun
 midi.transpose(pitch, semitones) -> int
 ```
 
@@ -711,7 +716,7 @@ midi.transpose(60, -12)   # 48 (C3)
 
 ### midi.octave_up
 
-```python
+```python norun
 midi.octave_up(pitch) -> int
 ```
 
@@ -723,7 +728,7 @@ midi.octave_up("C4")  # 72 (C5)
 
 ### midi.octave_down
 
-```python
+```python norun
 midi.octave_down(pitch) -> int
 ```
 
@@ -739,7 +744,7 @@ midi.octave_down(60)  # 48 (C3)
 
 ### midi.sleep
 
-```python
+```python norun
 midi.sleep(ms: int)
 ```
 
@@ -787,7 +792,7 @@ Record MIDI events for replay or export. Records note-on, note-off, and CC event
 
 ### midi.record_midi
 
-```python
+```python norun
 midi.record_midi(bpm=120)
 ```
 
@@ -813,7 +818,7 @@ midi.record_stop()
 
 ### midi.save_midi
 
-```python
+```python norun
 midi.save_midi(filename: str)
 ```
 
@@ -832,7 +837,7 @@ The generated file contains:
 
 ### midi.record_status
 
-```python
+```python norun
 midi.record_status() -> tuple[bool, int, int]
 ```
 
@@ -869,7 +874,7 @@ Read and write standard MIDI files (.mid format).
 
 ### midi.write_mid
 
-```python
+```python norun
 midi.write_mid(filename)
 ```
 
@@ -891,14 +896,17 @@ with midi.open() as m:
 
 ### midi.read_mid
 
-```python
+```python norun
 midi.read_mid(filename) -> dict
 ```
 
 Read a standard MIDI file and return its contents as a dictionary with metadata and events.
 
 ```python
-import midi
+midi.record_midi()
+m.note(60)
+midi.record_stop()
+midi.write_mid("song.mid")
 
 data = midi.read_mid("song.mid")
 
@@ -912,7 +920,7 @@ print(data["format"])      # MIDI format (0, 1, or 2)
 # Events - list of tuples (track, tick, channel, type, data1, data2)
 for event in data["events"]:
     track, tick, channel, event_type, data1, data2 = event
-    print(f"t={tick} ch={channel} type={event_type:#04x} d1={data1} d2={data2}")
+    print(f"t={tick} ch={channel} type={hex(event_type)} d1={data1} d2={data2}")
 ```
 
 Event types (in the `type` field):
@@ -929,13 +937,48 @@ Event types (in the `type` field):
 
 ---
 
+## Generative Functions
+
+Pure functions on pitch lists. Random functions take an explicit `seed`, so the same seed gives the same result. Functions that return `next_seed` let you chain calls.
+
+| Function | Returns | Description |
+|-|-|-|
+| `midi.next_random(seed)` | `(value, next_seed)` | Linear congruential generator (glibc constants) |
+| `midi.random_range(seed, lo, hi)` | `(value, next_seed)` | Integer in `[lo, hi]` |
+| `midi.random_list(seed, n, lo, hi)` | `(list, next_seed)` | `n` integers in `[lo, hi]` |
+| `midi.chance(seed, probability)` | `(bool, next_seed)` | `True` with `probability` percent |
+| `midi.euclidean(hits, steps)` | `list` | Bjorklund rhythm: `True` = hit, `False` = rest |
+| `midi.arp_up(lst)` | `list` | Copy in order |
+| `midi.arp_down(lst)` | `list` | Reversed copy |
+| `midi.arp_up_down(lst)` | `list` | Up, then down without repeating the ends |
+| `midi.retrograde(lst)` | `list` | Reversed copy |
+| `midi.invert(lst, axis)` | `list` | Mirror each pitch around `axis` |
+| `midi.shuffle(seed, lst)` | `list` | Fisher-Yates shuffle |
+| `midi.pick(seed, lst)` | `value` | One element, or `None` for an empty list |
+| `midi.pick_n(seed, n, lst)` | `list` | `n` elements, with replacement |
+| `midi.random_walk(seed, start, max_step, n)` | `list` | `n` pitches, each within `max_step` semitones of the last |
+| `midi.drunk_walk(seed, start, scale_pitches, max_degrees, n)` | `list` | Random walk over `scale_pitches`, moving at most `max_degrees` |
+| `midi.weighted_pick(seed, weights)` | `value` | `weights` is a list of `(value, weight)` tuples |
+
+```python
+rhythm = midi.euclidean(3, 8)          # [True, False, False, True, False, False, True, False]
+melody = midi.shuffle(42, midi.scale(60, "pentatonic"))
+walk = midi.random_walk(7, 60, 2, 8)
+hit, seed = midi.chance(1, 75)
+for i, on in enumerate(rhythm):
+    if on:
+        m.note(melody[i % len(melody)], midi.mf, midi.sixteenth)
+```
+
+---
+
 ## Async Scheduler
 
 The async scheduler enables non-blocking multi-voice playback using Python generators and libuv timers. Multiple "voices" can play concurrently with independent timing.
 
 ### midi.spawn
 
-```python
+```python norun
 midi.spawn(func, name=None) -> int
 ```
 
@@ -967,15 +1010,38 @@ midi.run()
 Run the scheduler until all voices complete. This is a blocking call.
 
 ```python
+def voice_a():
+    yield 100
+
+def voice_b():
+    yield 200
+
 midi.spawn(voice_a, "A")
 midi.spawn(voice_b, "B")
 midi.run()  # Blocks until both A and B finish
 print("All voices done")
 ```
 
-### midi.stop
+### midi.poll
+
+```python norun
+midi.poll() -> bool
+```
+
+Run the voices that are ready, without blocking. Returns `True` while voices remain, so a loop can do other work between calls.
 
 ```python
+def voice():
+    yield 10
+
+midi.spawn(voice)
+while midi.poll():
+    pass
+```
+
+### midi.stop
+
+```python norun
 midi.stop() -> None
 midi.stop(voice_id) -> bool
 ```
@@ -993,13 +1059,19 @@ midi.stop(1)     # Stop voice with ID 1
 
 ### midi.voices
 
-```python
+```python norun
 midi.voices() -> int
 ```
 
 Return count of active voices.
 
 ```python
+def voice_a():
+    yield 100
+
+def voice_b():
+    yield 200
+
 midi.spawn(voice_a)
 midi.spawn(voice_b)
 print(midi.voices())  # 2
@@ -1007,7 +1079,7 @@ print(midi.voices())  # 2
 
 ### midi.status
 
-```python
+```python norun
 midi.status() -> dict
 ```
 
@@ -1029,7 +1101,7 @@ Use `yield from` to delegate to these generators:
 
 ### midi.play
 
-```python
+```python norun
 midi.play(out, pitch, velocity=None, duration=None, channel=1)
 ```
 
@@ -1055,7 +1127,7 @@ def voice():
 
 ### midi.play_chord
 
-```python
+```python norun
 midi.play_chord(out, pitches, velocity=None, duration=None, channel=1)
 ```
 
@@ -1080,7 +1152,7 @@ def voice():
 
 ### midi.play_arp
 
-```python
+```python norun
 midi.play_arp(out, pitches, velocity=None, note_duration=None, spacing=None, channel=1)
 ```
 
@@ -1107,7 +1179,7 @@ def voice():
 
 ### midi.wait
 
-```python
+```python norun
 midi.wait(ms)
 ```
 
@@ -1125,7 +1197,7 @@ def voice():
 
 ### midi.ms / midi.yield_ms
 
-```python
+```python norun
 midi.ms(n) -> int
 midi.yield_ms(n) -> int  # alias
 ```
@@ -1151,11 +1223,13 @@ def voice():
 
 ```python
 # Using midi.wait (requires for loop due to PocketPy limitation)
-for ms in midi.wait(500):
-    yield ms
+def with_wait():
+    for ms in midi.wait(500):
+        yield ms
 
 # Using midi.ms (simpler, when you don't need the generator pattern)
-yield midi.ms(500)
+def with_ms():
+    yield midi.ms(500)
 ```
 
 Use `midi.ms()` for simple delays. Use `midi.wait()` when you need the generator pattern for compatibility with other helper functions.

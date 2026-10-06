@@ -1,0 +1,2 @@
+# Defined names the API reference does not mention: <lang> <name>
+# Document a name, then delete its line. See docs/dev/doc-tests.md.

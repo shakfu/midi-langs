@@ -53,7 +53,7 @@ static inline int clock_gettime(int clk_id, struct timespec *tp) {
 
 #define MAX_STACK_SIZE 256
 #define MAX_WORD_LENGTH 32
-#define MAX_WORDS 200
+#define MAX_WORDS 1024  /* primitives (about 210) and user definitions share it */
 #define MAX_INPUT_LENGTH 256
 #define MAX_PORTS 64
 #define MAX_DEFINITION_LENGTH 4096
@@ -236,6 +236,7 @@ typedef struct StackContext {
     int load_depth;
     const char* current_file;  /* Current file being loaded (NULL if REPL) */
     int current_line;          /* Current line number in file */
+    int error_count;           /* Errors reported via stack_error() */
 
     /* MIDI output handles */
     libremidi_midi_observer_handle* midi_observer;
@@ -366,6 +367,7 @@ void stack_context_reset(StackContext* ctx);
 #define load_depth                  (g_ctx.load_depth)
 #define current_file                (g_ctx.current_file)
 #define current_line                (g_ctx.current_line)
+#define error_count                 (g_ctx.error_count)
 
 /* MIDI output globals */
 #define midi_observer               (g_ctx.midi_observer)
@@ -697,6 +699,7 @@ void op_reset(Stack* s);
 void process_token(const char* token);
 void interpret(const char* input);
 int load_file(const char* filename);
+void stack_error(const char* fmt, ...); /* Print error with file:line context and count it */
 void op_colon(Stack* s);
 void op_semicolon(Stack* s);
 void op_if(Stack* s);

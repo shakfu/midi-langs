@@ -199,6 +199,7 @@ Both sequences and single notes use `,` to trigger playback.
 The old explicit params syntax `[1 c4 100 500],` is deprecated. Use named parameters instead:
 
 ```forth
+midi-open
 \ Old explicit params (deprecated)
 [1 c4 100 500],
 [(c4 e4 g4) 1 80 500],
@@ -229,6 +230,7 @@ c4 ch=1 vel=100 dur=500,
 **Examples:**
 
 ```forth
+midi-open
 c4 vel=100,                     \ Just velocity
 c4 dur=250,                     \ Just duration
 c4 vel=100 dur=250,             \ Velocity and duration
@@ -240,6 +242,7 @@ mf c4. vel=110,                 \ Combines with dynamics and articulation
 **Context variables** use `:=` for persistent assignment:
 
 ```forth
+midi-open
 ch:=2 vel:=100 dur:=250         \ Set defaults (persistent)
 c4, e4, g4,                     \ Uses defaults
 c4 vel=127,                     \ Override just this note (one-shot)
@@ -297,6 +300,7 @@ Common CC numbers:
 **Examples:**
 
 ```forth
+midi-open
 \ Full setup
 bpm:=120 prog:=25 ch:=1
 vel:=80 dur:=quarter gate:=85
@@ -425,6 +429,7 @@ melody,                    \ Play anytime
 **Simple melody:**
 
 ```forth
+midi-open
 \ Before
 c4, d4, e4, f4, g4, a4, b4, c5,
 
@@ -435,6 +440,7 @@ c4, d4, e4, f4, g4, a4, b4, c5,
 **Melody with dynamics:**
 
 ```forth
+midi-open
 \ Before
 mf c4, e4, ff g4, p c5,
 
@@ -445,6 +451,7 @@ mf c4, e4, ff g4, p c5,
 **Scale using intervals:**
 
 ```forth
+midi-open
 \ Before
 c4, +2, +2, +1, +2, +2, +2, +1,
 
@@ -455,6 +462,7 @@ c4, +2, +2, +1, +2, +2, +2, +1,
 **Mixed melody and chords:**
 
 ```forth
+midi-open
 \ Before
 c4, e4, (g4 c5),
 
@@ -465,6 +473,7 @@ c4, e4, (g4 c5),
 **With rests:**
 
 ```forth
+midi-open
 \ Before
 c4, r, e4, r, g4,
 
@@ -475,6 +484,7 @@ c4, r, e4, r, g4,
 **Explicit parameters:**
 
 ```forth
+midi-open
 \ Before
 [1 c4 100 500],
 [(c4 e4 g4) 2 80 1000],
@@ -487,6 +497,7 @@ c4 ch=1 vel=100 dur=500,
 **Partial parameter override:**
 
 ```forth
+midi-open
 \ Before (not possible - had to specify all 4)
 [1 c4 100 500],
 
@@ -566,6 +577,7 @@ midi-close
 ### Example Usage
 
 ```forth
+midi-open
 \ Named parameters (one-shot - apply to next note only)
 vel=100 c4,                 \ Play C4 at velocity 100
 ch=2 dur=250 e4,            \ Play E4 on channel 2, 250ms
@@ -818,6 +830,7 @@ Pros: No conflict with existing syntax Cons: Less common, harder to type
 ### Alternative B: Implicit Sequence (EOL triggers)
 
 ```forth
+midi-open
 c4, e4, g4     \ No trailing comma needed, EOL triggers last note
 ```
 

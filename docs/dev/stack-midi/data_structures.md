@@ -319,6 +319,7 @@ Add sequence storage in a memory region:
 - Basic operations: append, play, transform
 
 ```forth
+midi-open
 seq-new                   \ create empty sequence
 0 60 100 480 seq-note     \ add C4 at tick 0
 0 64 100 480 seq-note     \ add E4 at tick 0

@@ -1,0 +1,11 @@
+\ test_async_churn.stk - start, stop and restart background playback without losing a slot
+\ Each test prints -1 for pass (Forth true), 0 for fail
+
+midi-open
+0 seq-start c4, e4, g4, 0 seq-end
+1 seq-start c5, 1 seq-end
+: cycle 0 seq seq-play& 1 seq seq-loop& seq-stop-all 0 seq seq-loop& 0 seq seq-stop seq-active 0 = . ;
+cycle 200 times
+seq-playing? 0 = .
+midi-close
+999 .

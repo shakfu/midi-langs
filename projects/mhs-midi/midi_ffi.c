@@ -122,7 +122,7 @@ int midi_init(void) {
     libremidi_api_configuration api_conf;
     libremidi_midi_api_configuration_init(&api_conf);
     api_conf.configuration_type = Observer;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     /* Create observer */
     if (libremidi_midi_observer_new(&obs_conf, &api_conf, &g_observer) != 0) {
@@ -203,7 +203,7 @@ int midi_open(int port_index) {
     libremidi_api_configuration api_conf;
     libremidi_midi_api_configuration_init(&api_conf);
     api_conf.configuration_type = Output;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     /* Create MIDI output */
     if (libremidi_midi_out_new(&midi_conf, &api_conf, &g_midi_out) != 0) {
@@ -233,7 +233,7 @@ int midi_open_virtual(const char* name) {
     libremidi_api_configuration api_conf;
     libremidi_midi_api_configuration_init(&api_conf);
     api_conf.configuration_type = Output;
-    api_conf.api = UNSPECIFIED;
+    api_conf.api = midi_backend_api();
 
     /* Create MIDI output */
     if (libremidi_midi_out_new(&midi_conf, &api_conf, &g_midi_out) != 0) {

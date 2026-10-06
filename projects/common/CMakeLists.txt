@@ -38,6 +38,8 @@ set_target_properties(midi_file PROPERTIES
 add_library(midi_open STATIC
     midi_open.c
     midi_open.h
+    midi_sleep.c
+    midi_sleep.h
 )
 
 target_include_directories(midi_open PUBLIC

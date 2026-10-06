@@ -471,7 +471,7 @@ Start the REPL:
 
 ### Quick Note Test
 
-```python
+```python norun
 >>> import midi
 >>> m = midi.open()
 >>> m.note("C4")
@@ -482,7 +482,7 @@ Start the REPL:
 
 ### Interactive Chord Exploration
 
-```python
+```python norun
 >>> import midi
 >>> m = midi.open()
 >>> m.chord(midi.major("C4"))
@@ -493,7 +493,7 @@ Start the REPL:
 
 ### Testing Dynamics
 
-```python
+```python norun
 >>> import midi
 >>> m = midi.open()
 >>> m.note(midi.c4, midi.ppp)  # Very soft
@@ -504,7 +504,7 @@ Start the REPL:
 
 ### Using Context Manager
 
-```python
+```python norun
 >>> import midi
 >>> with midi.open() as m:
 ...     m.note("C4")

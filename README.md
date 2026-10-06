@@ -47,6 +47,8 @@ make mhs-midi-pkg-zstd  # MicroHs (recommended variant)
 
 Requires GCC/Clang and CMake 3.16+.
 
+Set `MIDI_LANGS_BACKEND=null` to run any interpreter without a MIDI server: ports open, and all output is discarded.
+
 **Linux (Ubuntu/Debian):** Install ALSA and readline development libraries:
 
 ```sh
@@ -117,20 +119,61 @@ Options:
   --help          Show this help
 
 Without --script, files are loaded then REPL starts.
+
+stack-midi - a stack language for MIDI sequence generation
+
+Concise Notation:
+  c4,                     Play C4 with defaults
+  c#4, db4, 60,           Sharps, flats, or MIDI numbers
+  (c4 e4 g4),             Chord (concurrent)
+  r,                      Rest (silence)
+  ch! vel! dur!           Set default channel/velocity/duration
+
+Word Definitions:
+  : name ... ;            Define a new word
+  name N times            Execute word N times total
+
+File Operations:
+  load filename           Load and execute a .stk file
+  rec / stop / save       Record commands to file
+  rec-midi / stop / save-midi  Record MIDI events (stack-midi source)
+  write-mid filename      Write captured events to .mid file
+  read-mid filename       Read and display .mid file info
+
+Generative:
+  c4|e4,                  Alternative (random selection)
+  c4 75%,                 75% chance to play
+  seed! seed@ next-random  PRNG functions
+  [[ ... ]] list-len      List operations
+  euclidean shuffle pick  Pattern operations
+
+Dynamics: ppp pp p mp mf f ff fff
+Articulation: c4. (staccato) c4> (accent) c4- (tenuto)
+
+MIDI Output: midi-output-list midi-output-open midi-output-virtual midi-output-close
+  (aliases: midi-list midi-open-port midi-open midi-close)
+MIDI Input: midi-input-list midi-input-open midi-input-virtual midi-input-close
+  midi-input? midi-input@ midi-input-flush
+MIDI Control: cc panic
+Sequences: seq-start seq-end seq-play seq-show
+Scales: scale-major scale-minor scale-blues ... scales
+
+Type 'words' to see all available words.
+Type 'quit' to exit.
 ```
 
 ```forth
 midi-open
 \ Concise notation with probability and articulation
-mf c4, e4. g4> c5-,          \ staccato, accent, tenuto
-c4|e4|g4, 75%,               \ random selection, 75% chance
+mf c4, e4., g4>, c5-,        \ staccato, accent, tenuto
+c4|e4|g4 75%,                \ random selection, 75% chance
 (c4 e4 g4),                  \ chord
 
 \ Generative pattern with anonymous block
 { c4, d4, e4, } 4 *          \ repeat block 4 times
 
 \ Async sequence playback
-seq-new 0 seq-start
+0 seq-start
   c4, e4, g4,
 0 seq-end
 seq-play&                    \ non-blocking playback
@@ -146,6 +189,8 @@ Usage: ./build/pforth_midi [-q] [file.fs]
 
 pForth with MIDI words. With no file, starts the interactive prompt.
 Type MIDI-HELP at the prompt for the MIDI words, BYE to exit.
+
+  -q    No banner
 ```
 
 ```forth
@@ -166,11 +211,16 @@ bass c2 note
 
 ```sh
 % ./build/guile_midi --help
-Usage: ./build/guile_midi [options] [file.scm]
+Usage: ./build/guile_midi [options] [file.scm|file.w]
 Options:
   -e EXPR    Evaluate expression and print result
+  --no-sleep Skip all waits; give it before the file (for testing)
   --version  Show version
   --help     Show this help
+
+File types:
+  .scm       Standard Scheme file
+  .w         Wisp syntax file (indentation-based)
 
 Without arguments, starts an interactive REPL.
 ```
@@ -199,10 +249,19 @@ Note: guile-midi requires GNU Guile 3.0 to be installed. On macOS, Guile and its
 % ./build/joy_midi --help
 Usage: ./build/joy_midi [options] [file.joy]
 Options:
-  -h        Show this help
-  -v        Show version
+  -h, --help     Show this help
+  -v, --version  Show version
+  --no-sleep     Skip all waits (for testing)
 
-Without arguments, starts an interactive REPL with virtual MIDI port.
+MIDI words:
+  midi-list    - List MIDI output ports
+  midi-virtual - Create virtual MIDI port 'JoyMIDI'
+  midi-open    - Open port by index (n -- )
+  midi-note    - Play note (pitch vel dur -- )
+  midi-chord   - Play chord ([pitches] vel dur -- )
+  pitch        - Parse pitch name ("C4" -- 60)
+  major        - Build major triad (root -- [pitches])
+  minor        - Build minor triad (root -- [pitches])
 ```
 
 Joy-MIDI treats notes as integers at parse time, enabling algebraic composition:
@@ -241,6 +300,7 @@ ff d minor chord          \ D minor at fortissimo
 Usage: ./build/lua_midi [options] [file.lua]
 Options:
   -e EXPR    Execute Lua statement
+  --no-sleep Skip all waits; give it before the file (for testing)
   --version  Show version
   --help     Show this help
 
@@ -272,10 +332,30 @@ close()
 % ./scripts/mhs-midi --help
 usage: mhs-midi [-h] {repl,compile,run} ...
 
+MicroHs MIDI development tool
+
+positional arguments:
+  {repl,compile,run}  Command to run
+    repl              Start interactive REPL (default)
+    compile           Compile Haskell file to executable
+    run               Compile and run Haskell file
+
+options:
+  -h, --help          show this help message and exit
+
+mhs-midi - MicroHs MIDI development tool
+
 Commands:
-  repl              Start interactive REPL (default)
-  compile FILE.hs   Compile to standalone executable
-  run FILE.hs       Compile and immediately run
+    repl              Start interactive REPL with MIDI support (default)
+    compile FILE.hs   Compile Haskell file to standalone executable
+    run FILE.hs       Compile and immediately run
+
+Examples:
+    mhs-midi                          # Start REPL
+    mhs-midi repl                     # Start REPL (explicit)
+    mhs-midi compile demo.hs          # Compile to ./demo
+    mhs-midi compile demo.hs -o out   # Compile to ./out
+    mhs-midi run demo.hs              # Compile and run
 ```
 
 **Interactive REPL:**
@@ -346,10 +426,17 @@ Options:
   -l, --list     List available MIDI output ports
   --profile      Enable profiler (file mode only)
   --debug        Enable debugger (file mode only)
+  --no-sleep     Skip all waits (for testing)
   -v, --version  Show version information
   -h, --help     Show this help message
 
 Without arguments, starts an interactive REPL.
+
+Examples:
+  ./build/pktpy_midi                    # Start REPL
+  ./build/pktpy_midi script.py          # Run a Python file
+  ./build/pktpy_midi -e "print(1+2)"    # Execute expression
+  ./build/pktpy_midi -l                 # List MIDI ports
 ```
 
 A pktpy-midi file is a regular python3 file which can import the custom `midi` module (and other [pocketpy](https://pocketpy.dev) modules):
@@ -391,11 +478,13 @@ midi.run()
 (spawn (make-melody-voice melody mf eighth) "melody")
 (spawn (make-melody-voice bass ff quarter) "bass")
 
-;; Euclidean rhythm generator
-(spawn (lambda ()
-  (euclidean 3 8  ; 3 hits over 8 steps
-    (lambda () (n c2 ff sixteenth))))
-  "rhythm")
+;; Euclidean rhythm: 3 hits over 8 steps, one (action . delay) per step
+(define (drum-step hit)
+  (cons (lambda ()
+          (midi-note-off *midi* c2 1)
+          (if hit (midi-note-on *midi* c2 ff 1)))
+        sixteenth))
+(spawn (make-sequence-voice (map drum-step (euclidean 3 8))) "rhythm")
 
 (run)
 (close)

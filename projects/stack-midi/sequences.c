@@ -20,12 +20,12 @@ static void seq_sort(Sequence* seq) {
 /* Helper to add event to current sequence */
 static void add_event(int time, int type, int ch, int d1, int d2) {
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
     Sequence* seq = &sequences[current_seq];
     if (seq->length >= MAX_SEQ_EVENTS) {
-        printf("Sequence full\n");
+        stack_error("Sequence full");
         return;
     }
     MidiEvent* e = &seq->events[seq->length++];
@@ -40,7 +40,7 @@ static void add_event(int time, int type, int ch, int d1, int d2) {
 void op_seq_new(Stack* s) {
     (void)s;
     if (sequence_count >= MAX_SEQUENCES) {
-        printf("Max sequences reached\n");
+        stack_error("Max sequences reached");
         push(&stack, -1);
         return;
     }
@@ -55,7 +55,7 @@ void op_seq_new(Stack* s) {
 void op_seq_new_store(Stack* s) {
     (void)s;
     if (sequence_count >= MAX_SEQUENCES) {
-        printf("Max sequences reached\n");
+        stack_error("Max sequences reached");
         return;
     }
     int id = sequence_count++;
@@ -68,7 +68,7 @@ void op_seq_new_store(Stack* s) {
 void op_seq_select(Stack* s) {
     int32_t id = pop(&stack);
     if (id < 0 || id >= sequence_count) {
-        printf("Invalid sequence id: %d\n", id);
+        stack_error("Invalid sequence id: %d", id);
         return;
     }
     current_seq = id;
@@ -91,7 +91,7 @@ void op_seq_start(Stack* s) {
     }
 
     if (id < 0 || id >= MAX_SEQUENCES) {
-        printf("Invalid sequence id: %d\n", id);
+        stack_error("Invalid sequence id: %d", id);
         return;
     }
 
@@ -111,7 +111,7 @@ void op_seq_end(Stack* s) {
     int32_t id = pop(&stack);
 
     if (!seq_recording_mode) {
-        printf("Not currently recording\n");
+        stack_error("Not currently recording");
         return;
     }
 
@@ -150,13 +150,13 @@ void op_seq_note(Stack* s) {
     int32_t time = pop(&stack);
 
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
 
     Sequence* seq = &sequences[current_seq];
     if (seq->length >= MAX_SEQ_EVENTS - 2) {
-        printf("Sequence full\n");
+        stack_error("Sequence full");
         return;
     }
 
@@ -179,13 +179,13 @@ void op_seq_note_ch(Stack* s) {
     int32_t time = pop(&stack);
 
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
 
     Sequence* seq = &sequences[current_seq];
     if (seq->length >= MAX_SEQ_EVENTS - 2) {
-        printf("Sequence full\n");
+        stack_error("Sequence full");
         return;
     }
 
@@ -206,13 +206,13 @@ void op_seq_add(Stack* s) {
     int32_t packed = pop(&stack);
 
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
 
     Sequence* seq = &sequences[current_seq];
     if (seq->length >= MAX_SEQ_EVENTS - 2) {
-        printf("Sequence full\n");
+        stack_error("Sequence full");
         return;
     }
 
@@ -233,17 +233,17 @@ void op_seq_add(Stack* s) {
 void op_seq_play(Stack* s) {
     (void)stack;
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         return;
     }
 
     Sequence* seq = &sequences[current_seq];
     if (seq->length == 0) {
-        printf("Sequence empty\n");
+        stack_error("Sequence empty");
         return;
     }
 
@@ -312,7 +312,7 @@ void op_seq_transpose(Stack* s) {
 void op_seq_show(Stack* s) {
     (void)stack;
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return;
     }
     Sequence* seq = &sequences[current_seq];
@@ -384,13 +384,13 @@ void op_bpm_fetch(Stack* s) {
 /* seq-write-mid ( filename -- ) Write current sequence to MIDI file */
 int seq_write_mid(const char* filename) {
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return -1;
     }
 
     Sequence* seq = &sequences[current_seq];
     if (seq->length == 0) {
-        printf("Sequence is empty\n");
+        stack_error("Sequence is empty");
         return -1;
     }
 
@@ -403,7 +403,7 @@ int seq_write_mid(const char* filename) {
     /* Create MIDI file writer */
     midi_file_writer* writer = NULL;
     if (midi_file_writer_new(&writer) != 0) {
-        printf("Error: cannot create MIDI file writer\n");
+        stack_error("Error: cannot create MIDI file writer");
         return -1;
     }
 
@@ -434,7 +434,7 @@ int seq_write_mid(const char* filename) {
     midi_file_writer_free(writer);
 
     if (result != 0) {
-        printf("Error: failed to write MIDI file '%s'\n", filename);
+        stack_error("Error: failed to write MIDI file '%s'", filename);
         return -1;
     }
 
@@ -460,19 +460,19 @@ static const char* pitch_to_name(int pitch) {
 /* seq-save ( filename -- ) Save current sequence as stack-midi script */
 int seq_save(const char* filename) {
     if (current_seq < 0) {
-        printf("No sequence selected\n");
+        stack_error("No sequence selected");
         return -1;
     }
 
     Sequence* seq = &sequences[current_seq];
     if (seq->length == 0) {
-        printf("Sequence is empty\n");
+        stack_error("Sequence is empty");
         return -1;
     }
 
     FILE* f = fopen(filename, "w");
     if (f == NULL) {
-        printf("Error: cannot create file '%s'\n", filename);
+        stack_error("Error: cannot create file '%s'", filename);
         return -1;
     }
 

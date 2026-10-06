@@ -346,7 +346,7 @@ add_test(NAME joy_midi_chord
 ### Integration Test
 
 Create `tests/examples/demo_joy_notation.joy`:
-```joy
+```joy norun
 midi-virtual
 120 tempo
 mf

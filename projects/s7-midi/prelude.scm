@@ -15,7 +15,7 @@
 (define eighth 250)
 (define sixteenth 125)
 
-(define (dotted dur) (floor (* dur 1.5)))
+(define (dotted dur) (quotient (* dur 3) 2))  ; exact, so midi-note accepts it
 
 ;; Tempo
 (define *bpm* 120)

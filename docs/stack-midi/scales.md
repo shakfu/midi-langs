@@ -102,7 +102,7 @@ Outputs all 49 available scales with their IDs.
 
 ### scale
 
-```forth
+```forth norun
 ( root scale-id -- p1 p2 ... pN N )
 ```
 
@@ -115,9 +115,22 @@ c4 scale-major scale .s
 
 The example shows C major scale: C4(60), D4(62), E4(64), F4(65), G4(67), A4(69), B4(71), and count 7.
 
-### degree
+### play-scale
+
+```forth norun
+( root scale-id -- )
+```
+
+Play a scale ascending, one note at a time, with the current channel, velocity, duration and gate. `,` plays the whole stack as one note, so it cannot play the pitches that `scale` leaves.
 
 ```forth
+midi-open
+c4 scale-major play-scale
+```
+
+### degree
+
+```forth norun
 ( root scale-id degree -- pitch )
 ```
 
@@ -132,7 +145,7 @@ c4 scale-major 9 degree .    \ 74 (D5 - ninth)
 
 ### in-scale?
 
-```forth
+```forth norun
 ( pitch root scale-id -- flag )
 ```
 
@@ -145,7 +158,7 @@ c#4 c4 scale-major in-scale? .   \ 0 (C# is not in C major)
 
 ### quantize
 
-```forth
+```forth norun
 ( pitch root scale-id -- quantized-pitch )
 ```
 
@@ -160,7 +173,7 @@ f#4 c4 scale-major quantize .    \ 67 (F# snaps to G)
 
 ### cents>bend
 
-```forth
+```forth norun
 ( cents -- bend )
 ```
 
@@ -174,13 +187,14 @@ Convert a cents offset to a MIDI pitch bend value. Center is 8192, range is 0-16
 
 ### pb-cents
 
-```forth
+```forth norun
 ( cents channel -- )
 ```
 
 Send a pitch bend in cents on a specific channel.
 
 ```forth
+midi-open
 50 1 pb-cents       \ Quarter-tone up on channel 1
 0 1 pb-cents        \ Reset to center
 ```
@@ -193,14 +207,7 @@ Send a pitch bend in cents on a specific channel.
 midi-open
 
 \ Play C major scale ascending
-: play-scale
-    c4 scale-major scale   \ Build scale, get pitches + count
-    drop                   \ Drop count
-    ( now 7 pitches on stack )
-    ,,,,,,,                \ Play all 7
-;
-
-play-scale
+c4 scale-major play-scale
 ```
 
 ### Build Triads from Scale Degrees
@@ -212,8 +219,7 @@ midi-open
 : I-chord
     c4 scale-major 1 degree
     c4 scale-major 3 degree
-    c4 scale-major 5 degree
-    ( now 3 pitches on stack )
+    c4 scale-major 5 degree    \ now 3 pitches on stack
 ;
 
 \ IV chord (4-6-8)
@@ -255,10 +261,8 @@ random-note 16 times
 midi-open
 
 \ Play same notes through different modes
-: play-mode ( scale-id -- )
-    c4 swap scale
-    drop ,,,,,,,
-;
+\ play-mode ( scale-id -- )
+: play-mode c4 swap play-scale ;
 
 scale-major play-mode
 500 ms

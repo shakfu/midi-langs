@@ -142,7 +142,7 @@ def synth-pad == 88 midi-program .
 
 ### Channel Selection
 
-```joy
+```joy norun
 \ midi-channel ( ch -- )
 1 midi-channel    \ Switch to channel 1 (0-15)
 9 midi-channel    \ Drums (channel 10 in 1-indexed)
@@ -153,7 +153,7 @@ def synth-pad == 88 midi-program .
 
 ### Pitch Bend
 
-```joy
+```joy norun
 \ midi-bend ( value -- )  value: -8192 to 8191, 0 = center
 0 midi-bend       \ Center
 4096 midi-bend    \ Bend up
@@ -169,7 +169,7 @@ def bend-cents == 8192 * 100 / midi-bend .  \ 50 bend-cents = quarter tone up
 
 ### Non-blocking Note Playback
 
-```joy
+```joy norun
 \ Fire-and-forget notes (current play is blocking)
 c play&           \ Start note, don't wait
 500 midi-sleep    \ Do other things
@@ -183,7 +183,7 @@ c midi-note-off
 
 ### Sequence Builder
 
-```joy
+```joy norun
 \ Build sequences for parallel playback
 seq-new
   c 500 seq-add
@@ -198,7 +198,7 @@ seq-play&         \ Play sequence (non-blocking)
 
 ### Parallel Voices
 
-```joy
+```joy norun
 \ Play two sequences simultaneously
 [c d e f g] [play] step    \ Melody (blocking)
 
@@ -216,7 +216,7 @@ The current design uses `tempo` and fixed durations. We could add rhythmic notat
 
 ### Option A: Duration Words
 
-```joy
+```joy norun
 \ Duration modifiers (set state like dynamics)
 q       \ Quarter note duration
 h       \ Half note
@@ -247,7 +247,7 @@ c8 d8 e8 f8       \ Eighth notes
 
 ### Option C: Explicit Duration Parameter
 
-```joy
+```joy norun
 \ play-with-dur ( notes duration -- )
 [c d e f] 250 play-dur    \ Each note 250ms
 [c d e f] q play-dur      \ Each note = quarter at current tempo
@@ -261,7 +261,7 @@ c8 d8 e8 f8       \ Eighth notes
 
 ### Euclidean Rhythms
 
-```joy
+```joy norun
 \ euclidean ( hits total -- pattern )
 3 8 euclidean     \ -> [1 0 0 1 0 0 1 0] (tresillo)
 5 8 euclidean     \ -> [1 0 1 1 0 1 1 0] (cinquillo)
@@ -272,7 +272,7 @@ c8 d8 e8 f8       \ Eighth notes
 
 ### Markov Chains
 
-```joy
+```joy norun
 \ Transition matrix for melody generation
 [
   [0.1 0.3 0.2 0.2 0.1 0.1]   \ From C: probabilities to C D E F G A
@@ -285,7 +285,7 @@ c8 d8 e8 f8       \ Eighth notes
 
 ### L-Systems
 
-```joy
+```joy norun
 \ Musical L-system
 "A" axiom
 [ ["A" "AB"] ["B" "A"] ] rules
@@ -300,7 +300,7 @@ play
 
 ### Export
 
-```joy
+```joy norun
 \ Record to MIDI file
 midi-record-start
 [c d e f g] arp
@@ -311,7 +311,7 @@ midi-record-stop
 
 ### Import
 
-```joy
+```joy norun
 \ Load and analyze MIDI file
 "song.mid" midi-load    \ -> [[note vel dur] ...]
 dup size .              \ Number of events
@@ -324,7 +324,7 @@ dup size .              \ Number of events
 
 If we add audio output alongside MIDI:
 
-```joy
+```joy norun
 \ Simple oscillators
 440 sine play-audio       \ 440Hz sine wave
 [440 550 660] sines mix play-audio   \ Chord

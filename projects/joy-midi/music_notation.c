@@ -19,6 +19,7 @@
  */
 
 #include "music_notation.h"
+#include "midi_sleep.h"
 #include "music_context.h"
 #include "midi_primitives.h"
 #include "joy_parser.h"
@@ -169,7 +170,7 @@ static void play_single_note(MusicContext* mctx, int pitch) {
     /* Immediate playback mode */
     if (pitch == REST_MARKER) {
         /* Rest: just wait */
-        usleep(mctx->duration_ms * 1000);
+        midi_sleep(mctx->duration_ms);
         return;
     }
 
@@ -179,12 +180,12 @@ static void play_single_note(MusicContext* mctx, int pitch) {
 
     send_note_on(pitch, mctx->velocity);
     if (play_dur > 0) {
-        usleep(play_dur * 1000);
+        midi_sleep(play_dur);
     }
     send_note_off(pitch);
 
     if (rest_dur > 0) {
-        usleep(rest_dur * 1000);
+        midi_sleep(rest_dur);
     }
 }
 
@@ -289,7 +290,7 @@ void music_chord_(JoyContext* ctx) {
         /* Wait for duration */
         int play_dur = mctx->duration_ms * mctx->quantization / 100;
         if (play_dur > 0) {
-            usleep(play_dur * 1000);
+            midi_sleep(play_dur);
         }
 
         /* Note off for all */
@@ -300,7 +301,7 @@ void music_chord_(JoyContext* ctx) {
         /* Rest gap */
         int rest_dur = mctx->duration_ms - play_dur;
         if (rest_dur > 0) {
-            usleep(rest_dur * 1000);
+            midi_sleep(rest_dur);
         }
 
         joy_value_free(&val);

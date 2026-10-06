@@ -5,6 +5,7 @@
  */
 
 #include "scheduler.h"
+#include "midi_sleep.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,7 +125,7 @@ static void on_timer(uv_timer_t* handle) {
         /* Set wake time and start timer */
         v->wake_time_ms = now_ms() + (uint64_t)wait_ms;
         v->waiting = 1;
-        uv_timer_start(&v->timer, on_timer, (uint64_t)wait_ms, 0);
+        uv_timer_start(&v->timer, on_timer, (uint64_t)midi_wait_ms(wait_ms), 0);
     } else {
         /* Invalid return - treat as done */
         fprintf(stderr, "Voice '%s': invalid return (expected number or #f)\n",

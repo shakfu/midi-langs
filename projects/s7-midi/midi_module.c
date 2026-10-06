@@ -40,6 +40,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 #endif
 
 #include "s7.h"
+#include "midi_sleep.h"
 #include <libremidi/libremidi-c.h>
 #include "scm_prelude.h"
 #include "music_theory.h"
@@ -144,6 +145,7 @@ static int midi_init_observer(void) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) return ret;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_observer_new(&observer_conf, &api_conf, &midi_observer);
     if (ret != 0) return ret;
@@ -281,6 +283,7 @@ static s7_pointer g_midi_open(s7_scheme *sc, s7_pointer args) {
         return s7_error(sc, s7_make_symbol(sc, "midi-error"),
                         s7_list(sc, 1, s7_make_string(sc, "Failed to init API config")));
     }
+    api_conf.api = midi_backend_api();
 
     int is_virtual = 0;
     const char *port_name = "s7MIDI";
@@ -504,7 +507,7 @@ static s7_pointer g_midi_note(s7_scheme *sc, s7_pointer args) {
     /* Wait (scaled for tempo) */
     int scaled_dur = scale_duration_for_tempo(duration);
     if (scaled_dur > 0) {
-        usleep(scaled_dur * 1000);
+        midi_sleep(scaled_dur);
     }
 
     /* Note off */
@@ -578,7 +581,7 @@ static s7_pointer g_midi_chord(s7_scheme *sc, s7_pointer args) {
     /* Wait (scaled for tempo) */
     int scaled_dur = scale_duration_for_tempo(duration);
     if (scaled_dur > 0) {
-        usleep(scaled_dur * 1000);
+        midi_sleep(scaled_dur);
     }
 
     /* Send note-offs */
@@ -678,7 +681,7 @@ static s7_pointer g_midi_sleep(s7_scheme *sc, s7_pointer args) {
     int ms = (int)s7_integer(s7_car(args));
     int scaled_ms = scale_duration_for_tempo(ms);
     if (scaled_ms > 0) {
-        usleep(scaled_ms * 1000);
+        midi_sleep(scaled_ms);
     }
     return s7_unspecified(sc);
 }

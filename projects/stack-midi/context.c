@@ -118,6 +118,7 @@ void stack_context_init(StackContext* ctx) {
     ctx->load_depth = 0;
     ctx->current_file = NULL;
     ctx->current_line = 0;
+    ctx->error_count = 0;
 
     /* MIDI output handles */
     ctx->midi_observer = NULL;

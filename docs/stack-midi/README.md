@@ -55,7 +55,7 @@ Type `help` for command reference, `quit` to exit.
 
 - [Sequences](sequences.md) - Non-blocking sequence playback
 
-- [Data Structures](data_structures.md) - Packed notes, sequences
+- [Data Structures](../dev/stack-midi/data_structures.md) - Design record: options for packed notes and sequences
 
 ## Example: Generative Pattern
 
@@ -105,5 +105,8 @@ midi-close
 Read and display MIDI file info:
 
 ```forth
+midi-open
+rec-midi c4, stop
+write-mid song.mid
 read-mid song.mid        \ Display file info and events
 ```

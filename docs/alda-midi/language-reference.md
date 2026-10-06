@@ -4,6 +4,14 @@ This document covers the Alda language features implemented in alda-midi.
 
 For comprehensive Alda documentation, see the [alda-language](alda-language/) directory.
 
+## Setup
+
+Notes need a part. Examples below assume one:
+
+```alda setup
+piano:
+```
+
 ## Notes
 
 Notes are specified by letter name (a-g), optional accidental, and optional duration.
@@ -306,11 +314,11 @@ Voices are numbered 1-8. Each voice has independent timing within the part.
 
 ## Repeats
 
-Repeat sections of music:
+Repeat sections of music. `*N` attaches to the bracket or note with no space:
 
 ```alda
-[ c d e f ] * 4    # Repeat 4 times
-c d e f * 2        # Repeat just the last note
+[c d e f]*4        # Repeat 4 times
+c d e f*2          # Repeat just the last note
 ```
 
 ---

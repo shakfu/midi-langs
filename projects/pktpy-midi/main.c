@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include "midi_sleep.h"
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
@@ -35,6 +36,7 @@ static void print_help(const char* prog) {
     printf("  -l, --list     List available MIDI output ports\n");
     printf("  --profile      Enable profiler (file mode only)\n");
     printf("  --debug        Enable debugger (file mode only)\n");
+    printf("  --no-sleep     Skip all waits (for testing)\n");
     printf("  -v, --version  Show version information\n");
     printf("  -h, --help     Show this help message\n");
     printf("\n");
@@ -54,6 +56,7 @@ static struct option long_options[] = {
     {"list",    no_argument,       0, 'l'},
     {"profile", no_argument,       0, 'P'},
     {"debug",   no_argument,       0, 'D'},
+    {"no-sleep", no_argument,      0, 'S'},
     {0, 0, 0, 0}
 };
 #endif
@@ -322,6 +325,8 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_help(argv[0]);
             return 0;
+        } else if (strcmp(argv[i], "--no-sleep") == 0) {
+            midi_set_no_sleep(1);
         } else if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
             print_version();
             return 0;
@@ -363,6 +368,9 @@ int main(int argc, char** argv) {
                 break;
             case 'D':
                 debug = true;
+                break;
+            case 'S':
+                midi_set_no_sleep(1);
                 break;
             default:
                 print_help(argv[0]);

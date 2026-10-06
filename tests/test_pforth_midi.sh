@@ -5,6 +5,9 @@
 
 set -u
 
+# Checks MIDI on the wire with aseqdump, which the null backend never reaches
+unset MIDI_LANGS_BACKEND
+
 PFORTH_MIDI="${1:-$(dirname "$0")/../build/pforth_midi}"
 TMP=$(mktemp -d)
 DUMP_PID=""

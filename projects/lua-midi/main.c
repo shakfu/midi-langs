@@ -231,6 +231,7 @@ static void init_readline_completion(void) {
 
 #include "lauxlib.h"
 #include "lualib.h"
+#include "midi_sleep.h"
 
 /* External functions from midi_module.c */
 extern int luaopen_midi(lua_State *L);
@@ -244,6 +245,7 @@ static void print_usage(const char *prog) {
     fprintf(stderr, "Usage: %s [options] [file.lua]\n", prog);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -e EXPR    Execute Lua statement\n");
+    fprintf(stderr, "  --no-sleep Skip all waits; give it before the file (for testing)\n");
     fprintf(stderr, "  --version  Show version\n");
     fprintf(stderr, "  --help     Show this help\n");
     fprintf(stderr, "\nWithout arguments, starts an interactive REPL.\n");
@@ -476,6 +478,8 @@ int main(int argc, char **argv) {
                     lua_close(L);
                     return 1;
                 }
+            } else if (strcmp(argv[i], "--no-sleep") == 0) {
+                midi_set_no_sleep(1);
             } else if (strcmp(argv[i], "--version") == 0) {
                 printf("lua_midi using %s\n", LUA_VERSION);
             } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {

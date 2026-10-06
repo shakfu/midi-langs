@@ -46,7 +46,7 @@ void op_note_print(Stack* s) {
  * Polymorphic: works on packed notes or bracket sequences */
 void op_transpose(Stack* s) {
     if (stack.top < 1) {
-        printf("transpose needs a value and semitones\n");
+        stack_error("transpose needs a value and semitones");
         return;
     }
 
@@ -57,7 +57,7 @@ void op_transpose(Stack* s) {
     if ((val & 0xFF000000) == SEQ_MARKER) {
         int idx = val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             push(&stack, 0);
             return;
         }
@@ -107,7 +107,7 @@ void op_note_play(Stack* s) {
     current_pitch = pitch;
 
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         return;
     }
 

@@ -53,6 +53,7 @@ if ! echo "$ASYNC_OUTPUT" | grep -q "All tests passed"; then
 fi
 
 # pitchBendCents: 0 cents must be centre. aseqdump prints bends relative to centre.
+# Real backend only: the null backend never reaches aseqdump.
 echo ""
 if [ -c /dev/snd/seq ] && command -v aseqdump > /dev/null; then
     echo "Running pitchBendCents test..."
@@ -63,7 +64,7 @@ if [ -c /dev/snd/seq ] && command -v aseqdump > /dev/null; then
         aconnect -o 2>/dev/null | grep -q "'aseqdump'" && break
         sleep 0.1
     done
-    BEND_OUTPUT=$(env MHSDIR="$MHS_DIR" "$MHS_MIDI" -r -C -i"$MIDI_LIB" -i"$SCRIPT_DIR/mhs" PitchBendTest 2>&1)
+    BEND_OUTPUT=$(env -u MIDI_LANGS_BACKEND MHSDIR="$MHS_DIR" "$MHS_MIDI" -r -C -i"$MIDI_LIB" -i"$SCRIPT_DIR/mhs" PitchBendTest 2>&1)
     sleep 0.2
     kill "$DUMP_PID"; wait "$DUMP_PID" 2>/dev/null || true
     BENDS=$(grep "Pitch bend" "$DUMP_LOG" | sed -E 's/.*value //' | tr '\n' ' ')

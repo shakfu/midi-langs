@@ -48,7 +48,7 @@ make
 
 Using convenience functions:
 
-```lua
+```lua norun
 > open()
 MidiOut(virtual, "luaMIDI")
 > n(c4)
@@ -59,7 +59,7 @@ MidiOut(virtual, "luaMIDI")
 
 Or using explicit port management:
 
-```lua
+```lua norun
 > m = midi.open()
 MidiOut(virtual, "luaMIDI")
 > m:note(c4, mf, quarter)
@@ -139,7 +139,7 @@ Lua's design makes it excellent for musical scripting:
 
 All musical constants are available as globals for concise code:
 
-```lua
+```lua norun
 -- Pitches: c0-b8, cs0-cs8 (sharps), db0-bb8 (flats)
 c4, e4, g4, cs4, db4, etc.
 
@@ -171,7 +171,7 @@ The `midi.` prefix also works: `midi.c4`, `midi.mf`, `midi.scales.major`, etc.
 
 **Important**: In the Lua REPL, use global variables (not `local`) to persist values across lines:
 
-```lua
+```lua norun
 -- This works:
 > m = midi.open()
 > m:note(c4)

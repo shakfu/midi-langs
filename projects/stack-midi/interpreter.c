@@ -9,9 +9,10 @@
 void interpret(const char* input);
 
 /* Print error with file/line context if loading a file */
-static void stack_error(const char* fmt, ...) {
+void stack_error(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
+    error_count++;
 
     if (current_file != NULL) {
         printf("%s:%d: ", current_file, current_line);
@@ -319,7 +320,7 @@ static int parse_pitch_with_artic(const char* word) {
 /* Add element to current bracket sequence */
 static void seq_add_element(uint8_t type, int16_t value) {
     if (!current_bracket_seq || seq_capture_count >= MAX_SEQ_ELEMENTS) {
-        printf("Sequence full or not active\n");
+        stack_error("Sequence full or not active");
         return;
     }
     SeqElement* elem = &current_bracket_seq->elements[seq_capture_count++];
@@ -331,7 +332,7 @@ static void seq_add_element(uint8_t type, int16_t value) {
 /* Add chord to current bracket sequence */
 static void seq_add_chord(int16_t* pitches, int count) {
     if (!current_bracket_seq || seq_capture_count >= MAX_SEQ_ELEMENTS) {
-        printf("Sequence full or not active\n");
+        stack_error("Sequence full or not active");
         return;
     }
     SeqElement* elem = &current_bracket_seq->elements[seq_capture_count++];
@@ -351,7 +352,7 @@ static int finalize_sequence(void) {
 
     /* Store in bracket_seq_storage */
     if (bracket_seq_count >= MAX_BRACKET_SEQS) {
-        printf("Too many sequences\n");
+        stack_error("Too many sequences");
         free(current_bracket_seq);
         current_bracket_seq = NULL;
         return -1;
@@ -459,7 +460,7 @@ void execute_bracket_sequence(BracketSequence* seq) {
 static void append_to_block(const char* word) {
     int len = strlen(word);
     if (block_body_len + len + 2 >= MAX_DEFINITION_LENGTH) {
-        printf("Block too long\n");
+        stack_error("Block too long");
         return;
     }
     if (block_body_len > 0) {
@@ -473,7 +474,7 @@ static void append_to_block(const char* word) {
 static void append_to_definition(const char* word) {
     int len = strlen(word);
     if (definition_body_len + len + 2 >= MAX_DEFINITION_LENGTH) {
-        printf("Definition too long\n");
+        stack_error("Definition too long");
         return;
     }
     if (definition_body_len > 0) {
@@ -486,7 +487,7 @@ static void append_to_definition(const char* word) {
 /* End compilation and register the word */
 static void end_definition(void) {
     if (!compile_mode) {
-        printf("Not in compile mode\n");
+        stack_error("Not in compile mode");
         return;
     }
 
@@ -502,13 +503,13 @@ static void end_definition(void) {
 /* Load and execute a stack-midi file */
 int load_file(const char* filename) {
     if (load_depth >= MAX_LOAD_DEPTH) {
-        printf("Error: load depth exceeded (max %d nested loads)\n", MAX_LOAD_DEPTH);
+        stack_error("Error: load depth exceeded (max %d nested loads)", MAX_LOAD_DEPTH);
         return -1;
     }
 
     FILE* f = fopen(filename, "r");
     if (f == NULL) {
-        printf("Error: cannot open file '%s'\n", filename);
+        stack_error("Error: cannot open file '%s'", filename);
         return -1;
     }
 
@@ -518,6 +519,7 @@ int load_file(const char* filename) {
 
     load_depth++;
     current_file = filename;
+    int result = 0;
 
     char line[MAX_INPUT_LENGTH * 4];
     int line_num = 0;
@@ -543,11 +545,13 @@ int load_file(const char* filename) {
         char* start = line;
         while (*start && isspace(*start)) start++;
 
-        /* Skip comment lines (Forth uses \ for comments) */
-        if (*start == '\\') continue;
-
-        /* Execute the line */
+        /* Execute the line; stop at the first line that reports an error */
+        int errors_before = error_count;
         interpret(start);
+        if (error_count != errors_before) {
+            result = -1;
+            break;
+        }
     }
 
     fclose(f);
@@ -557,7 +561,7 @@ int load_file(const char* filename) {
     current_file = prev_file;
     current_line = prev_line;
 
-    return 0;
+    return result;
 }
 
 /* : ( -- ) Start word definition */
@@ -608,13 +612,13 @@ void op_times(Stack* s) {
     if (n <= 0) return;
 
     if (last_executed_word[0] == '\0') {
-        printf("No word to repeat\n");
+        stack_error("No word to repeat");
         return;
     }
 
     Word* word = find_word(last_executed_word);
     if (word == NULL) {
-        printf("Word '%s' not found\n", last_executed_word);
+        stack_error("Word '%s' not found", last_executed_word);
         return;
     }
 
@@ -631,7 +635,7 @@ void op_times(Stack* s) {
 /* * ( seq|block|a n -- result ) Sequence/block repeat or multiplication */
 void op_star(Stack* s) {
     if (stack.top < 1) {
-        printf("* needs two values\n");
+        stack_error("* needs two values");
         return;
     }
     int32_t n = pop(&stack);
@@ -641,7 +645,7 @@ void op_star(Stack* s) {
     if ((val & 0xFF000000) == SEQ_MARKER) {
         int idx = val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             return;
         }
         /* Execute sequence n times */
@@ -655,7 +659,7 @@ void op_star(Stack* s) {
     if ((val & BLOCK_MARKER) == BLOCK_MARKER) {
         int idx = val & 0x0FFFFFFF;
         if (idx < 0 || idx >= block_count || block_storage[idx] == NULL) {
-            printf("Invalid block reference\n");
+            stack_error("Invalid block reference");
             return;
         }
         /* Execute block n times */
@@ -729,7 +733,7 @@ void op_help(Stack* s) {
 static void append_to_loop_body(const char* word) {
     int len = strlen(word);
     if (loop_body_len + len + 2 >= MAX_LOOP_BODY) {
-        printf("Loop body too long\n");
+        stack_error("Loop body too long");
         return;
     }
     if (loop_body_len > 0) {
@@ -743,7 +747,7 @@ static void append_to_loop_body(const char* word) {
 static void append_to_loop_cond(const char* word) {
     int len = strlen(word);
     if (loop_cond_len + len + 2 >= MAX_LOOP_BODY) {
-        printf("Loop condition too long\n");
+        stack_error("Loop condition too long");
         return;
     }
     if (loop_cond_len > 0) {
@@ -827,6 +831,9 @@ void op_leave(Stack* s) {
     return_stack[return_stack_top - 1] = return_stack[return_stack_top - 2];
 }
 
+/* Set by interpret(): the token after the current one is `,` */
+static int next_is_comma = 0;
+
 /* Process a single token */
 void process_token(const char* token) {
     Word* word = find_word(token);
@@ -839,8 +846,8 @@ void process_token(const char* token) {
             }
         }
 
-        /* Try to parse as relative interval (+N or -N) */
-        if ((token[0] == '+' || token[0] == '-') && strlen(token) > 1) {
+        /* +N or -N right before `,` is a relative interval; elsewhere it is a number */
+        if (next_is_comma && (token[0] == '+' || token[0] == '-') && strlen(token) > 1) {
             char* end;
             long interval = strtol(token, &end, 10);
             if (*end == '\0') {
@@ -885,7 +892,8 @@ void process_token(const char* token) {
             int initial_depth = stack.top;
             interpret(word->body);
             int final_depth = stack.top;
-            if (final_depth > initial_depth) {
+            /* REPL only: in files a stray value already fails the next `,` */
+            if (final_depth > initial_depth && current_file == NULL) {
                 printf("Note: '%s' left %d item(s) on stack\n",
                        token, final_depth - initial_depth);
             }
@@ -903,9 +911,17 @@ void process_token(const char* token) {
 static int next_token(const char* input, int* pos, char* out) {
     int i = *pos;
 
-    /* Skip whitespace */
-    while (isspace(input[i])) {
-        i++;
+    /* Skip whitespace and `\` comments, which run to end of line */
+    for (;;) {
+        while (isspace(input[i])) {
+            i++;
+        }
+        if (input[i] != '\\' || !(input[i + 1] == '\0' || isspace(input[i + 1]))) {
+            break;
+        }
+        while (input[i] != '\n' && input[i] != '\0') {
+            i++;
+        }
     }
 
     if (input[i] == '\0') {
@@ -925,7 +941,7 @@ static int next_token(const char* input, int* pos, char* out) {
         }
         len = i - start;
         if (len >= MAX_INPUT_LENGTH) {
-            printf("String too long\n");
+            stack_error("String too long");
             *pos = i;
             return -1;
         }
@@ -945,7 +961,7 @@ static int next_token(const char* input, int* pos, char* out) {
         }
         len = i - start;
         if (len >= MAX_INPUT_LENGTH) {
-            printf("Word too long\n");
+            stack_error("Word too long");
             *pos = i;
             return -1;
         }
@@ -972,7 +988,7 @@ static int handle_seq_capture_token(const char* word) {
     if (strcmp(word, "]") == 0) {
         /* End of sequence - finalize it */
         if (seq_capture_chord_mode) {
-            printf("Unclosed '(' in sequence\n");
+            stack_error("Unclosed '(' in sequence");
             seq_capture_chord_mode = 0;
             seq_capture_chord_count = 0;
         }
@@ -1046,7 +1062,7 @@ static int handle_seq_capture_token(const char* word) {
         }
     }
 
-    printf("Unknown element in sequence: %s\n", word);
+    stack_error("Unknown element in sequence: %s", word);
     return 1;
 }
 
@@ -1115,7 +1131,7 @@ void interpret(const char* input) {
                 } else {
                     current_block_body[block_body_len] = '\0';
                     if (block_count >= MAX_BLOCKS) {
-                        printf("Too many blocks\n");
+                        stack_error("Too many blocks");
                         block_capture_mode = 0;
                     } else {
                         block_storage[block_count] = strdup(current_block_body);
@@ -1141,7 +1157,7 @@ void interpret(const char* input) {
         }
 
         if (strcmp(word, "}") == 0) {
-            printf("Unexpected '}' outside of block\n");
+            stack_error("Unexpected '}' outside of block");
             continue;
         }
 
@@ -1162,7 +1178,7 @@ void interpret(const char* input) {
         }
 
         if (strcmp(word, "]") == 0) {
-            printf("Unexpected ']' outside of sequence\n");
+            stack_error("Unexpected ']' outside of sequence");
             continue;
         }
 
@@ -1202,7 +1218,7 @@ void interpret(const char* input) {
                             if (return_stack[return_stack_top - 1] >= limit) break;
                             if (is_plus_loop) {
                                 if (stack.top < 0) {
-                                    printf("+loop needs increment on stack\n");
+                                    stack_error("+loop needs increment on stack");
                                     break;
                                 }
                                 idx = return_stack[return_stack_top - 1] + pop(&stack);
@@ -1254,13 +1270,13 @@ void interpret(const char* input) {
                         while (max_iter-- > 0) {
                             interpret(saved_body);
                             if (stack.top < 0) {
-                                printf("until needs flag on stack\n");
+                                stack_error("until needs flag on stack");
                                 break;
                             }
                             if (pop(&stack) != 0) break;  /* Exit when true */
                         }
                         if (max_iter <= 0) {
-                            printf("begin...until: exceeded max iterations\n");
+                            stack_error("begin...until: exceeded max iterations");
                         }
                     }
                 } else if (strcmp(word, "repeat") == 0) {
@@ -1268,7 +1284,7 @@ void interpret(const char* input) {
                         loop_nesting--;
                         append_to_loop_body(word);
                     } else {
-                        printf("repeat without while\n");
+                        stack_error("repeat without while");
                         loop_capture_mode = 0;
                         loop_body_len = 0;
                     }
@@ -1308,14 +1324,14 @@ void interpret(const char* input) {
                         while (max_iter-- > 0) {
                             interpret(saved_cond);
                             if (stack.top < 0) {
-                                printf("while needs flag on stack\n");
+                                stack_error("while needs flag on stack");
                                 break;
                             }
                             if (pop(&stack) == 0) break;  /* Exit when false */
                             interpret(saved_body);
                         }
                         if (max_iter <= 0) {
-                            printf("begin...while...repeat: exceeded max iterations\n");
+                            stack_error("begin...while...repeat: exceeded max iterations");
                         }
                     }
                 } else {
@@ -1328,7 +1344,7 @@ void interpret(const char* input) {
         /* Handle loop start words */
         if (strcmp(word, "do") == 0) {
             if (stack.top < 1) {
-                printf("do needs limit and start on stack\n");
+                stack_error("do needs limit and start on stack");
                 continue;
             }
             int32_t start = pop(&stack);
@@ -1336,7 +1352,7 @@ void interpret(const char* input) {
 
             /* Push to return stack */
             if (return_stack_top + 2 > MAX_LOOP_NESTING * 2) {
-                printf("Loop nesting too deep\n");
+                stack_error("Loop nesting too deep");
                 continue;
             }
             return_stack[return_stack_top++] = limit;
@@ -1361,22 +1377,22 @@ void interpret(const char* input) {
         }
 
         if (strcmp(word, "loop") == 0 || strcmp(word, "+loop") == 0) {
-            printf("Unexpected '%s' outside of do...loop\n", word);
+            stack_error("Unexpected '%s' outside of do...loop", word);
             continue;
         }
 
         if (strcmp(word, "until") == 0) {
-            printf("Unexpected 'until' outside of begin...until\n");
+            stack_error("Unexpected 'until' outside of begin...until");
             continue;
         }
 
         if (strcmp(word, "while") == 0) {
-            printf("Unexpected 'while' outside of begin...while\n");
+            stack_error("Unexpected 'while' outside of begin...while");
             continue;
         }
 
         if (strcmp(word, "repeat") == 0) {
-            printf("Unexpected 'repeat' outside of begin...while...repeat\n");
+            stack_error("Unexpected 'repeat' outside of begin...while...repeat");
             continue;
         }
 
@@ -1404,7 +1420,7 @@ void interpret(const char* input) {
         /* Handle if/else/then */
         if (strcmp(word, "if") == 0) {
             if (stack.top < 0) {
-                printf("if needs a condition on stack\n");
+                stack_error("if needs a condition on stack");
                 continue;
             }
             int32_t cond = pop(&stack);
@@ -1441,7 +1457,7 @@ void interpret(const char* input) {
         }
 
         if (strcmp(word, ";") == 0) {
-            printf("Unexpected ';' outside of definition\n");
+            stack_error("Unexpected ';' outside of definition");
             continue;
         }
 
@@ -1461,7 +1477,10 @@ void interpret(const char* input) {
         }
 
         if (strcmp(word, "stop") == 0) {
-            op_rec_stop(&stack);
+            /* Stops command recording, MIDI capture, or both */
+            if (recording_active || !capture_active) {
+                op_rec_stop(&stack);
+            }
             op_capture_stop(&stack);
             continue;
         }
@@ -1514,6 +1533,9 @@ void interpret(const char* input) {
         }
 
         /* Execute the word */
+        int peek_pos = i;
+        char peek[MAX_INPUT_LENGTH];
+        next_is_comma = next_token(input, &peek_pos, peek) > 0 && strcmp(peek, ",") == 0;
         process_token(word);
     }
 }

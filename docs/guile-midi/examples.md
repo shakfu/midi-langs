@@ -409,6 +409,11 @@ Use Scheme's functional features for musical patterns:
   (midi-note m e4 mf eighth))
 
 ;; Repeat it 4 times using times helper
+(define (times n proc)
+  (do ((i 0 (+ i 1)))
+      ((= i n))
+    (proc)))
+
 (times 4 pattern1)
 
 (midi-close m)
@@ -487,6 +492,12 @@ Use Scheme's functional features for musical patterns:
 ```scheme
 (define m (midi-open))
 
+;; Run a procedure n times
+(define (times n proc)
+  (do ((i 0 (+ i 1)))
+      ((= i n))
+    (proc)))
+
 ;; Set up instruments
 (midi-program m 0 1)    ; Piano on channel 1
 (midi-program m 32 2)   ; Bass on channel 2
@@ -553,6 +564,12 @@ Use Scheme's functional features for musical patterns:
 ### Read MIDI File
 
 ```scheme
+(define m (midi-open))
+(record-midi)
+(midi-note m c4)
+(record-stop)
+(write-mid "song.mid")
+
 (define data (read-mid "song.mid"))
 
 ;; Print metadata
@@ -582,7 +599,7 @@ Start the REPL:
 
 The simplest way to use guile-midi interactively:
 
-```scheme
+```scheme norun
 > (open)
 #<midi-out virtual "guileMIDI">
 > (n c4)
@@ -609,7 +626,7 @@ The simplest way to use guile-midi interactively:
 
 ### Testing Scales
 
-```scheme
+```scheme norun
 > (open)
 > (scale c4 'major)
 (60 62 64 65 67 69 71)
@@ -621,7 +638,7 @@ The simplest way to use guile-midi interactively:
 
 ### Checking Values
 
-```scheme
+```scheme norun
 > c4
 60
 > (major c4)

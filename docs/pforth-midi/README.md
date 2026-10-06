@@ -92,6 +92,7 @@ Scales: `scale-major scale-minor scale-dorian scale-phrygian scale-lydian scale-
 Define new ones with `scale:` and `chord:`:
 
 ```forth
+midi-open
 scale: scale-hirajoshi  0 , 2 , 3 , 7 , 8 ,  end-table
 chord: power            0 , 7 , 12 ,         end-table
 a2 power chord
@@ -127,7 +128,7 @@ pForth's own `random` is separate and unaffected by `seed`.
 
 Ordinary Forth defines new kinds of words. From `projects/pforth-midi/examples/generative.fs`:
 
-```forth
+```forth norun
 : instrument ( ch prog "name" -- )
     create , ,
     does> ( -- ) dup cell+ @ to chan  chan swap @ program ;

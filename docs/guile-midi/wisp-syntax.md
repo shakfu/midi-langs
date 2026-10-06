@@ -2,6 +2,8 @@
 
 guile-midi supports [Wisp](https://www.draketo.de/software/wisp) (Whitespace to Lisp), an indentation-based syntax for Scheme. Wisp lets you write Scheme code without most parentheses, using indentation like Python.
 
+Wisp needs Guile 3.0.10 or later, which ships the `(language wisp)` module. With an older Guile, `guile_midi song.w` exits with an error.
+
 ## Quick Start
 
 Run a wisp file:
@@ -16,6 +18,7 @@ Run a wisp file:
 
 **Scheme:**
 ```scheme
+(define m (midi-open))
 (midi-note m c4 mf quarter)
 (midi-chord m (major c4) f half)
 ```
@@ -50,6 +53,7 @@ Use indentation for nested expressions:
 
 **Scheme:**
 ```scheme
+(define m (midi-open))
 (for-each
   (lambda (p)
     (midi-note m p mf quarter))
@@ -70,6 +74,7 @@ Use `.` to continue arguments on the next line:
 
 **Scheme:**
 ```scheme
+(define m (midi-open))
 (midi-chord m (major c4) f half)
 ```
 

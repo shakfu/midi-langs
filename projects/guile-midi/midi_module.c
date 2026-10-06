@@ -42,6 +42,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 #include <libguile.h>
 #include <libremidi/libremidi-c.h>
 #include "scm_prelude.h"
+#include "midi_sleep.h"
 #include "music_theory.h"
 #include "midi_file.h"
 #include "midi_open.h"
@@ -144,6 +145,7 @@ static int midi_init_observer(void) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) return ret;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_observer_new(&observer_conf, &api_conf, &midi_observer);
     if (ret != 0) return ret;
@@ -281,6 +283,7 @@ static SCM g_midi_open(SCM rest) {
                   "midi-open", "Failed to init API config",
                   SCM_EOL, SCM_EOL);
     }
+    api_conf.api = midi_backend_api();
 
     int is_virtual = 0;
     const char *port_name = "guileMIDI";
@@ -506,7 +509,7 @@ static SCM g_midi_note(SCM obj, SCM pitch_arg, SCM rest) {
     /* Wait (scaled for tempo) */
     int scaled_dur = scale_duration_for_tempo(duration);
     if (scaled_dur > 0) {
-        usleep(scaled_dur * 1000);
+        midi_sleep(scaled_dur);
     }
 
     /* Note off */
@@ -582,7 +585,7 @@ static SCM g_midi_chord(SCM obj, SCM pitches_list, SCM rest) {
     /* Wait (scaled for tempo) */
     int scaled_dur = scale_duration_for_tempo(duration);
     if (scaled_dur > 0) {
-        usleep(scaled_dur * 1000);
+        midi_sleep(scaled_dur);
     }
 
     /* Send note-offs */
@@ -691,7 +694,7 @@ static SCM g_midi_sleep(SCM ms_arg) {
     int ms = scm_to_int(ms_arg);
     int scaled_ms = scale_duration_for_tempo(ms);
     if (scaled_ms > 0) {
-        usleep(scaled_ms * 1000);
+        midi_sleep(scaled_ms);
     }
     return SCM_UNSPECIFIED;
 }

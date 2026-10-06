@@ -68,11 +68,6 @@ static void interpreter_loop(void) {
             break;
         }
 
-        if (strcmp(input, "help") == 0) {
-            op_help(&stack);
-            free(input);
-            continue;
-        }
 
         /* Record input if recording is active */
         if (recording_active) {
@@ -134,6 +129,7 @@ int main(int argc, char* argv[]) {
     const char* script_file = NULL;
     int show_help = 0;
     int first_file_arg = 1;
+    int no_sleep = 0;
 
 #ifdef _WIN32
     /* Simple argument parsing for Windows (no getopt) */
@@ -142,7 +138,7 @@ int main(int argc, char* argv[]) {
             script_file = argv[++i];
             first_file_arg = i + 1;
         } else if (strcmp(argv[i], "--no-sleep") == 0) {
-            stack_set_no_sleep(1);
+            no_sleep = 1;
             first_file_arg = i + 1;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             show_help = 1;
@@ -166,7 +162,7 @@ int main(int argc, char* argv[]) {
                 script_file = optarg;
                 break;
             case 'n':
-                stack_set_no_sleep(1);
+                no_sleep = 1;
                 break;
             case 'h':
                 show_help = 1;
@@ -181,6 +177,7 @@ int main(int argc, char* argv[]) {
 
     if (show_help) {
         print_usage(argv[0]);
+        op_help(NULL);
         return 0;
     }
 
@@ -189,6 +186,7 @@ int main(int argc, char* argv[]) {
 
     /* Initialize global context (includes stack, MIDI defaults, etc.) */
     stack_context_init(&g_ctx);
+    stack_set_no_sleep(no_sleep);  /* after init, which resets it */
 
     /* Initialize dictionary with primitives */
     init_dictionary();

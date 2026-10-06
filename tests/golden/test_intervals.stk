@@ -1,0 +1,14 @@
+\ test_intervals.stk - +N/-N are intervals before `,` and numbers elsewhere
+\ Each test prints -1 for pass (Forth true), 0 for fail
+
+midi-open
+-5 3 + -2 = .              \ number
+c4 -12 transpose 48 = .    \ number
+-50 cents>bend 6144 = .    \ number
++5 5 = .                   \ number
+c4, -2,                    \ interval: plays 58
+g4, +2,                    \ interval
+midi-close
+
+\ Print marker for test completion
+999 .

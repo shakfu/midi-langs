@@ -317,7 +317,7 @@ py_bindmethod(tp_MidiOut, "new_method", MidiOut_new_method);
 
 For simpler additions, edit `prelude.py` directly:
 
-```python
+```python norun
 # In projects/pktpy-midi/prelude.py
 def _new_helper(x):
     return x * 2

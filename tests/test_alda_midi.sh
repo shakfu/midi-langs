@@ -3,6 +3,9 @@
 
 set -e
 
+# Checks MIDI on the wire with aseqdump, which the null backend never reaches
+unset MIDI_LANGS_BACKEND
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_ROOT/build"

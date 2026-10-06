@@ -384,7 +384,9 @@ for bar = 1, 4 do
         note_count, seed = random_range(seed, 1, 3)
         for n = 1, note_count do
             local pitch, vel
-            pitch, seed = pick(seed, full_blues)
+            local i
+            i, seed = random_range(seed, 1, #full_blues)
+            pitch = full_blues[i]
             vel, seed = random_range(seed, 60, 100)
             local dur = sixteenth
             m:note(pitch, vel, dur)
@@ -554,15 +556,17 @@ m = midi.open()
 midi.set_tempo(140)
 
 -- Use the built-in deterministic RNG functions:
---   pick(seed, table) -> element, next_seed
 --   random_range(seed, min, max) -> value, next_seed
+-- pick(seed, table) returns no seed, so draw an index instead
 
 -- Play 32 random notes from C major 7
 local chord = maj7(c4)
 local seed = 42  -- Set seed for reproducible results
 for i = 1, 32 do
     local note, vel
-    note, seed = pick(seed, chord)
+    local i
+    i, seed = random_range(seed, 1, #chord)
+    note = chord[i]
     vel, seed = random_range(seed, 60, 100)
     m:note(note, vel, sixteenth)
 end
@@ -644,7 +648,7 @@ Start the REPL:
 
 The simplest way to use lua-midi interactively:
 
-```lua
+```lua norun
 > open()
 MidiOut(virtual, "luaMIDI")
 > n(c4)
@@ -657,7 +661,7 @@ MidiOut(virtual, "luaMIDI")
 
 ### Quick Note Test (Explicit Port)
 
-```lua
+```lua norun
 > m = midi.open()
 MidiOut(virtual, "luaMIDI")
 > m:note(c4)
@@ -668,7 +672,7 @@ MidiOut(virtual, "luaMIDI")
 
 ### Interactive Chord Exploration
 
-```lua
+```lua norun
 > m = midi.open()
 > m:chord(major(c4))
 > m:chord(minor(a3))
@@ -678,7 +682,7 @@ MidiOut(virtual, "luaMIDI")
 
 ### Testing Dynamics
 
-```lua
+```lua norun
 > m = midi.open()
 > m:note(c4, ppp)   -- Very soft
 > m:note(c4, mf)    -- Medium
@@ -688,14 +692,14 @@ MidiOut(virtual, "luaMIDI")
 
 ### List MIDI Ports
 
-```lua
+```lua norun
 > midi.list_ports()
 {{0, "Midi Through: Midi Through Port-0"}, {1, "FLUID Synth (1234): Synth input port (1234:0)"}}
 ```
 
 ### Checking Values
 
-```lua
+```lua norun
 > c4
 60
 > major(c4)

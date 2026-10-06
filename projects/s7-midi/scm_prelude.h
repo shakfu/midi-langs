@@ -21,7 +21,7 @@ static const char *SCHEME_PRELUDE_MODULE =
 "(define eighth 250)\n"
 "(define sixteenth 125)\n"
 "\n"
-"(define (dotted dur) (floor (* dur 1.5)))\n"
+"(define (dotted dur) (quotient (* dur 3) 2))  ; exact, so midi-note accepts it\n"
 "\n"
 ";; Tempo\n"
 "(define *bpm* 120)\n"

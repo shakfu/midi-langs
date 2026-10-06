@@ -1,10 +1,18 @@
 # API Reference
 
+## Setup
+
+Examples use `m` for an open port. `open` also makes it the default port:
+
+```scheme setup
+(define m (open))
+```
+
 ## Port Management
 
 ### midi-list-ports
 
-```scheme
+```scheme norun
 (midi-list-ports) -> list
 ```
 
@@ -17,7 +25,7 @@ List available MIDI output ports. Returns list of `(index name)` pairs.
 
 ### midi-open
 
-```scheme
+```scheme norun
 (midi-open) -> midi-out
 (midi-open name) -> midi-out
 (midi-open index) -> midi-out
@@ -31,7 +39,7 @@ Open a MIDI output port.
 
 - `(midi-open 0)` - Open hardware port by index
 
-```scheme
+```scheme norun
 (define m (midi-open))                ; Virtual port
 (define m (midi-open "MySynth"))      ; Named virtual port
 (define m (midi-open 0))              ; First hardware port
@@ -51,7 +59,7 @@ Close the MIDI port. Automatically sends all-notes-off on all channels.
 
 ### midi-open?
 
-```scheme
+```scheme norun
 (midi-open? m) -> boolean
 ```
 
@@ -66,7 +74,7 @@ Check if the MIDI port is open.
 
 ### midi-out?
 
-```scheme
+```scheme norun
 (midi-out? x) -> boolean
 ```
 
@@ -83,7 +91,7 @@ Type predicate for midi-out objects.
 
 ### midi-note
 
-```scheme
+```scheme norun
 (midi-note m pitch [velocity] [duration] [channel])
 ```
 
@@ -109,7 +117,7 @@ Play a single note (blocking).
 
 ### midi-chord
 
-```scheme
+```scheme norun
 (midi-chord m pitches [velocity] [duration] [channel])
 ```
 
@@ -134,7 +142,7 @@ Play multiple notes simultaneously.
 
 ### midi-arpeggio
 
-```scheme
+```scheme norun
 (midi-arpeggio m pitches [velocity] [duration] [channel])
 ```
 
@@ -157,7 +165,7 @@ Play notes sequentially (arpeggiated).
 
 ### midi-note-on
 
-```scheme
+```scheme norun
 (midi-note-on m pitch [velocity] [channel])
 ```
 
@@ -171,7 +179,7 @@ Send Note On message (non-blocking).
 
 ### midi-note-off
 
-```scheme
+```scheme norun
 (midi-note-off m pitch [velocity] [channel])
 ```
 
@@ -188,7 +196,7 @@ Send Note Off message.
 
 ### midi-cc
 
-```scheme
+```scheme norun
 (midi-cc m control value [channel])
 ```
 
@@ -225,7 +233,7 @@ Common CC numbers:
 
 ### midi-program
 
-```scheme
+```scheme norun
 (midi-program m program [channel])
 ```
 
@@ -243,7 +251,7 @@ Send Program Change message.
 
 ### midi-all-notes-off
 
-```scheme
+```scheme norun
 (midi-all-notes-off m [channel])
 ```
 
@@ -260,7 +268,7 @@ Send All Notes Off. If channel is omitted, sends on all channels (1-16).
 
 ### note
 
-```scheme
+```scheme norun
 (note name) -> integer
 ```
 
@@ -284,7 +292,7 @@ Parse note name to MIDI number.
 
 All pitches from C0 to B8:
 
-```scheme
+```scheme norun
 c0 cs0 d0 ds0 e0 f0 fs0 g0 gs0 a0 as0 b0   ; Octave 0
 c1 cs1 d1 ds1 e1 f1 fs1 g1 gs1 a1 as1 b1   ; Octave 1
 ...
@@ -302,7 +310,7 @@ db0 eb0 gb0 ab0 bb0   ; D-flat, E-flat, G-flat, A-flat, B-flat
 
 ### transpose
 
-```scheme
+```scheme norun
 (transpose pitch semitones) -> integer
 ```
 
@@ -316,7 +324,7 @@ Transpose pitch by semitones.
 
 ### octave-up
 
-```scheme
+```scheme norun
 (octave-up pitch) -> integer
 ```
 
@@ -329,7 +337,7 @@ Transpose up one octave (+12 semitones).
 
 ### octave-down
 
-```scheme
+```scheme norun
 (octave-down pitch) -> integer
 ```
 
@@ -348,7 +356,7 @@ All chord builders accept a root pitch (integer or symbol) and return a list of 
 
 ### major
 
-```scheme
+```scheme norun
 (major root) -> list
 ```
 
@@ -361,7 +369,7 @@ Build major triad: root, major 3rd, perfect 5th.
 
 ### minor
 
-```scheme
+```scheme norun
 (minor root) -> list
 ```
 
@@ -373,7 +381,7 @@ Build minor triad: root, minor 3rd, perfect 5th.
 
 ### dim
 
-```scheme
+```scheme norun
 (dim root) -> list
 ```
 
@@ -385,7 +393,7 @@ Build diminished triad: root, minor 3rd, diminished 5th.
 
 ### aug
 
-```scheme
+```scheme norun
 (aug root) -> list
 ```
 
@@ -397,7 +405,7 @@ Build augmented triad: root, major 3rd, augmented 5th.
 
 ### dom7
 
-```scheme
+```scheme norun
 (dom7 root) -> list
 ```
 
@@ -409,7 +417,7 @@ Build dominant 7th chord.
 
 ### maj7
 
-```scheme
+```scheme norun
 (maj7 root) -> list
 ```
 
@@ -421,7 +429,7 @@ Build major 7th chord.
 
 ### min7
 
-```scheme
+```scheme norun
 (min7 root) -> list
 ```
 
@@ -437,7 +445,7 @@ Build minor 7th chord.
 
 ### build-scale
 
-```scheme
+```scheme norun
 (build-scale root intervals) -> list
 ```
 
@@ -450,7 +458,7 @@ Build a scale from a root pitch and list of semitone intervals.
 
 ### scale (helper)
 
-```scheme
+```scheme norun
 (scale root name) -> list
 ```
 
@@ -466,7 +474,7 @@ Build a scale using a scale name symbol. Looks up intervals from `*scales*`.
 
 ### scale-degree
 
-```scheme
+```scheme norun
 (scale-degree root intervals degree) -> integer
 ```
 
@@ -481,7 +489,7 @@ Get a specific scale degree. Degrees are 1-based (1 = root). Supports extended d
 
 ### degree (helper)
 
-```scheme
+```scheme norun
 (degree root name n) -> integer
 ```
 
@@ -496,7 +504,7 @@ Get a scale degree using a scale name symbol.
 
 ### in-scale?
 
-```scheme
+```scheme norun
 (in-scale? pitch root intervals) -> boolean
 ```
 
@@ -510,7 +518,7 @@ Check if a pitch belongs to a scale (in any octave).
 
 ### in-scale-named? (helper)
 
-```scheme
+```scheme norun
 (in-scale-named? pitch root name) -> boolean
 ```
 
@@ -523,7 +531,7 @@ Check if a pitch is in a named scale.
 
 ### quantize-to-scale
 
-```scheme
+```scheme norun
 (quantize-to-scale pitch root intervals) -> integer
 ```
 
@@ -535,7 +543,7 @@ Quantize (snap) a pitch to the nearest tone in a scale.
 
 ### quantize (helper)
 
-```scheme
+```scheme norun
 (quantize pitch root name) -> integer
 ```
 
@@ -593,7 +601,7 @@ See `*scales*` alist for all 55 available scales by name.
 
 ### midi-pitch-bend
 
-```scheme
+```scheme norun
 (midi-pitch-bend m cents [channel])
 ```
 
@@ -608,7 +616,7 @@ Send a pitch bend message. Cents are relative to the current note.
 
 ### cents-to-note
 
-```scheme
+```scheme norun
 (cents-to-note root cents) -> pair
 ```
 
@@ -671,7 +679,7 @@ Based on 120 BPM by default. Use `set-tempo!` to change.
 
 ### dotted
 
-```scheme
+```scheme norun
 (dotted duration) -> integer
 ```
 
@@ -686,9 +694,9 @@ Returns 1.5x the given duration.
 
 ## Tempo
 
-### set-tempo
+### set-tempo!
 
-```scheme
+```scheme norun
 (set-tempo! bpm)
 ```
 
@@ -702,7 +710,7 @@ quarter             ; => 1000 at 60 BPM
 
 ### get-tempo
 
-```scheme
+```scheme norun
 (get-tempo) -> integer
 ```
 
@@ -714,7 +722,7 @@ Get current tempo in BPM.
 
 ### bpm
 
-```scheme
+```scheme norun
 (bpm tempo) -> integer
 ```
 
@@ -747,7 +755,7 @@ Calculate quarter note duration for a given tempo (without changing global tempo
 
 ### midi-sleep
 
-```scheme
+```scheme norun
 (midi-sleep ms)
 ```
 
@@ -760,7 +768,7 @@ Sleep for given milliseconds.
 
 ### rest
 
-```scheme
+```scheme norun
 (rest [duration])
 ```
 
@@ -784,7 +792,7 @@ Rest (silence) for given duration. Default is quarter note.
 
 Display available functions and usage information.
 
-```scheme
+```scheme norun
 > (help)
 s7_midi - Scheme MIDI language
 ...
@@ -808,7 +816,7 @@ Global variable holding the default MIDI output port. Initially `#f`.
 
 ### open
 
-```scheme
+```scheme norun
 (open) -> midi-out
 (open name) -> midi-out
 (open index) -> midi-out
@@ -816,7 +824,7 @@ Global variable holding the default MIDI output port. Initially `#f`.
 
 Open a MIDI port and set it as the default. Closes any previously open port.
 
-```scheme
+```scheme norun
 (open)              ; Create virtual port
 (open "MyApp")      ; Named virtual port
 (open 0)            ; Hardware port by index
@@ -836,7 +844,7 @@ Close the default MIDI port.
 
 ### n
 
-```scheme
+```scheme norun
 (n pitch [velocity] [duration] [channel])
 ```
 
@@ -851,7 +859,7 @@ Play a note on the default MIDI port.
 
 ### ch
 
-```scheme
+```scheme norun
 (ch pitches [velocity] [duration] [channel])
 ```
 
@@ -864,7 +872,7 @@ Play a chord on the default MIDI port.
 
 ### arp
 
-```scheme
+```scheme norun
 (arp pitches [velocity] [duration] [channel])
 ```
 
@@ -883,7 +891,7 @@ Record MIDI events for replay or export. Records note-on, note-off, and CC event
 
 ### record-midi
 
-```scheme
+```scheme norun
 (record-midi [bpm])
 ```
 
@@ -909,7 +917,7 @@ Stop recording MIDI events. Prints the number of events recorded.
 
 ### save-midi
 
-```scheme
+```scheme norun
 (save-midi filename)
 ```
 
@@ -928,7 +936,7 @@ The generated file contains:
 
 ### record-status
 
-```scheme
+```scheme norun
 (record-status) -> (active count bpm)
 ```
 
@@ -963,7 +971,7 @@ Read and write standard MIDI files (.mid format).
 
 ### write-mid
 
-```scheme
+```scheme norun
 (write-mid filename [ppqn])
 ```
 
@@ -985,13 +993,18 @@ Write recorded events to a standard MIDI file. Optional PPQN parameter (default 
 
 ### read-mid
 
-```scheme
+```scheme norun
 (read-mid filename) -> alist
 ```
 
 Read a standard MIDI file and return its contents as an association list with metadata and events.
 
 ```scheme
+(record-midi)
+(midi-note m c4)
+(record-stop)
+(write-mid "song.mid")
+
 (define data (read-mid "song.mid"))
 
 ;; Metadata
@@ -1028,13 +1041,50 @@ Event types (in the type field):
 
 ---
 
+## Generative Functions
+
+Pure functions on pitch lists. Random functions take an explicit `seed`, so the same seed gives the same result. Functions that return `(value . next-seed)` let you chain calls.
+
+| Function | Returns | Description |
+|-|-|-|
+| `(next-random seed)` | `(value . next-seed)` | Linear congruential generator (glibc constants) |
+| `(random-range seed lo hi)` | `(value . next-seed)` | Integer in `[lo, hi]` |
+| `(random-list seed n lo hi)` | `(list . next-seed)` | `n` integers in `[lo, hi]` |
+| `(chance seed probability)` | `(bool . next-seed)` | `#t` with `probability` percent |
+| `(euclidean hits steps)` | list | Bjorklund rhythm: `#t` = hit, `#f` = rest |
+| `(arp-up lst)` | list | Copy in order |
+| `(arp-down lst)` | list | Reversed copy |
+| `(arp-up-down lst)` | list | Up, then down without repeating the ends |
+| `(retrograde lst)` | list | Reversed copy |
+| `(invert lst axis)` | list | Mirror each pitch around `axis` |
+| `(shuffle seed lst)` | list | Fisher-Yates shuffle |
+| `(pick seed lst)` | value | One element |
+| `(pick-n seed n lst)` | list | `n` elements, with replacement |
+| `(random-walk seed start max-step n)` | list | `n` pitches, each within `max-step` semitones of the last |
+| `(drunk-walk seed start scale-pitches max-degrees n)` | list | Random walk over `scale-pitches`, moving at most `max-degrees` |
+| `(weighted-pick seed weights)` | value | `weights` is a list of `(value . weight)` pairs |
+| `(get-scale name)` | list | Intervals of a named scale, e.g. `'major` |
+| `(play-notes pitches)` | | Play each pitch in turn with `n` on the default port |
+
+```scheme
+(define rhythm (euclidean 3 8))      ; (#t #f #f #t #f #f #t #f)
+(define melody (shuffle 42 (scale c4 'pentatonic)))
+(define walk (random-walk 7 c4 2 8))
+(define hit (car (chance 1 75)))
+(play-notes (pick-n 3 4 melody))
+```
+
+The prelude also defines list helpers `take`, `drop` and `make-list`, and `get-tempo-c` and `set-tempo-c!`, which `set-tempo!` and `get-tempo` use.
+
+---
+
 ## Async Scheduler
 
 The scheduler provides non-blocking concurrent playback using a thunk-based cooperative multitasking model. Each "voice" is a Scheme procedure that returns either a number (ms to wait) or `#f` (done).
 
 ### spawn
 
-```scheme
+```scheme norun
 (spawn thunk [name]) -> voice-id
 ```
 
@@ -1068,9 +1118,22 @@ Run the scheduler until all voices complete. This is a blocking call that proces
 (run)   ; Prints "Hello!" then returns
 ```
 
-### stop
+### poll
+
+```scheme norun
+(poll) -> boolean
+```
+
+Run the voices that are ready, without blocking. Returns `#t` while voices remain.
 
 ```scheme
+(spawn (make-note-voice c4 mf 10) "note")
+(let loop () (if (poll) (loop)))
+```
+
+### stop
+
+```scheme norun
 (stop) -> unspecified
 (stop voice-id) -> boolean
 ```
@@ -1085,7 +1148,7 @@ Stop all voices or a specific voice by ID.
 
 ### voices
 
-```scheme
+```scheme norun
 (voices) -> integer
 ```
 
@@ -1099,7 +1162,7 @@ Return the count of active voices.
 
 ### scheduler-status
 
-```scheme
+```scheme norun
 (scheduler-status) -> alist
 ```
 
@@ -1127,7 +1190,7 @@ Helper functions to create common voice patterns. All use closures to maintain s
 
 ### make-sequence-voice
 
-```scheme
+```scheme norun
 (make-sequence-voice steps) -> procedure
 ```
 
@@ -1145,7 +1208,7 @@ Create a voice from a list of `(action . delay)` pairs.
 
 ### make-note-voice
 
-```scheme
+```scheme norun
 (make-note-voice pitch vel dur) -> procedure
 ```
 
@@ -1159,7 +1222,7 @@ Create a voice that plays a single note on the default port.
 
 ### make-melody-voice
 
-```scheme
+```scheme norun
 (make-melody-voice pitches vel dur) -> procedure
 ```
 
@@ -1173,7 +1236,7 @@ Create a voice that plays a sequence of notes.
 
 ### make-chord-voice
 
-```scheme
+```scheme norun
 (make-chord-voice pitches vel dur) -> procedure
 ```
 
@@ -1187,7 +1250,7 @@ Create a voice that plays a chord.
 
 ### make-repeat-voice
 
-```scheme
+```scheme norun
 (make-repeat-voice thunk n delay) -> procedure
 ```
 
@@ -1204,7 +1267,7 @@ Create a voice that calls a thunk n times with delay between.
 
 ### make-loop-voice
 
-```scheme
+```scheme norun
 (make-loop-voice thunk delay) -> procedure
 ```
 
@@ -1228,7 +1291,7 @@ These functions spawn voices automatically using the global `*midi*` port.
 
 ### async-note
 
-```scheme
+```scheme norun
 (async-note pitch [vel] [dur]) -> voice-id
 ```
 
@@ -1244,7 +1307,7 @@ Spawn a voice to play a single note.
 
 ### async-chord
 
-```scheme
+```scheme norun
 (async-chord pitches [vel] [dur]) -> voice-id
 ```
 
@@ -1258,7 +1321,7 @@ Spawn a voice to play a chord.
 
 ### async-melody
 
-```scheme
+```scheme norun
 (async-melody pitches [vel] [dur]) -> voice-id
 ```
 

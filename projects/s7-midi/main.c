@@ -12,6 +12,7 @@
 #endif
 
 #include "s7.h"
+#include "midi_sleep.h"
 
 /* External functions from midi_module.c */
 extern void s7_midi_init(s7_scheme *sc);
@@ -205,9 +206,21 @@ static void print_usage(const char *prog) {
     fprintf(stderr, "Usage: %s [options] [file.scm]\n", prog);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -e EXPR    Evaluate expression and print result\n");
+    fprintf(stderr, "  --no-sleep Skip all waits; give it before the file (for testing)\n");
     fprintf(stderr, "  --version  Show version\n");
     fprintf(stderr, "  --help     Show this help\n");
     fprintf(stderr, "\nWithout arguments, starts an interactive REPL.\n");
+}
+
+/* Set once anything reaches the error port; s7 reports errors there and
+ * load/eval give no other reliable failure signal. */
+static int error_reported = 0;
+
+static void error_port_write(s7_scheme *sc, uint8_t c, s7_pointer port) {
+    (void)sc;
+    (void)port;
+    error_reported = 1;
+    fputc(c, stderr);
 }
 
 int main(int argc, char **argv) {
@@ -225,6 +238,9 @@ int main(int argc, char **argv) {
 
     /* Process arguments */
     if (argc >= 2) {
+        s7_pointer error_port = s7_open_output_function(sc, error_port_write);
+        s7_gc_protect(sc, error_port);
+        s7_set_current_error_port(sc, error_port);
         for (int i = 1; i < argc; i++) {
             if (strcmp(argv[i], "-e") == 0) {
                 /* Evaluate expression */
@@ -238,6 +254,8 @@ int main(int argc, char **argv) {
                 char *str = s7_object_to_c_string(sc, result);
                 printf("%s\n", str);
                 free(str);
+            } else if (strcmp(argv[i], "--no-sleep") == 0) {
+                midi_set_no_sleep(1);
             } else if (strcmp(argv[i], "--version") == 0) {
                 printf("s7_midi using s7: %s, %s\n", S7_VERSION, S7_DATE);
             } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -333,5 +351,5 @@ int main(int argc, char **argv) {
     s7_midi_cleanup();
     s7_free(sc);
 
-    return 0;
+    return error_reported ? 1 : 0;
 }

@@ -68,12 +68,18 @@ This matches Python's PEP 380 semantics for basic generator delegation.
 Earlier versions of this document described a bug where `yield from` would skip yielded values. This issue has been resolved in PocketPy 2.1.6. The explicit `for` loop workaround is no longer necessary, though it remains functionally equivalent:
 
 ```python
+import midi
+out = midi.open()
+note, vel, dur = midi.c4, midi.mf, midi.quarter
+
 # Both of these work correctly:
 
 # Using yield from (recommended)
-yield from midi.play(out, note, vel, dur)
+def with_yield_from():
+    yield from midi.play(out, note, vel, dur)
 
 # Using explicit for loop (also works)
-for ms in midi.play(out, note, vel, dur):
-    yield ms
+def with_for_loop():
+    for ms in midi.play(out, note, vel, dur):
+        yield ms
 ```

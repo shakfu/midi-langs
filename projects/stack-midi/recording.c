@@ -18,7 +18,7 @@ static uint32_t capture_get_time_ms(void) {
 void capture_add_event(int type, int channel, int data1, int data2) {
     if (!capture_active) return;
     if (capture_count >= MAX_CAPTURE_EVENTS) {
-        printf("Capture buffer full!\n");
+        stack_error("Capture buffer full!");
         capture_active = 0;
         return;
     }
@@ -34,7 +34,7 @@ void capture_add_event(int type, int channel, int data1, int data2) {
 void op_rec_start(Stack* s) {
     (void)stack;
     if (recording_active) {
-        printf("Already recording (use 'stop' first)\n");
+        stack_error("Already recording (use 'stop' first)");
         return;
     }
     /* Clear any previous recording */
@@ -51,7 +51,7 @@ void op_rec_start(Stack* s) {
 void op_rec_stop(Stack* s) {
     (void)stack;
     if (!recording_active) {
-        printf("Not recording\n");
+        stack_error("Not recording");
         return;
     }
     recording_active = 0;
@@ -69,7 +69,7 @@ void op_rec_save(Stack* s) {
 void recording_add_line(const char* line) {
     if (!recording_active) return;
     if (recording_count >= MAX_RECORDING_LINES) {
-        printf("Recording buffer full!\n");
+        stack_error("Recording buffer full!");
         recording_active = 0;
         return;
     }
@@ -80,13 +80,13 @@ void recording_add_line(const char* line) {
 /* Save recording to file */
 int recording_save(const char* filename) {
     if (recording_count == 0) {
-        printf("Nothing to save (recording is empty)\n");
+        stack_error("Nothing to save (recording is empty)");
         return -1;
     }
 
     FILE* f = fopen(filename, "w");
     if (f == NULL) {
-        printf("Error: cannot create file '%s'\n", filename);
+        stack_error("Error: cannot create file '%s'", filename);
         return -1;
     }
 
@@ -118,7 +118,7 @@ void recording_clear(void) {
 void op_capture_start(Stack* s) {
     (void)stack;
     if (capture_active) {
-        printf("Already recording (use 'stop' first)\n");
+        stack_error("Already recording (use 'stop' first)");
         return;
     }
     capture_count = 0;
@@ -156,13 +156,13 @@ static const char* pitch_to_name(int pitch) {
 /* Save captured MIDI to file as stack-midi sequence commands */
 int capture_save_midi(const char* filename) {
     if (capture_count == 0) {
-        printf("Nothing to save (recording is empty)\n");
+        stack_error("Nothing to save (recording is empty)");
         return -1;
     }
 
     FILE* f = fopen(filename, "w");
     if (f == NULL) {
-        printf("Error: cannot create file '%s'\n", filename);
+        stack_error("Error: cannot create file '%s'", filename);
         return -1;
     }
 
@@ -269,7 +269,7 @@ void capture_clear(void) {
 /* write-mid ( filename -- ) Write captured events to standard MIDI file */
 int capture_write_mid(const char* filename) {
     if (capture_count == 0) {
-        printf("Nothing to save (recording is empty)\n");
+        stack_error("Nothing to save (recording is empty)");
         return -1;
     }
 
@@ -278,7 +278,7 @@ int capture_write_mid(const char* filename) {
     /* Create MIDI file writer */
     midi_file_writer* writer = NULL;
     if (midi_file_writer_new(&writer) != 0) {
-        printf("Error: cannot create MIDI file writer\n");
+        stack_error("Error: cannot create MIDI file writer");
         return -1;
     }
 
@@ -312,7 +312,7 @@ int capture_write_mid(const char* filename) {
     midi_file_writer_free(writer);
 
     if (result != 0) {
-        printf("Error: failed to write MIDI file '%s'\n", filename);
+        stack_error("Error: failed to write MIDI file '%s'", filename);
         return -1;
     }
 
@@ -349,21 +349,21 @@ static void read_mid_callback(void* ctx, const midi_file_event* event) {
     }
 
     printf("  t=%5d ch=%2d %-10s %3d %3d\n",
-           event->tick, event->channel + 1, type_name, event->data1, event->data2);
+           event->tick, event->channel, type_name, event->data1, event->data2);  /* channel is 1-16 */
 }
 
 /* read-mid ( filename -- ) Read MIDI file and display info */
 int capture_read_mid(const char* filename) {
     midi_file_reader* reader = NULL;
     if (midi_file_reader_new(&reader) != 0) {
-        printf("Error: cannot create MIDI file reader\n");
+        stack_error("Error: cannot create MIDI file reader");
         return -1;
     }
 
     int result = midi_file_reader_load(reader, filename);
     if (result == 0) {
         midi_file_reader_free(reader);
-        printf("Error: cannot read MIDI file '%s'\n", filename);
+        stack_error("Error: cannot read MIDI file '%s'", filename);
         return -1;
     }
 

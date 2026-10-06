@@ -42,10 +42,8 @@ typedef struct {
 } Voice;
 
 typedef struct {
-    /* libuv event loop (runs in separate thread) */
+    /* libuv event loop (run on the main thread by run() and poll()) */
     uv_loop_t *loop;
-    uv_thread_t thread;
-    uv_async_t wake_async;         /* Wake loop for new work */
     uv_mutex_t mutex;              /* Protect voice list */
 
     /* Voice management */
@@ -55,7 +53,6 @@ typedef struct {
 
     /* Scheduler state */
     int running;                   /* Is run() active? */
-    int shutdown_requested;
 
     /* Reference to main Lua state */
     lua_State *main_L;
@@ -64,7 +61,6 @@ typedef struct {
     int pending_resumes[MAX_VOICES];
     int pending_count;
     uv_mutex_t pending_mutex;
-    uv_async_t resume_async;       /* Signal main thread to process resumes */
 } SchedulerSystem;
 
 /* ============================================================================

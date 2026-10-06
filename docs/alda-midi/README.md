@@ -210,6 +210,7 @@ This is useful for debugging or when you want to hear each part in isolation.
 ### Notes
 
 ```alda
+piano:
 c d e f g a b      # Natural notes
 c+ d+ f+ g+ a+     # Sharps (# starts a comment)
 d- e- g- a- b-     # Flats
@@ -221,6 +222,7 @@ c4~4               # Tied notes
 ### Octaves
 
 ```alda
+piano:
 o4 c d e           # Set octave to 4
 > c                # Octave up
 < c                # Octave down
@@ -229,6 +231,7 @@ o4 c d e           # Set octave to 4
 ### Chords and Rests
 
 ```alda
+piano:
 c/e/g              # Chord (simultaneous notes)
 r4                 # Quarter rest
 r2.                # Dotted half rest
@@ -255,6 +258,7 @@ piano/violin:      # Apply events to both parts
 ### Voices
 
 ```alda
+piano:
 V1: c d e f        # Voice 1
 V2: e f g a        # Voice 2 (independent timing)
 V0: c1             # Merge voices (continue at max tick)

@@ -13,6 +13,7 @@ stack-midi has two sequence systems:
 For most use cases, bracket sequences are simpler:
 
 ```forth
+midi-open
 [ c4 e4 g4 ],               \ Create and play
 [ c4 e4 g4 ] shuffle,       \ Shuffle then play
 [ c4 e4 g4 ] reverse,       \ Reverse then play
@@ -24,7 +25,7 @@ For most use cases, bracket sequences are simpler:
 [ c4 50 e4 30 g4 20 ] weighted-pick,
 ```
 
-For full documentation, see [api-reference.md](api-reference.md#bracket-sequences) and [bracket_syntax.md](bracket_syntax.md).
+For full documentation, see [api-reference.md](api-reference.md#bracket-sequences) and the design record [bracket_syntax.md](../dev/stack-midi/bracket_syntax.md).
 
 ---
 
@@ -47,6 +48,7 @@ Tick-based sequences store MIDI events (note-on, note-off, CC) with tick-based t
 ### Creating and Playing a Sequence
 
 ```forth
+midi-open
 seq-new             \ Create new sequence, returns id (e.g., 0)
 drop                \ Discard the id (it's auto-selected)
 
@@ -133,6 +135,7 @@ seq-play
 ### Using Note Duration Constants
 
 ```forth
+midi-open
 seq-new drop
 
 \ Using stack calculations for timing
@@ -147,6 +150,10 @@ seq-play
 ### Transpose and Replay
 
 ```forth
+midi-open
+seq-new drop
+0 60 80 quarter seq-note
+
 seq-play            \ Play original
 5 seq-transpose     \ Transpose up a fourth
 seq-play            \ Play transposed
@@ -156,6 +163,11 @@ seq-play            \ Play transposed
 ### Time Stretching
 
 ```forth
+midi-open
+seq-new drop
+0 60 80 quarter seq-note
+quarter 64 80 quarter seq-note
+
 seq-play            \ Normal speed
 200 seq-stretch     \ Double all times (half speed)
 seq-play            \ Play slower
@@ -166,6 +178,11 @@ seq-play            \ Play faster
 ### Reverse Playback
 
 ```forth
+midi-open
+seq-new drop
+0 60 80 quarter seq-note
+quarter 64 80 quarter seq-note
+
 seq-play            \ Play forward
 seq-reverse         \ Reverse timing
 seq-play            \ Play backward
@@ -175,6 +192,11 @@ seq-reverse         \ Reverse again (back to original)
 ### Inspect Sequence
 
 ```forth
+midi-open
+seq-new drop
+0 60 80 quarter seq-note
+quarter 64 80 quarter seq-note
+
 seq-show
 ```
 
@@ -192,6 +214,7 @@ Sequence 0: 6 events, bpm=120
 ### Using Chord Builders with Sequences
 
 ```forth
+midi-open
 seq-new drop
 
 \ Build chord notes
@@ -207,6 +230,7 @@ seq-play
 ### Arpeggios
 
 ```forth
+midi-open
 seq-new drop
 
 60 major                    \ C major triad
@@ -220,6 +244,9 @@ seq-play
 For more control, use the packed note system:
 
 ```forth
+midi-open
+seq-new drop
+
 \ Create packed note: pitch vel ch dur -> packed
 60 80 1 quarter note        \ C4, vel 80, ch 1, quarter note
 
@@ -241,6 +268,7 @@ dur@ .                      \ Print duration (480)
 ## Multiple Sequences
 
 ```forth
+midi-open
 \ Create two sequences
 seq-new                     \ Returns 0
 seq-new                     \ Returns 1 (now selected)

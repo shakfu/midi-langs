@@ -18,6 +18,11 @@ int midi_out_open(const libremidi_midi_configuration* conf,
                   const libremidi_api_configuration* api,
                   libremidi_midi_out_handle** out);
 
+/* API for new observers, inputs and outputs: DUMMY when the environment sets
+ * MIDI_LANGS_BACKEND=null, else UNSPECIFIED (the platform default). DUMMY opens
+ * any port, discards every message, and lists no hardware ports. */
+libremidi_api midi_backend_api(void);
+
 /* Backend message for the last failed midi_out_open, or "".
  * Empty when the caller supplied its own on_error callback. */
 const char* midi_out_last_error(void);

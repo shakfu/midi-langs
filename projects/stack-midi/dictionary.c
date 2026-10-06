@@ -17,7 +17,7 @@ Word* find_word(const char* name) {
 /* Add a primitive word to the dictionary */
 void add_word(const char* name, void (*func)(Stack*), int is_primitive) {
     if (dict_count >= MAX_WORDS) {
-        printf("Dictionary full!\n");
+        stack_error("Dictionary full!");
         return;
     }
 
@@ -32,7 +32,7 @@ void add_word(const char* name, void (*func)(Stack*), int is_primitive) {
 /* Add a user-defined word to the dictionary */
 static void add_user_word(const char* name, const char* body) {
     if (dict_count >= MAX_WORDS) {
-        printf("Dictionary full!\n");
+        stack_error("Dictionary full!");
         return;
     }
 
@@ -120,7 +120,7 @@ static void op_bracket_close(Stack* s) {
 /* cc ( ch cc# value -- ) Send Control Change */
 static void op_cc(Stack* s) {
     if (stack.top < 2) {
-        printf("cc needs 3 values: channel cc# value\n");
+        stack_error("cc needs 3 values: channel cc# value");
         return;
     }
 
@@ -129,12 +129,12 @@ static void op_cc(Stack* s) {
     int32_t channel = pop(&stack);
 
     if (midi_out == NULL) {
-        printf("No MIDI output open\n");
+        stack_error("No MIDI output open");
         return;
     }
 
     if (channel < 1 || channel > 16) {
-        printf("Channel must be 1-16\n");
+        stack_error("Channel must be 1-16");
         return;
     }
 
@@ -342,6 +342,7 @@ void init_dictionary(void) {
 
     /* Scales */
     register_scale_words();
+    add_word("help", op_help, 1);
 
     /* Misc */
     add_word("words", op_words, 1);

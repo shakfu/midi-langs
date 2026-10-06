@@ -1,5 +1,13 @@
 # API Reference
 
+## Setup
+
+Examples that play notes assume an open port:
+
+```forth setup
+midi-open
+```
+
 ## MIDI Setup
 
 ### MIDI Output
@@ -25,7 +33,7 @@
 
 - `midi-close` = `midi-output-close`
 
-```forth
+```forth norun
 midi-output-list            \ See available ports
 midi-output-virtual         \ Create virtual port
 midi-output-open-as MySynth \ Named virtual port
@@ -63,7 +71,7 @@ The `midi-input@` word returns:
 
 - `flag`: -1 if message read, 0 if queue was empty
 
-```forth
+```forth norun
 \ List available input ports
 midi-input-list
 
@@ -298,6 +306,7 @@ r 250,                  \ Rest with explicit duration (ms)
 | `rot` | `( a b c -- b c a )` | Rotate top three |
 | `clear` | `( ... -- )` | Clear entire stack |
 | `.s` | `( -- )` | Show stack contents |
+| `depth` | `( -- n )` | Number of items on the stack |
 
 ---
 
@@ -309,6 +318,11 @@ r 250,                  \ Rest with explicit duration (ms)
 | `-` | `( a b -- a-b )` | Subtraction |
 | `*` | `( a b -- a*b )` | Multiplication (also block repeat) |
 | `/` | `( a b -- a/b )` | Division |
+| `mod` | `( a b -- a%b )` | Remainder |
+| `abs` | `( a -- \|a\| )` | Absolute value |
+| `negate` | `( a -- -a )` | Negate |
+| `min` | `( a b -- min )` | Smaller of two |
+| `max` | `( a b -- max )` | Larger of two |
 
 ---
 
@@ -330,6 +344,9 @@ r 250,                  \ Rest with explicit duration (ms)
 | `=` | `( a b -- flag )` | Equal (-1 true, 0 false) |
 | `<` | `( a b -- flag )` | Less than |
 | `>` | `( a b -- flag )` | Greater than |
+| `<=` | `( a b -- flag )` | Less than or equal |
+| `>=` | `( a b -- flag )` | Greater than or equal |
+| `<>` | `( a b -- flag )` | Not equal |
 
 ---
 
@@ -340,6 +357,7 @@ r 250,                  \ Rest with explicit duration (ms)
 | `.` | `( n -- )` | Print number |
 | `cr` | `( -- )` | Print newline |
 | `space` | `( -- )` | Print space |
+| `emit` | `( c -- )` | Print the character with code `c` |
 
 ---
 
@@ -473,7 +491,7 @@ c4, v,                  \ C4 then C3
 
 ## Relative Intervals
 
-Use `+N` or `-N` to move by semitones from last pitch:
+Use `+N` or `-N` directly before `,` to move by semitones from the last pitch. Inside `[ ]` they are always intervals. Anywhere else they are numbers, so `-12 transpose` transposes down an octave.
 
 ```forth
 c4, +2, +2, +1,         \ C D E F (whole, whole, half)
@@ -615,6 +633,7 @@ note!                   \ Play it
 | Word | Stack | Description |
 | ------ | ------- | ------------- |
 | `scale` | `( root scale-id -- p1...pN N )` | Build scale, push pitches and count |
+| `play-scale` | `( root scale-id -- )` | Play the scale ascending with the current defaults |
 | `degree` | `( root scale-id degree -- pitch )` | Get specific scale degree (1-based) |
 | `in-scale?` | `( pitch root scale-id -- flag )` | Check if pitch is in scale |
 | `quantize` | `( pitch root scale-id -- quantized )` | Snap pitch to nearest scale tone |
@@ -622,6 +641,8 @@ note!                   \ Play it
 
 ```forth
 c4 scale-major scale .s     \ Build C major: 60 62 64 65 67 69 71 7
+clear
+c4 scale-dorian play-scale  \ Play C dorian
 c4 scale-major 3 degree .   \ 64 (E4, third)
 e4 c4 scale-major in-scale? .   \ -1 (true)
 c#4 c4 scale-major quantize .   \ 60 or 62 (snapped)
@@ -658,6 +679,8 @@ Non-blocking MIDI patterns with timing.
 | `seq@` | `( -- id )` | Get current sequence id |
 | `seq-clear` | `( -- )` | Clear all events |
 | `seq-length` | `( -- n )` | Get event count |
+| `seq-new!` | `( -- )` | Create and select a new sequence without pushing its id |
+| `seq-gc` | `( -- )` | Free sequences nothing references |
 
 ### Adding Events
 
@@ -666,6 +689,8 @@ Non-blocking MIDI patterns with timing.
 | `seq-note` | `( time pitch vel dur -- )` | Add note (default channel) |
 | `seq-note-ch` | `( time ch pitch vel dur -- )` | Add note with channel |
 | `seq-add` | `( packed time -- )` | Add packed note |
+| `seq-start` | `( id -- )` | Record played notes into sequence `id` (created if needed) |
+| `seq-end` | `( id -- )` | Stop recording |
 
 ### Playback & Display
 
@@ -673,6 +698,22 @@ Non-blocking MIDI patterns with timing.
 | ------ | ------- | ------------- |
 | `seq-play` | `( -- )` | Play sequence (blocking) |
 | `seq-show` | `( -- )` | Print all events |
+| `seq-play&` | `( -- )` | Play the current sequence in the background |
+| `seq-loop&` | `( -- )` | Loop the current sequence in the background |
+| `seq-stop` | `( -- )` | Stop the current sequence's background playback |
+| `seq-stop-all` | `( -- )` | Stop all background playback; returns once it has stopped |
+| `seq-playing?` | `( -- flag )` | True while any background playback runs |
+| `seq-active` | `( -- n )` | Number of sequences playing in the background |
+
+```forth
+0 seq-start
+  c4, e4, g4,
+0 seq-end
+seq-play&               \ Returns at once; playback continues
+seq-playing? .          \ -1
+seq-stop-all
+seq-active .            \ 0
+```
 
 ### Transformations
 
@@ -760,6 +801,7 @@ These operations work on bracket sequences `[ ... ]`:
 | `arp-up` | `( seq -- seq )` | No change (ascending) |
 | `arp-down` | `( seq -- seq )` | Reverse (descending) |
 | `arp-up-down` | `( seq -- seq )` | Original + reversed middle |
+| `retrograde` | `( seq -- seq )` | Same as `reverse` |
 | `concat` | `( seq1 seq2 -- seq )` | Concatenate two sequences |
 | `transpose` | `( value semitones -- value )` | Transpose pitches (polymorphic: packed notes or sequences) |
 
@@ -813,7 +855,7 @@ These operations work on bracket sequences `[ ... ]`:
 
 ### Conditionals
 
-```forth
+```forth norun
 flag if ... then
 flag if ... else ... then
 ```
@@ -919,16 +961,18 @@ while
     1 +                 \ Increment
 repeat drop             \ Prints: 0 1 2 3 4
 
+\ `,` plays the whole stack, so loops that keep state there use note!
+
 \ Fade out effect
 127 begin
-    dup vel! c4,        \ Play at current velocity
+    dup c4 swap 1 quarter note note!    \ Play C4 at current velocity
     5 -                 \ Decrease velocity
     dup 0 <             \ Check if below 0
 until drop
 
 \ Random walk until reaching target
 c4 begin
-    dup ,               \ Play current note
+    dup 80 1 quarter note note!         \ Play current note
     -2 3 srand-range +  \ Random step
     dup g4 >            \ Until above G4
 until drop
@@ -954,7 +998,7 @@ Use `{ }` for deferred execution:
 
 ### Command Recording
 
-Record input commands for replay:
+Record commands typed at the REPL for replay. Lines run from a script are not recorded.
 
 | Command | Description |
 | --------- | ------------- |
@@ -963,7 +1007,7 @@ Record input commands for replay:
 | `save filename` | Save recorded commands to .stk file |
 | `load filename` | Load and execute a .stk file |
 
-```forth
+```forth norun
 rec                     \ Start recording
 c4, e4, g4,             \ Commands are recorded
 stop                    \ Stop recording
@@ -997,9 +1041,11 @@ write-mid song.mid      \ Save as standard MIDI file
 
 | Command | Description |
 | --------- | ------------- |
-| `help` | Display command reference |
-| `quit` | Exit interpreter |
+| `help` | Display command reference; also printed by `stack_midi --help` |
+| `quit` | Exit the REPL (REPL only) |
 | `words` | List all defined words |
+| `ctx@` | Print the current defaults: channel, velocity, duration, gate, tempo, last pitch, and whether a port is open |
+| `reset` | Clear the stack and reset interpreter state |
 
 ---
 

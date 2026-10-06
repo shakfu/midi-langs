@@ -5,6 +5,7 @@
 
 #define PK_IS_PUBLIC_INCLUDE
 #include "pocketpy.h"
+#include "midi_sleep.h"
 #include <libremidi/libremidi-c.h>
 
 #include "py_prelude.h"
@@ -149,6 +150,7 @@ static int midi_init_observer(void) {
     libremidi_api_configuration api_conf;
     ret = libremidi_midi_api_configuration_init(&api_conf);
     if (ret != 0) return ret;
+    api_conf.api = midi_backend_api();
 
     ret = libremidi_midi_observer_new(&observer_conf, &api_conf, &midi_observer);
     if (ret != 0) return ret;
@@ -229,6 +231,7 @@ static bool midi_open(int argc, py_StackRef argv) {
     if (ret != 0) {
         return py_exception(tp_RuntimeError, "Failed to init API config");
     }
+    api_conf.api = midi_backend_api();
 
     int is_virtual = 0;
 
@@ -628,7 +631,7 @@ static bool MidiOut_note(int argc, py_StackRef argv) {
     // Wait (scaled by tempo)
     if (duration > 0) {
         int scaled = scale_duration_for_tempo(duration);
-        usleep(scaled * 1000);
+        midi_sleep(scaled);
     }
 
     // Note off
@@ -743,7 +746,7 @@ static bool MidiOut_chord(int argc, py_StackRef argv) {
     // Wait (scaled by tempo)
     if (duration > 0) {
         int scaled = scale_duration_for_tempo(duration);
-        usleep(scaled * 1000);
+        midi_sleep(scaled);
     }
 
     // Send all note-offs

@@ -3,6 +3,7 @@
 #include "midi_open.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static char g_last_error[256];
@@ -28,6 +29,22 @@ int midi_out_open(const libremidi_midi_configuration* conf,
 
     g_last_error[0] = '\0';
     return libremidi_midi_out_new(&c, api, out);
+}
+
+libremidi_api midi_backend_api(void) {
+    static int warned = 0;
+    const char* backend = getenv("MIDI_LANGS_BACKEND");
+    if (backend == NULL || backend[0] == '\0') {
+        return UNSPECIFIED;
+    }
+    if (strcmp(backend, "null") == 0) {
+        return DUMMY;
+    }
+    if (!warned) {
+        warned = 1;
+        fprintf(stderr, "warning: unknown MIDI_LANGS_BACKEND '%s', using the platform default\n", backend);
+    }
+    return UNSPECIFIED;
 }
 
 const char* midi_out_last_error(void) {

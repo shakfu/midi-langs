@@ -204,9 +204,13 @@ echo ""
 echo "--- Relative Intervals ---"
 # ============================================
 
-test_number "+2 from c4" "c4 drop +2 ." "62"
-test_number "-2 from c4" "c4 drop -2 ." "58"
-test_number "+12 (octave up)" "c4 drop +12 ." "72"
+# +N/-N before `,` move from the last pitch; ctx@ shows the new last pitch
+test_contains "+2, from c4" "midi-open 100 dur! c4, +2, ctx@" "pitch: *62"
+test_contains "-2, from c4" "midi-open 100 dur! c4, -2, ctx@" "pitch: *58"
+test_contains "+12, (octave up)" "midi-open 100 dur! c4, +12, ctx@" "pitch: *72"
+# Elsewhere they are numbers
+test_number "-2 is a number" "c4 drop -2 ." "-2"
+test_number "+12 is a number" "+12 ." "12"
 
 echo ""
 

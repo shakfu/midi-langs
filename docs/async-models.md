@@ -10,8 +10,8 @@ All six languages now support concurrent voice playback, but each uses a differe
 | ---------- | ------- | ----------- | ---------- | -------------- |
 | **alda-midi** | libuv event loop | Background thread | N/A | Always async |
 | **stack-midi** | libuv event loop | Background thread | N/A | `seq-play&` (always async) |
-| **lua-midi** | libuv + Lua coroutines | Background thread | `run()` | `poll()` |
-| **pktpy-midi** | libuv + Python generators | Background thread | `run()` | `poll()` |
+| **lua-midi** | libuv + Lua coroutines | Main thread | `run()` | `poll()` |
+| **pktpy-midi** | libuv + Python generators | Main thread | `run()` | `poll()` |
 | **s7-midi** | libuv + Scheme thunks | Main thread | `(run)` | `(poll)` |
 | **mhs-midi** | Native Haskell threads | Multiple threads | `run` | N/A |
 
@@ -67,14 +67,13 @@ c2~2          # Sustained bass
 stack-midi uses a dedicated libuv thread for timing. Sequences can be played asynchronously while the REPL remains responsive.
 
 ```forth
-\ Create and play sequences asynchronously
-seq-new
-c4, e4, g4,
-seq-play&          \ Play async (REPL stays responsive)
+midi-open
+\ Record sequences, then play them asynchronously
+0 seq-start  c4, e4, g4,  0 seq-end
+0 seq seq-play&    \ Play async (REPL stays responsive)
 
-seq-new
-c2, g2, c3,
-seq-loop&          \ Loop async
+1 seq-start  c2, g2, c3,  1 seq-end
+1 seq seq-loop&    \ Loop async
 
 seq-active .       \ Shows count of playing sequences
 seq-stop-all       \ Stop everything
@@ -89,9 +88,9 @@ seq-stop-all       \ Stop everything
 
 ## lua-midi
 
-**Model**: Lua coroutines with libuv timer thread
+**Model**: Lua coroutines with a libuv event loop on the main thread
 
-Lua-midi combines Lua's native coroutines with a background libuv event loop. Voices are coroutines that yield to pause.
+Lua-midi combines Lua's native coroutines with a libuv event loop that `run()` and `poll()` drive. Voices are coroutines that yield to pause.
 
 ```lua
 spawn(function()
@@ -110,6 +109,10 @@ run()  -- Blocks until all voices complete
 **Non-blocking mode with `poll()`**:
 
 ```lua
+open()
+local function melody_voice() play(c4, mf, quarter) end
+local function bass_voice() play(c2, ff, quarter) end
+
 spawn(melody_voice)
 spawn(bass_voice)
 -- REPL stays responsive
@@ -127,11 +130,12 @@ end
 
 ## pktpy-midi
 
-**Model**: Python generators with libuv timer thread
+**Model**: Python generators with a libuv event loop on the main thread
 
 PocketPy-midi uses Python generators (functions with `yield`) as voices. Each yield returns milliseconds to wait.
 
 ```python
+import midi
 def melody():
     out = midi.open()
     for ms in midi.play(out, midi.c4, midi.mf, midi.quarter):
@@ -152,6 +156,14 @@ midi.run()  # Blocks until complete
 **Non-blocking mode with `poll()`**:
 
 ```python
+import midi
+
+def melody():
+    yield 100
+
+def bass():
+    yield 200
+
 midi.spawn(melody)
 midi.spawn(bass)
 # REPL stays responsive
@@ -177,6 +189,8 @@ S7-midi uses a unique thunk-based model. Each voice is a closure that returns ei
 - `#f` (voice is complete)
 
 ```scheme
+(open)
+
 ;; Voice builder: returns a thunk
 (define (make-melody-voice pitches vel dur)
   (let ((remaining pitches))
@@ -196,6 +210,10 @@ S7-midi uses a unique thunk-based model. Each voice is a closure that returns ei
 **Non-blocking mode with `(poll)`**:
 
 ```scheme
+(open)
+(define melody-voice (make-note-voice c4 mf quarter))
+(define bass-voice (make-note-voice c2 ff quarter))
+
 (spawn melody-voice "melody")
 (spawn bass-voice "bass")
 ;; REPL stays responsive
@@ -254,9 +272,8 @@ main = do
 
 | Most Efficient | Medium | Least Efficient |
 | ---------------- | -------- | ----------------- |
-| mhs-midi (native threads) | alda-midi (libuv) | s7-midi (main thread) |
+| mhs-midi (native threads) | alda-midi (libuv) | s7-midi, lua-midi, pktpy-midi (main thread) |
 | | stack-midi (libuv) | |
-| | lua-midi/pktpy-midi | |
 
 ### REPL Responsiveness
 
@@ -283,13 +300,11 @@ violin:
 ### stack-midi
 
 ```forth
-midi-virtual
-seq-new
-mf c4, e4, g4, c5,
-seq-play&
-seq-new
-ff c2,
-seq-play&
+midi-open
+0 seq-start  mf c4, e4, g4, c5,  0 seq-end
+1 seq-start  ff c2,  1 seq-end
+0 seq seq-play&
+1 seq seq-play&
 ```
 
 ### lua-midi
@@ -311,6 +326,7 @@ close()
 ### pktpy-midi
 
 ```python
+import midi
 out = midi.open()
 def melody():
     for p in [midi.c4, midi.e4, midi.g4, midi.c5]:

@@ -42,7 +42,7 @@ make
 
 Using convenience functions:
 
-```scheme
+```scheme norun
 > (open)
 #<midi-out virtual "s7MIDI">
 > (n c4)
@@ -52,7 +52,7 @@ Using convenience functions:
 
 Or using explicit port management:
 
-```scheme
+```scheme norun
 > (define m (midi-open))
 #<midi-out virtual "s7MIDI">
 > (midi-note m c4 mf quarter)

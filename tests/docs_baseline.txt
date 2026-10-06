@@ -1,0 +1,2 @@
+# Doc blocks that fail today: <path> <sha1 of block, 12 hex>  # first line
+# Fix a block, then delete its line. See docs/dev/doc-tests.md.

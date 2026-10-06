@@ -4,7 +4,61 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Null MIDI backend**: `MIDI_LANGS_BACKEND=null` makes every interpreter open ports that discard all messages and list no hardware ports. Scripts then run without a MIDI server or `midi_keepalive`. It selects libremidi's `DUMMY` API, patched in `thirdparty/libremidi/include/libremidi/backends/dummy.hpp`: upstream never marks the dummy client open, so every port open failed with `not_connected`. Test scripts unset it wherever they check output with `aseqdump`, so `make test` passes with it exported.
+
+- **Doc tests**: `docs_examples` runs the 659 runnable code blocks in `README.md` and `docs/` on the null backend and requires exit status 0; all pass. Fence flags `setup` and `norun` handle reference fragments, transcripts and proposals. A block that must fail for now goes in `tests/docs_baseline.txt`, keyed by content hash; a listed block that starts passing fails the run, as does an edited one that still fails, so the list only shrinks. A hash key was chosen over line numbers, which shift with every edit above a block. Conventions: `docs/dev/doc-tests.md`. mhs-midi docs are not collected until the MicroHs upgrade.
+
+- **README `--help` blocks are checked against the binaries**: `python3 tests/test_docs.py --write-help` regenerates them. Five of eight had drifted.
+
+- **API reference coverage**: `tests/test_api_docs.py` asks each interpreter whether every name in its `api-reference.md` exists, and whether every name it defines is mentioned. The references omitted 99 defined names, among them the generative functions in lua, pktpy, s7 and guile; all are now documented. Exceptions go in `tests/api_undocumented.txt`, which only shrinks. The interpreter is queried rather than its C registration tables, so prelude definitions and aliases count.
+
+- **stack-midi `play-scale`** `( root scale-id -- )`: plays a scale ascending with the current defaults. `scale` leaves pitches and a count on the stack, and `,` plays the whole stack as one note, so no word could play them in turn.
+
+- **stack-midi `help` works outside the REPL**: it is now a word, so scripts can call it, and `stack_midi --help` prints it after the usage. Before, only an exact `help` line typed at the REPL worked.
+
+- **`--no-sleep` for lua, pktpy, s7, guile and joy**: blocking waits return at once, and scheduler waits become zero-delay timers, so voices keep their order. It shares one switch, `midi_sleep` in `projects/common/`. The docs test passes it, and a full run takes 5 s instead of 34 s.
+
+- **joy-midi `--help` and `--version`**: only `-h` and `-v` were accepted, though README showed `--help`.
+
+### Changed
+
+- **stack-midi design records moved to `docs/dev/stack-midi/`**: `bracket_syntax.md` and `data_structures.md` are proposals with options and C sketches, and their examples used words that do not exist.
+
 ### Fixed
+
+- **stack-midi `seq-play&` and `seq-loop&` started timers from the wrong thread**: the main thread called `uv_timer_start` on the player thread's loop. Starts now go through `uv_async_send`, and the player thread starts the timer. A late stop signal could also end playback just restarted in the same slot; it now checks and finishes under one lock. `stack_midi_golden_async_churn` restarts playback 200 times per run; it failed about 1 run in 40 under ASan before the fix.
+
+- **lua-midi and pktpy-midi schedulers corrupted libuv state**: a background thread ran the event loop while the main thread started and stopped its timers, and libuv handles are not thread-safe. With `--no-sleep`, 6 to 11 percent of runs of the scheduler examples hung or segfaulted; with real waits it was rarer. The loop now runs on the main thread inside `run()` and `poll()`, as s7-midi and guile-midi already did. The thread did no useful work: voices resumed only inside `run()` and `poll()`.
+
+- **stack-midi crashed when `midi-close` ran during background playback**: the player thread sent to the freed output. Closing or replacing the output now stops background playback first. About 1 run in 100 of `demo_stack.stk` segfaulted once `--no-sleep` worked.
+
+- **stack-midi `,` on a bracket sequence ignored a missing port**: `[ c4 e4 ],` with no output did nothing and succeeded, while `c4,` reported "No MIDI output open". Both now report it.
+
+- **guile-midi wisp files need Guile 3.0.10**: `(language wisp)` ships with Guile 3.0.10. On older Guile, `guile_midi song.w` printed a module backtrace; it now says which version it needs.
+
+- **s7-midi and guile-midi `dotted` returned an inexact number under Guile**: `(floor (* dur 1.5))` stays inexact in Guile, and `midi-note` rejected 750.0. It now uses integer arithmetic. `make preludes` also regenerates guile-midi's `scm_prelude.h`, which nothing rebuilt before.
+
+- **stack-midi `read-mid` printed channels one too high**: `midi_file_event.channel` is already 1-16, and the display added 1. Files were written correctly.
+
+- **stack-midi held at most 13 user-defined words**: primitives and definitions share `MAX_WORDS`, which was 200 with 187 primitives. A script's 14th `:` definition failed with "Dictionary full!". The limit is now 1024.
+
+- **stack-midi lost 25 scale words**: the December 2025 split of `forth_midi.c` dropped `scale-persian`, the maqam and raga scales and 19 others, which the API reference still listed. They are restored from the shared `music_theory` tables; `scales` lists 49.
+
+- **stack-midi `cents>bend` and `pb-cents` were missing**: the same split dropped both words, while `scales.md` and the API reference still documented them. They are restored on the shared `music_cents_to_bend`.
+
+- **API reference examples that did not match the code**: lua-midi documented the recording and MIDI file functions as globals; they exist only as `midi.record_midi` and so on. lua-midi's `read_mid` returns events as tables with named fields such as `pitch`, not positional arrays. pktpy-midi's name-based scale check is `midi.in_scale_named`; `midi.in_scale` takes intervals. stack-midi has no negative literals, since `-5` is a relative interval; examples now write `5 negate`, and the reference says so.
+
+- **stack-midi `--no-sleep` had no effect**: `main` set the flag before `stack_context_init`, which reset it. Every `--no-sleep` test played in real time; `demo_example_stack` took 8.8 s instead of 0.
+
+- **stack-midi `seq-stop` and `seq-stop-all` returned before playback stopped**: the loop thread cleared the slot later, so an immediate `seq-playing?` could report true, and `seq-loop&` could report "already playing". `stack_midi_golden_async` passed only because its `10 ms` waits ran while `--no-sleep` was broken. Stop now waits until the loop thread has finished the slot.
+
+- **stack-midi treated `\` after code as a word**: `c4, \ play C` reported `Unknown word: \`, then tried each comment word. Only a line starting with `\` was skipped. Most stack-midi doc examples put comments after code.
+
+- **stack-midi, s7-midi and guile-midi exited 0 after script errors**: stack-midi printed most errors with `printf` and never recorded them; `--script` now exits 1 and stops at the first failing line, as its help text says. s7's `s7_load` returns the error symbol, which a script can also return, so s7-midi instead counts writes to its error port. guile-midi's `scm_with_guile` returned NULL for both success and an uncaught error. `demo_example_s7` and `demo_example_stack` passed with errors before this fix.
+
+- **README examples for s7-midi and stack-midi failed**: s7 passed a thunk to `(euclidean hits steps)`, which takes two arguments and returns a list. stack-midi left `seq-new`'s id on the stack before recording, put a bare `75%,` after a played note, and had three articulated notes with no `,` between them.
 
 - **pforth-midi stopped when run in the background on a terminal**: `pforth_midi song.fs &` or `timeout 60 pforth_midi song.fs` hung with no output. pForth sets raw mode whenever stdin is a tty, and a background process group that does so receives SIGTTOU. `pforth_midi_test_suite` timed out under `make test` from a terminal for this reason, since it runs every case under `timeout`. Raw mode is now skipped when the process group does not own the terminal. Skipping it for every file run was rejected: `KEY` in a script would then wait for Enter.
 

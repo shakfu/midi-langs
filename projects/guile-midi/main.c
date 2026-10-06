@@ -10,6 +10,7 @@
 #ifdef USE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
+#include "midi_sleep.h"
 #endif
 
 /* External functions from midi_module.c */
@@ -206,6 +207,7 @@ static void print_usage(const char *prog) {
     fprintf(stderr, "Usage: %s [options] [file.scm|file.w]\n", prog);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -e EXPR    Evaluate expression and print result\n");
+    fprintf(stderr, "  --no-sleep Skip all waits; give it before the file (for testing)\n");
     fprintf(stderr, "  --version  Show version\n");
     fprintf(stderr, "  --help     Show this help\n");
     fprintf(stderr, "\nFile types:\n");
@@ -222,9 +224,14 @@ static int ends_with(const char *str, const char *suffix) {
     return strcmp(str + str_len - suffix_len, suffix) == 0;
 }
 
-/* Load a wisp file using the wisp reader */
-static void load_wisp_file(const char *filename) {
-    /* Load wisp module and read file */
+/* Load a wisp file using the wisp reader; 0 on success */
+static int load_wisp_file(const char *filename) {
+    /* (language wisp) ships with Guile 3.0.10 and later */
+    if (scm_is_false(scm_c_eval_string("(false-if-exception (resolve-interface '(language wisp)))"))) {
+        fprintf(stderr, "Error: wisp needs Guile 3.0.10 or later; this Guile (%s) has no (language wisp)\n",
+                scm_to_locale_string(scm_version()));
+        return -1;
+    }
     scm_c_eval_string("(use-modules (language wisp))");
 
     /* Build the load expression */
@@ -238,6 +245,7 @@ static void load_wisp_file(const char *filename) {
 
     free(escaped);
     scm_c_eval_string(expr);
+    return 0;
 }
 
 /* Arguments passed to inner_main */
@@ -245,6 +253,9 @@ typedef struct {
     int argc;
     char **argv;
 } MainArgs;
+
+static int exit_success = 0;
+static int exit_failure = 1;
 
 /* Inner main function called via scm_with_guile */
 static void* inner_main(void *data) {
@@ -263,13 +274,15 @@ static void* inner_main(void *data) {
                 if (i + 1 >= argc) {
                     fprintf(stderr, "Error: -e requires an expression\n");
                     guile_midi_cleanup();
-                    return (void*)1;
+                    return &exit_failure;
                 }
                 SCM result = scm_c_eval_string(argv[++i]);
                 if (!scm_is_eq(result, SCM_UNSPECIFIED)) {
                     scm_display(result, scm_current_output_port());
                     scm_newline(scm_current_output_port());
                 }
+            } else if (strcmp(argv[i], "--no-sleep") == 0) {
+                midi_set_no_sleep(1);
             } else if (strcmp(argv[i], "--version") == 0) {
                 printf("guile_midi using Guile %s\n", scm_to_locale_string(scm_version()));
             } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -277,7 +290,10 @@ static void* inner_main(void *data) {
             } else {
                 /* Load file - check for wisp syntax */
                 if (ends_with(argv[i], ".w") || ends_with(argv[i], ".wisp")) {
-                    load_wisp_file(argv[i]);
+                    if (load_wisp_file(argv[i]) != 0) {
+                        guile_midi_cleanup();
+                        return &exit_failure;
+                    }
                 } else {
                     scm_c_primitive_load(argv[i]);
                 }
@@ -361,14 +377,24 @@ static void* inner_main(void *data) {
     /* Cleanup */
     guile_midi_cleanup();
 
+    return &exit_success;
+}
+
+static void* cleanup_main(void *data) {
+    (void)data;
+    guile_midi_cleanup();
     return NULL;
 }
 
 int main(int argc, char **argv) {
     MainArgs args = { argc, argv };
 
-    /* Initialize Guile and run inner_main */
-    scm_with_guile(inner_main, &args);
-
-    return 0;
+    /* scm_with_guile returns NULL when an uncaught error unwinds inner_main,
+     * after printing the backtrace; inner_main itself never returns NULL. */
+    int *status = scm_with_guile(inner_main, &args);
+    if (status == NULL) {
+        scm_with_guile(cleanup_main, NULL);
+        return 1;
+    }
+    return *status;
 }

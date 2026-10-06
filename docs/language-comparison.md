@@ -84,7 +84,7 @@ melody 4 times
 **Best for:** Full-featured Scheme, module system, Guile ecosystem
 
 ```scheme
-(define m (midi-open))
+(define m (open))       ; open also sets the default port the voices use
 (midi-note m c4 mf quarter)
 (midi-chord m (major c4) f half)
 
@@ -185,6 +185,7 @@ m:close()
 (define m (midi-open))
 (midi-note m c4 mf quarter)
 (midi-chord m (major c4) f half)
+(define (times n proc) (do ((i 0 (+ i 1))) ((= i n)) (proc)))
 (times 4 (lambda () (midi-note m c4 mf quarter)))
 (midi-close m)
 ```
@@ -310,10 +311,10 @@ main = do
 | ---------- | -------------- |
 | alda-midi | `c4 c c c` or `[c4 c]*2` (limited) |
 | stack-midi | `melody 4 times` or `{ c4, } 4 *` |
-| guile-midi | `(times 4 (lambda () (midi-note m c4 mf quarter)))` |
+| guile-midi | `(do ((i 0 (+ i 1))) ((= i 4)) (midi-note m c4 mf quarter))` |
 | joy-midi | `4 [[c] play] times` or `[c c c c] play` |
 | lua-midi | `for i=1,4 do m:note(c4,mf,quarter) end` |
-| s7-midi | `(times 4 (lambda () (midi-note m c4 mf quarter)))` |
+| s7-midi | `(do ((i 0 (+ i 1))) ((= i 4)) (midi-note m c4 mf quarter))` |
 | pktpy-midi | `for i in range(4): m.note(c4, mf, quarter)` |
 | mhs-midi | `times 4 (note c4)` |
 
@@ -340,7 +341,7 @@ All implementations support MIDI event recording:
 | stack-midi | `rec-midi` | `stop` | `save-midi file.stk` |
 | guile-midi | `(record-midi)` | `(record-stop)` | `(save-midi "file.scm")` |
 | joy-midi | N/A | N/A | N/A (planned) |
-| lua-midi | `record_midi()` | `record_stop()` | `save_midi("file.lua")` |
+| lua-midi | `midi.record_midi()` | `midi.record_stop()` | `midi.save_midi("file.lua")` |
 | s7-midi | `(record-midi)` | `(record-stop)` | `(save-midi "file.scm")` |
 | pktpy-midi | `midi.record_midi()` | `midi.record_stop()` | `midi.save_midi("file.py")` |
 | mhs-midi | `midiRecordStart 120` | `midiRecordStop` | `midiRecordSave "file.hs"` |
@@ -437,6 +438,8 @@ c4 d e f
 **stack-midi** has structured sequence support:
 
 ```forth
+midi-open
+seq-new drop
 \ Explicit channel per note in sequences
 0 1 60 100 480 seq-note-ch   \ time=0, ch=1, C4, vel=100, dur=480
 0 2 64 100 480 seq-note-ch   \ time=0, ch=2, E4 on different channel
@@ -447,24 +450,30 @@ seq-play
 **joy-midi** uses chord and list operations:
 
 ```joy
+midi-virtual
 \ Play chord - all notes simultaneously
 [c e g] chord
 
-\ Channel support via midi-note primitive
-60 80 500 1 midi-note-ch    \ C4 on channel 1
-64 80 500 2 midi-note-ch    \ E4 on channel 2
+\ Set the channel for the notes that follow
+1 channel c play            \ C4 on channel 1
+2 channel e play            \ E4 on channel 2
+
+\ Or run a quotation on one channel
+[c play] 10 chan
 ```
 
 **lua-midi**, **pktpy-midi**, **s7-midi**, **guile-midi** use method/function calls with channel parameters:
 
 ```lua
 -- Lua
+m = midi.open()
 m:note_on(60, 100, 1)  -- C4 on channel 1
 m:note_on(64, 100, 2)  -- E4 on channel 2
 ```
 
 ```scheme
 ;; Guile/s7 Scheme
+(define m (midi-open))
 (midi-note-on m 60 100 1)  ; C4 on channel 1
 (midi-note-on m 64 100 2)  ; E4 on channel 2
 ```

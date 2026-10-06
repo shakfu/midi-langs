@@ -1,0 +1,11 @@
+\ test_comments.stk - `\` comments on their own line and after code
+\ Each test prints -1 for pass (Forth true), 0 for fail
+
+3 4 + 7 = .         \ trailing comment with undefined words: foo bar
+: sq dup * ;        \ comment after a definition
+4 sq 16 = .
+5 5 = . \
+\ own-line comment: baz qux
+
+\ Print marker for test completion
+999 .

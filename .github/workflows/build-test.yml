@@ -32,21 +32,30 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libreadline-dev
+          sudo apt-get install -y libasound2-dev libreadline-dev guile-3.0-dev pkg-config
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install guile pkg-config
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
+      # docs_examples runs through uv; configure fails without it (below)
+      - name: Install uv
+        run: python -m pip install uv
+
       - name: Generate prelude headers
         run: |
           python scripts/prelude2c.py projects/s7-midi/prelude.scm
           python scripts/prelude2c.py projects/lua-midi/prelude.lua
           python scripts/prelude2c.py projects/pktpy-midi/prelude.py
+          python scripts/prelude2c.py projects/guile-midi/prelude.scm
 
       - name: Configure CMake
-        run: cmake -B build -G "${{ matrix.cmake_generator }}"
+        run: cmake -B build -G "${{ matrix.cmake_generator }}" -DMIDI_LANGS_REQUIRE_DOC_TESTS=ON
 
       - name: Build
         run: cmake --build build --config Release -j4
@@ -110,6 +119,7 @@ jobs:
           python scripts/prelude2c.py projects/s7-midi/prelude.scm
           python scripts/prelude2c.py projects/lua-midi/prelude.lua
           python scripts/prelude2c.py projects/pktpy-midi/prelude.py
+          python scripts/prelude2c.py projects/guile-midi/prelude.scm
 
       - name: Build MicroHs
         run: make -C thirdparty/MicroHs

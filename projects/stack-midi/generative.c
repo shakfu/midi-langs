@@ -133,7 +133,7 @@ void op_euclidean(Stack* s) {
 /* reverse ( seq -- seq ) Reverse sequence elements in place */
 void op_reverse(Stack* s) {
     if (stack.top < 0) {
-        printf("reverse needs a sequence\n");
+        stack_error("reverse needs a sequence");
         return;
     }
 
@@ -143,7 +143,7 @@ void op_reverse(Stack* s) {
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             return;
         }
 
@@ -162,7 +162,7 @@ void op_reverse(Stack* s) {
         return;
     }
 
-    printf("reverse needs a sequence (use [ ... ])\n");
+    stack_error("reverse needs a sequence (use [ ... ])");
 }
 
 /* arp-up ( seq -- seq ) No change, ascending order */
@@ -178,7 +178,7 @@ void op_arp_down(Stack* s) {
 /* arp-up-down ( seq -- seq ) Duplicate sequence with middle reversed appended */
 void op_arp_up_down(Stack* s) {
     if (stack.top < 0) {
-        printf("arp-up-down needs a sequence\n");
+        stack_error("arp-up-down needs a sequence");
         return;
     }
 
@@ -188,7 +188,7 @@ void op_arp_up_down(Stack* s) {
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             return;
         }
 
@@ -197,13 +197,13 @@ void op_arp_up_down(Stack* s) {
 
         /* Create new sequence: original + reversed middle */
         if (bracket_seq_count >= MAX_BRACKET_SEQS) {
-            printf("Too many sequences\n");
+            stack_error("Too many sequences");
             return;
         }
 
         BracketSequence* out = seq_alloc();
         if (!out) {
-            printf("Out of memory\n");
+            stack_error("Out of memory");
             return;
         }
 
@@ -236,7 +236,7 @@ void op_arp_up_down(Stack* s) {
         return;
     }
 
-    printf("arp-up-down needs a sequence (use [ ... ]) or alternatives (use |)\n");
+    stack_error("arp-up-down needs a sequence (use [ ... ]) or alternatives (use |)");
 }
 
 /* retrograde - alias for reverse */
@@ -249,7 +249,7 @@ void op_invert(Stack* s) {
     int32_t axis = pop(&stack);
 
     if (stack.top < 0) {
-        printf("invert needs a sequence and axis\n");
+        stack_error("invert needs a sequence and axis");
         return;
     }
 
@@ -259,7 +259,7 @@ void op_invert(Stack* s) {
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             return;
         }
 
@@ -289,13 +289,13 @@ void op_invert(Stack* s) {
         return;
     }
 
-    printf("invert needs a sequence (use [ ... ]) or alternatives (use |)\n");
+    stack_error("invert needs a sequence (use [ ... ]) or alternatives (use |)");
 }
 
 /* shuffle ( seq -- seq ) Shuffle sequence elements in place */
 void op_shuffle(Stack* s) {
     if (stack.top < 0) {
-        printf("shuffle needs a sequence\n");
+        stack_error("shuffle needs a sequence");
         return;
     }
 
@@ -305,7 +305,7 @@ void op_shuffle(Stack* s) {
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             return;
         }
 
@@ -323,13 +323,13 @@ void op_shuffle(Stack* s) {
         return;
     }
 
-    printf("shuffle needs a sequence (use [ ... ])\n");
+    stack_error("shuffle needs a sequence (use [ ... ])");
 }
 
 /* pick ( seq -- value ) Pick one random element from sequence or alternatives */
 void op_pick_random(Stack* s) {
     if (stack.top < 0) {
-        printf("pick needs a sequence or alternatives\n");
+        stack_error("pick needs a sequence or alternatives");
         return;
     }
 
@@ -340,7 +340,7 @@ void op_pick_random(Stack* s) {
         pop(&stack);  /* Remove sequence from stack */
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             push(&stack, 0);
             return;
         }
@@ -393,7 +393,7 @@ void op_pick_random(Stack* s) {
         return;
     }
 
-    printf("pick needs a sequence (use [ ... ]) or alternatives (use |)\n");
+    stack_error("pick needs a sequence (use [ ... ]) or alternatives (use |)");
     push(&stack, 0);
 }
 
@@ -406,7 +406,7 @@ void op_pick_n(Stack* s) {
     if ((top_val & 0xFF000000) == SEQ_MARKER) {
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             push(&stack, 0);
             return;
         }
@@ -419,14 +419,14 @@ void op_pick_n(Stack* s) {
 
         /* Create output sequence */
         if (bracket_seq_count >= MAX_BRACKET_SEQS) {
-            printf("Too many sequences\n");
+            stack_error("Too many sequences");
             push(&stack, 0);
             return;
         }
 
         BracketSequence* out = seq_alloc();
         if (!out) {
-            printf("Out of memory\n");
+            stack_error("Out of memory");
             push(&stack, 0);
             return;
         }
@@ -469,7 +469,7 @@ void op_pick_n(Stack* s) {
         return;
     }
 
-    printf("pick-n needs a sequence (use [ ... ]) or alternatives (use |)\n");
+    stack_error("pick-n needs a sequence (use [ ... ]) or alternatives (use |)");
 }
 
 /* random-walk ( start max-step n -- seq ) Generate random walk as sequence */
@@ -485,14 +485,14 @@ void op_random_walk(Stack* s) {
 
     /* Create a new sequence */
     if (bracket_seq_count >= MAX_BRACKET_SEQS) {
-        printf("Too many sequences\n");
+        stack_error("Too many sequences");
         push(&stack, 0);
         return;
     }
 
     BracketSequence* seq = seq_alloc();
     if (!seq) {
-        printf("Out of memory\n");
+        stack_error("Out of memory");
         push(&stack, 0);
         return;
     }
@@ -524,14 +524,14 @@ void op_drunk_walk(Stack* s) {
 
     /* Check if input is a sequence */
     if ((scale_val & 0xFF000000) != SEQ_MARKER) {
-        printf("drunk-walk needs a scale sequence (use [ ... ])\n");
+        stack_error("drunk-walk needs a scale sequence (use [ ... ])");
         push(&stack, 0);
         return;
     }
 
     int scale_idx = scale_val & 0x00FFFFFF;
     if (scale_idx < 0 || scale_idx >= bracket_seq_count || !bracket_seq_storage[scale_idx]) {
-        printf("Invalid scale sequence\n");
+        stack_error("Invalid scale sequence");
         push(&stack, 0);
         return;
     }
@@ -553,7 +553,7 @@ void op_drunk_walk(Stack* s) {
     }
 
     if (actual_scale_count < 1) {
-        printf("Scale sequence has no pitches\n");
+        stack_error("Scale sequence has no pitches");
         push(&stack, 0);
         return;
     }
@@ -571,14 +571,14 @@ void op_drunk_walk(Stack* s) {
 
     /* Create output sequence */
     if (bracket_seq_count >= MAX_BRACKET_SEQS) {
-        printf("Too many sequences\n");
+        stack_error("Too many sequences");
         push(&stack, 0);
         return;
     }
 
     BracketSequence* out_seq = seq_alloc();
     if (!out_seq) {
-        printf("Out of memory\n");
+        stack_error("Out of memory");
         push(&stack, 0);
         return;
     }
@@ -611,14 +611,14 @@ void op_weighted_pick(Stack* s) {
         pop(&stack);
         int idx = top_val & 0x00FFFFFF;
         if (idx < 0 || idx >= bracket_seq_count || !bracket_seq_storage[idx]) {
-            printf("Invalid sequence\n");
+            stack_error("Invalid sequence");
             push(&stack, 0);
             return;
         }
 
         BracketSequence* seq = bracket_seq_storage[idx];
         if (seq->count < 2 || seq->count % 2 != 0) {
-            printf("weighted-pick needs pairs of (value weight)\n");
+            stack_error("weighted-pick needs pairs of (value weight)");
             push(&stack, 0);
             return;
         }
@@ -665,7 +665,7 @@ void op_weighted_pick(Stack* s) {
     if (marker_pos >= 0) {
         int count = stack.top - marker_pos;
         if (count < 2 || count % 2 != 0) {
-            printf("weighted-pick needs pairs of (value weight)\n");
+            stack_error("weighted-pick needs pairs of (value weight)");
             stack.top = marker_pos - 1;
             push(&stack, 0);
             return;
@@ -701,14 +701,14 @@ void op_weighted_pick(Stack* s) {
         return;
     }
 
-    printf("weighted-pick needs a sequence (use [ ... ]) or alternatives (use |)\n");
+    stack_error("weighted-pick needs a sequence (use [ ... ]) or alternatives (use |)");
     push(&stack, 0);
 }
 
 /* concat ( seq1 seq2 -- seq ) Concatenate two sequences */
 void op_concat(Stack* s) {
     if (stack.top < 1) {
-        printf("concat needs two sequences\n");
+        stack_error("concat needs two sequences");
         return;
     }
 
@@ -717,7 +717,7 @@ void op_concat(Stack* s) {
 
     /* Both must be sequences */
     if ((val1 & 0xFF000000) != SEQ_MARKER || (val2 & 0xFF000000) != SEQ_MARKER) {
-        printf("concat needs two sequences\n");
+        stack_error("concat needs two sequences");
         push(&stack, 0);
         return;
     }
@@ -727,7 +727,7 @@ void op_concat(Stack* s) {
 
     if (idx1 < 0 || idx1 >= bracket_seq_count || !bracket_seq_storage[idx1] ||
         idx2 < 0 || idx2 >= bracket_seq_count || !bracket_seq_storage[idx2]) {
-        printf("Invalid sequence\n");
+        stack_error("Invalid sequence");
         push(&stack, 0);
         return;
     }
@@ -737,14 +737,14 @@ void op_concat(Stack* s) {
 
     /* Create new sequence */
     if (bracket_seq_count >= MAX_BRACKET_SEQS) {
-        printf("Too many sequences\n");
+        stack_error("Too many sequences");
         push(&stack, 0);
         return;
     }
 
     BracketSequence* out = seq_alloc();
     if (!out) {
-        printf("Out of memory\n");
+        stack_error("Out of memory");
         push(&stack, 0);
         return;
     }

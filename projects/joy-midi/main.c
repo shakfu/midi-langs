@@ -5,6 +5,7 @@
  */
 
 #include "joy_runtime.h"
+#include "midi_sleep.h"
 #include "joy_parser.h"
 #include "joy_midi.h"
 #include "music_notation.h"
@@ -69,8 +70,9 @@ static void banner(void) {
 static void usage(const char* prog) {
     printf("Usage: %s [options] [file.joy]\n", prog);
     printf("Options:\n");
-    printf("  -h        Show this help\n");
-    printf("  -v        Show version\n");
+    printf("  -h, --help     Show this help\n");
+    printf("  -v, --version  Show version\n");
+    printf("  --no-sleep     Skip all waits (for testing)\n");
     printf("\nMIDI words:\n");
     printf("  midi-list    - List MIDI output ports\n");
     printf("  midi-virtual - Create virtual MIDI port 'JoyMIDI'\n");
@@ -91,7 +93,15 @@ int main(int argc, char** argv) {
 
     /* Parse command line */
     for (int i = 1; i < argc; i++) {
-        if (argv[i][0] == '-') {
+        if (strcmp(argv[i], "--help") == 0) {
+            usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "--version") == 0) {
+            banner();
+            return 0;
+        } else if (strcmp(argv[i], "--no-sleep") == 0) {
+            midi_set_no_sleep(1);
+        } else if (argv[i][0] == '-') {
             for (int j = 1; argv[i][j]; j++) {
                 switch (argv[i][j]) {
                 case 'h':
