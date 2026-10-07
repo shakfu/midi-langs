@@ -138,6 +138,10 @@ jobs:
       - name: Build test_stack_midi_unit
         run: cmake --build build --config Release --target test_stack_midi_unit
 
+      # ctest registers these; an unbuilt one fails as "Not Run"
+      - name: Build alda unit tests
+        run: cmake --build build --config Release --target test_alda_scanner test_alda_parser test_alda_parser_fuzz test_alda_interpreter test_alda_playback
+
       - name: List built executables
         run: |
           echo "Built executables:"
