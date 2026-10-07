@@ -111,6 +111,7 @@ typedef struct {
     int data1;           /* Pitch or CC number or program */
     int data2;           /* Velocity or CC value */
     int part_index;      /* Source part index (for debugging) */
+    int seq;             /* Insertion order; final sort key */
 #ifdef ALDA_SOURCE_TRACKING
     int source_line;     /* Source line number (1-based, 0=unknown) */
 #endif

@@ -22,6 +22,11 @@ if [ ! -x "$PFORTH_MIDI" ]; then
     exit 1
 fi
 
+# macOS has no coreutils timeout; perl's alarm survives exec
+if ! command -v timeout > /dev/null; then
+    timeout() { local s=$1; shift; perl -e 'alarm shift; exec @ARGV' "$s" "$@"; }
+fi
+
 FAIL=0
 pass() { echo "  PASS: $1"; }
 fail() { echo "  FAIL: $1"; FAIL=1; }
@@ -59,7 +64,7 @@ else
 fi
 # timeout runs pforth in a background process group; on a tty that must not stop it.
 # "; true" stops sh exec'ing timeout as session leader, which cannot change group.
-if script -qec true /dev/null > /dev/null 2>&1; then
+if type -P timeout > /dev/null && script -qec true /dev/null > /dev/null 2>&1; then
     printf '7 7 * .\n' > "$TMP/t.fs"
     out=$(script -qec "timeout 10 '$PFORTH_MIDI' '$TMP/t.fs'; true" /dev/null 2>&1)
     if echo "$out" | grep -q "^49 "; then
@@ -68,7 +73,7 @@ if script -qec true /dev/null > /dev/null 2>&1; then
         fail "file run in background on a tty: output='$out'"
     fi
 else
-    echo "  SKIP: background tty run (no util-linux script)"
+    echo "  SKIP: background tty run (no coreutils timeout or util-linux script)"
 fi
 
 echo "Pitch parsing"

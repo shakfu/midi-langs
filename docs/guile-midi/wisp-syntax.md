@@ -25,6 +25,7 @@ Run a wisp file:
 
 **Wisp:**
 ```wisp
+define m : midi-open
 midi-note m c4 mf quarter
 midi-chord m (major c4) f half
 ```
@@ -62,6 +63,7 @@ Use indentation for nested expressions:
 
 **Wisp:**
 ```wisp
+define m : midi-open
 for-each
   lambda (p)
     midi-note m p mf quarter
@@ -80,6 +82,7 @@ Use `.` to continue arguments on the next line:
 
 **Wisp:**
 ```wisp
+define m : midi-open
 midi-chord m : major c4
   . f half
 ```
@@ -196,6 +199,8 @@ close
 You can use parentheses anywhere in Wisp for clarity or complex expressions:
 
 ```wisp
+define m : midi-open
+
 ; Parentheses work normally
 define chord (list c4 e4 g4)
 
@@ -233,8 +238,11 @@ midi-close m
 
 ;; Evaluate
 (for-each (lambda (e) (eval e (current-module))) exprs)
+```
 
-;; Or load a file
+Or load a file, such as `song.w` above:
+
+```scheme norun
 (for-each
   (lambda (e) (eval e (current-module)))
   (wisp-scheme-read-file "song.w"))

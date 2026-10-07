@@ -293,14 +293,12 @@ add_test(
     NAME stack_midi_golden_intervals
     COMMAND sh -c "$<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_intervals.stk | grep -q '999' && ! $<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_intervals.stk | grep -q ' 0 '"
 )
-set_tests_properties(stack_midi_golden_intervals PROPERTIES ENVIRONMENT "MIDI_LANGS_BACKEND=null")
 
 add_test(
     NAME stack_midi_golden_async_churn
     # 200 cycles and one final check each print -1; sequence messages also contain " 0 "
     COMMAND sh -c "out=$($<TARGET_FILE:stack_midi> --no-sleep --script ${CMAKE_CURRENT_SOURCE_DIR}/golden/test_async_churn.stk); [ $(echo \"$out\" | tr ' ' '\\n' | grep -cx -- -1) -eq 201 ] && ! echo \"$out\" | grep -q 'not playing'"
 )
-set_tests_properties(stack_midi_golden_async_churn PROPERTIES ENVIRONMENT "MIDI_LANGS_BACKEND=null")
 
 set_tests_properties(
     stack_midi_golden_async_churn
@@ -313,7 +311,8 @@ set_tests_properties(
     stack_midi_golden_generative
     stack_midi_golden_sequences
     stack_midi_golden_seq_record
-    PROPERTIES LABELS "golden"
+    # Check stdout only; the null backend opens ports without a MIDI system
+    PROPERTIES LABELS "golden" ENVIRONMENT "MIDI_LANGS_BACKEND=null"
 )
 
 set_tests_properties(
@@ -517,7 +516,7 @@ set_tests_properties(
     demo_example_pktpy
     demo_example_s7
     demo_example_joy
-    PROPERTIES LABELS "quick"
+    PROPERTIES LABELS "quick" ENVIRONMENT "MIDI_LANGS_BACKEND=null"
 )
 
 set_tests_properties(

@@ -36,6 +36,10 @@ All notable changes to midi-langs are documented in this file.
 
 - **stack-midi `,` on a bracket sequence ignored a missing port**: `[ c4 e4 ],` with no output did nothing and succeeded, while `c4,` reported "No MIDI output open". Both now report it.
 
+- **alda-midi reordered events at the same tick on macOS**: events tied on tick, type and channel, and macOS `qsort` is not stable. The first pan written at a tick could win, and chords on group parts played out of order. Insertion order is now the last sort key. glibc's `qsort` happened to keep it, so Linux was unaffected.
+
+- **Windows builds failed at configure**: libremidi downloads a Windows MIDI Services preview nupkg whose URL now returns 404. WinMIDI is disabled; WinMM still provides MIDI 1 output.
+
 - **guile-midi wisp files need Guile 3.0.10**: `(language wisp)` ships with Guile 3.0.10. On older Guile, `guile_midi song.w` printed a module backtrace; it now says which version it needs.
 
 - **s7-midi and guile-midi `dotted` returned an inexact number under Guile**: `(floor (* dur 1.5))` stays inexact in Guile, and `midi-note` rejected 750.0. It now uses integer arithmetic. `make preludes` also regenerates guile-midi's `scm_prelude.h`, which nothing rebuilt before.

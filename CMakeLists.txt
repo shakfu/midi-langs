@@ -67,6 +67,8 @@ if(MIDI_LANGS_PIPEWIRE)
 else()
     set(LIBREMIDI_NO_PIPEWIRE ON CACHE BOOL "" FORCE)
 endif()
+# libremidi's pinned WinMIDI preview nupkg URL now returns 404; WinMM still serves MIDI 1
+set(LIBREMIDI_NO_WINMIDI ON CACHE BOOL "" FORCE)
 add_subdirectory(thirdparty/libremidi)
 if(MIDI_LANGS_PIPEWIRE)
     get_target_property(_libremidi_defs libremidi INTERFACE_COMPILE_DEFINITIONS)
