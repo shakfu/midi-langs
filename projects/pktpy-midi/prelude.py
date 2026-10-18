@@ -1,5 +1,4 @@
 import midi
-import time as _time
 
 # ============================================================================
 # Dynamics (velocity values)
@@ -64,14 +63,14 @@ midi.bpm = _bpm_to_ms
 # ============================================================================
 def _sleep(ms):
     '''Sleep for given milliseconds'''
-    _time.sleep(ms / 1000.0)
+    midi._sleep_ms(ms)
 midi.sleep = _sleep
 
 def _rest(duration=None):
     '''Rest (silence) for given duration, default is quarter note'''
     if duration is None:
         duration = midi.quarter
-    _time.sleep(duration / 1000.0)
+    midi._sleep_ms(duration)
 midi.rest = _rest
 
 # ============================================================================

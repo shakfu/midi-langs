@@ -11,7 +11,8 @@ extern "C" {
 void midi_set_no_sleep(int on);
 int midi_no_sleep(void);
 
-/* Sleep ms milliseconds, or return at once under --no-sleep */
+/* Sleep ms milliseconds, or return at once under --no-sleep.
+ * With a midi_sink installed, advance script time instead (midi_clock.h). */
 void midi_sleep(int ms);
 
 /* Scheduler timer delay: ms, or 0 under --no-sleep */

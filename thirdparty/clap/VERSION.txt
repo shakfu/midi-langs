@@ -1,0 +1,2 @@
+CLAP 1.2.10 (https://github.com/free-audio/clap), MIT.
+Subset: include/, LICENSE, src/linux-my_plug.version, src/macos-symbols.txt and src/plugins.plist.in. Used by projects/clap.

@@ -244,6 +244,22 @@ void joy_error_type(const char* op, const char* expected, JoyType got);
 void joy_error_underflow(const char* op, size_t required, size_t actual);
 void joy_set_current_context(JoyContext* ctx);  /* Set context for error recovery */
 
+/* ---------- Host Hooks ---------- */
+
+/* Output from the interpreter and its primitives goes to stdout and errors to
+ * stderr, unless a host (the CLAP plugin) redirects both to write. */
+void joy_set_output(void (*write)(const char* text, size_t len, void* user), void* user);
+int joy_printf(const char* fmt, ...);
+int joy_eprintf(const char* fmt, ...);
+int joy_putchar(int c);
+
+/* When set, called before each value executes; nonzero raises a "stopped" error. */
+extern int (*joy_interrupt_hook)(void);
+
+/* quit and abort: exit(code), unless a host sets a handler. */
+extern void (*joy_exit_handler)(int code);
+void joy_exit(int code);
+
 /* ---------- Runtime Initialization ---------- */
 
 void joy_runtime_init(JoyContext* ctx);

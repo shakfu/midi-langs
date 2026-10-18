@@ -8,6 +8,7 @@
 #define STACK_MIDI_H
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -494,6 +495,18 @@ void midi_send_program_change(int program, int channel);
 void midi_send_pitch_bend(int value, int channel);
 void midi_sleep_ms(int ms);
 int stack_no_sleep(void);       /* Returns 1 if --no-sleep mode is active */
+
+/* Output goes to stdout and errors to stderr, unless a host (the CLAP plugin)
+ * redirects both to write. */
+void stack_set_output(void (*write)(const char* text, size_t len, void* user), void* user);
+int stack_printf(const char* fmt, ...);
+int stack_vprintf(const char* fmt, va_list args);
+int stack_eprintf(const char* fmt, ...);
+
+/* When set, called before each token; nonzero skips the token, which ends the
+ * running code. */
+extern int (*stack_interrupt_hook)(void);
+int stack_interrupted(void);
 void stack_set_no_sleep(int v); /* Set no-sleep mode (call from main) */
 
 int open_virtual_port(const char* name);
@@ -689,6 +702,7 @@ void add_word(const char* name, void (*func)(Stack*), int is_primitive);
 void register_user_word(const char* name, const char* body);
 Word* find_word(const char* name);
 void init_dictionary(void);
+void stack_cleanup(void);
 void op_words(Stack* s);
 void op_reset(Stack* s);
 
@@ -781,6 +795,9 @@ void async_player_stop_all(void);
 void async_player_stop(void);
 int async_player_is_playing(void);
 int async_player_active_count(void);
+/* Under a midi_sink (midi_clock.h), slots wait in script time and a host drives them */
+int async_player_next_wake(double* ms);
+void async_player_resume_at(double ms);
 
 void op_seq_play_async(Stack* s);
 void op_seq_loop_async(Stack* s);

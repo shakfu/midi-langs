@@ -1,0 +1,3 @@
+pugl 0.5.7, commit b7637149ebe53124e5be90559e02a0185bbcbd73 (https://github.com/lv2/pugl), ISC.
+Subset: core, OpenGL and stub backends for mac/win/x11. Used by projects/clap (plugin editors and dev host).
+CMakeLists.txt prefixes pugl's Objective-C class names per library, so two pugl copies can share a process.

@@ -13,7 +13,6 @@ set(STACK_MIDI_CORE_SOURCES
     recording.c
     dictionary.c
     interpreter.c
-    readline_comp.c
     async_player.c
 )
 
@@ -22,8 +21,8 @@ add_library(stack_midi_lib STATIC ${STACK_MIDI_CORE_SOURCES})
 target_link_libraries(stack_midi_lib PUBLIC music_theory midi_file midi_open uv_a)
 target_include_directories(stack_midi_lib PUBLIC ${CMAKE_SOURCE_DIR}/thirdparty/libuv/include)
 
-# Main executable
-add_executable(stack_midi main.c)
+# Main executable; readline completion is for the REPL only
+add_executable(stack_midi main.c readline_comp.c)
 target_link_libraries(stack_midi PRIVATE stack_midi_lib)
 
 # Compiler warnings (GCC/Clang only)
@@ -36,9 +35,7 @@ endif()
 find_library(READLINE_LIB readline)
 if(READLINE_LIB)
     target_link_libraries(stack_midi PRIVATE ${READLINE_LIB})
-    target_link_libraries(stack_midi_lib PUBLIC ${READLINE_LIB})
     target_compile_definitions(stack_midi PRIVATE USE_READLINE)
-    target_compile_definitions(stack_midi_lib PUBLIC USE_READLINE)
 else()
     if(NOT WIN32)
         message(FATAL_ERROR "readline library not found (install libreadline-dev on Linux)")
@@ -62,3 +59,12 @@ endif()
 add_strip_command(stack_midi)
 
 install(TARGETS stack_midi RUNTIME DESTINATION bin)
+
+if(COMMAND midi_langs_add_clap)
+    midi_langs_add_clap(stack_midi_clap
+        NAME stack-midi
+        CLASS_PREFIX MidiLangsStackMidi
+        SOURCES stack_clap.cpp
+        LIBRARIES stack_midi_lib
+    )
+endif()

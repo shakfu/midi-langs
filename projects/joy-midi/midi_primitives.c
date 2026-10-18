@@ -4,6 +4,7 @@
 
 #include "joy_runtime.h"
 #include "midi_sleep.h"
+#include "midi_clock.h"
 #include "midi_primitives.h"
 #include "music_theory.h"
 #include "midi_open.h"
@@ -94,7 +95,7 @@ void send_note_on(int pitch, int velocity) {
     msg[0] = 0x90 | ((current_channel - 1) & 0x0F);
     msg[1] = pitch & 0x7F;
     msg[2] = velocity & 0x7F;
-    libremidi_midi_out_send_message(midi_out, msg, 3);
+    midi_out_send(midi_out, msg, 3);
 }
 
 void send_note_off(int pitch) {
@@ -103,7 +104,7 @@ void send_note_off(int pitch) {
     msg[0] = 0x80 | ((current_channel - 1) & 0x0F);
     msg[1] = pitch & 0x7F;
     msg[2] = 0;
-    libremidi_midi_out_send_message(midi_out, msg, 3);
+    midi_out_send(midi_out, msg, 3);
 }
 
 /* ============================================================================
@@ -114,14 +115,14 @@ void midi_list_(JoyContext* ctx) {
     (void)ctx;
     enumerate_ports();
 
-    printf("MIDI outputs:\n");
+    joy_printf("MIDI outputs:\n");
     if (out_port_count == 0) {
-        printf("  (none - use midi-virtual to create a virtual port)\n");
+        joy_printf("  (none - use midi-virtual to create a virtual port)\n");
     } else {
         char label[256];
         for (int i = 0; i < out_port_count; i++) {
             midi_port_label(out_ports[i], label, sizeof(label));
-            printf("  %d: %s\n", i, label);
+            joy_printf("  %d: %s\n", i, label);
         }
     }
 }
@@ -137,7 +138,7 @@ void midi_virtual_(JoyContext* ctx) {
 
     libremidi_midi_configuration midi_conf;
     if (libremidi_midi_configuration_init(&midi_conf) != 0) {
-        printf("Failed to init MIDI config\n");
+        joy_printf("Failed to init MIDI config\n");
         return;
     }
 
@@ -147,7 +148,7 @@ void midi_virtual_(JoyContext* ctx) {
 
     libremidi_api_configuration api_conf;
     if (libremidi_midi_api_configuration_init(&api_conf) != 0) {
-        printf("Failed to init API config\n");
+        joy_printf("Failed to init API config\n");
         return;
     }
 
@@ -156,11 +157,11 @@ void midi_virtual_(JoyContext* ctx) {
 
     int ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
     if (ret != 0) {
-        printf("Failed to create virtual MIDI output: %d\n", ret);
+        joy_printf("Failed to create virtual MIDI output: %d\n", ret);
         return;
     }
 
-    printf("Created virtual MIDI output: JoyMIDI\n");
+    joy_printf("Created virtual MIDI output: JoyMIDI\n");
 }
 
 void midi_open_(JoyContext* ctx) {
@@ -172,7 +173,7 @@ void midi_open_(JoyContext* ctx) {
     enumerate_ports();
 
     if (port_idx < 0 || port_idx >= out_port_count) {
-        printf("Invalid port index: %d (have %d ports)\n", port_idx, out_port_count);
+        joy_printf("Invalid port index: %d (have %d ports)\n", port_idx, out_port_count);
         return;
     }
 
@@ -184,7 +185,7 @@ void midi_open_(JoyContext* ctx) {
 
     libremidi_midi_configuration midi_conf;
     if (libremidi_midi_configuration_init(&midi_conf) != 0) {
-        printf("Failed to init MIDI config\n");
+        joy_printf("Failed to init MIDI config\n");
         return;
     }
 
@@ -193,7 +194,7 @@ void midi_open_(JoyContext* ctx) {
 
     libremidi_api_configuration api_conf;
     if (libremidi_midi_api_configuration_init(&api_conf) != 0) {
-        printf("Failed to init API config\n");
+        joy_printf("Failed to init API config\n");
         return;
     }
 
@@ -202,13 +203,13 @@ void midi_open_(JoyContext* ctx) {
 
     int ret = libremidi_midi_out_new(&midi_conf, &api_conf, &midi_out);
     if (ret != 0) {
-        printf("Failed to open MIDI output: %d\n", ret);
+        joy_printf("Failed to open MIDI output: %d\n", ret);
         return;
     }
 
     char label[256];
     midi_port_label(out_ports[port_idx], label, sizeof(label));
-    printf("Opened MIDI output: %s\n", label);
+    joy_printf("Opened MIDI output: %s\n", label);
 }
 
 void midi_close_(JoyContext* ctx) {
@@ -216,7 +217,7 @@ void midi_close_(JoyContext* ctx) {
     if (midi_out != NULL) {
         libremidi_midi_out_free(midi_out);
         midi_out = NULL;
-        printf("MIDI output closed\n");
+        joy_printf("MIDI output closed\n");
     }
 }
 
@@ -240,7 +241,7 @@ void midi_note_(JoyContext* ctx) {
     int duration = (int)dur_v.data.integer;
 
     if (!midi_out) {
-        printf("No MIDI output open\n");
+        joy_printf("No MIDI output open\n");
         return;
     }
 
@@ -292,7 +293,7 @@ void midi_chord_(JoyContext* ctx) {
     JoyList* pitches = list_v.data.list;
 
     if (!midi_out) {
-        printf("No MIDI output open\n");
+        joy_printf("No MIDI output open\n");
         joy_value_free(&list_v);
         return;
     }
@@ -342,7 +343,7 @@ void midi_cc_(JoyContext* ctx) {
     msg[0] = 0xB0 | ((current_channel - 1) & 0x0F);
     msg[1] = cc & 0x7F;
     msg[2] = value & 0x7F;
-    libremidi_midi_out_send_message(midi_out, msg, 3);
+    midi_out_send(midi_out, msg, 3);
 }
 
 void midi_program_(JoyContext* ctx) {
@@ -358,13 +359,13 @@ void midi_program_(JoyContext* ctx) {
     unsigned char msg[2];
     msg[0] = 0xC0 | ((current_channel - 1) & 0x0F);
     msg[1] = program & 0x7F;
-    libremidi_midi_out_send_message(midi_out, msg, 2);
+    midi_out_send(midi_out, msg, 2);
 }
 
 void midi_panic_(JoyContext* ctx) {
     (void)ctx;
     if (!midi_out) {
-        printf("No MIDI output open\n");
+        joy_printf("No MIDI output open\n");
         return;
     }
 
@@ -374,7 +375,7 @@ void midi_panic_(JoyContext* ctx) {
         msg[0] = 0xB0 | ch;
         msg[1] = 123;
         msg[2] = 0;
-        libremidi_midi_out_send_message(midi_out, msg, 3);
+        midi_out_send(midi_out, msg, 3);
     }
 }
 
@@ -710,9 +711,9 @@ void chan_(JoyContext* ctx) {
         /* Treat list as sequence of notes to play */
         MusicContext* mctx = (MusicContext*)ctx->user_data;
         if (!mctx) {
-            fprintf(stderr, "chan: no music context\n");
+            joy_eprintf("chan: no music context\n");
         } else if (!midi_out) {
-            fprintf(stderr, "chan: no MIDI output (use midi-virtual or midi-open first)\n");
+            joy_eprintf("chan: no MIDI output (use midi-virtual or midi-open first)\n");
         } else {
             for (size_t i = 0; i < p.data.list->length; i++) {
                 JoyValue item = p.data.list->items[i];
@@ -731,7 +732,7 @@ void chan_(JoyContext* ctx) {
             }
         }
     } else {
-        fprintf(stderr, "chan: expected quotation or list, got %s\n",
+        joy_eprintf("chan: expected quotation or list, got %s\n",
                 p.type == JOY_INTEGER ? "integer" :
                 p.type == JOY_FLOAT ? "float" :
                 p.type == JOY_SYMBOL ? "symbol" : "unknown");
@@ -755,7 +756,7 @@ void midi_cleanup(void) {
         /* Send all notes off first */
         for (int ch = 0; ch < 16; ch++) {
             unsigned char msg[3] = { (unsigned char)(0xB0 | ch), 123, 0 };
-            libremidi_midi_out_send_message(midi_out, msg, 3);
+            midi_out_send(midi_out, msg, 3);
         }
         libremidi_midi_out_free(midi_out);
         midi_out = NULL;
@@ -851,7 +852,7 @@ void schedule_set_debug(bool enable) {
 void midi_debug_(JoyContext* ctx) {
     (void)ctx;
     g_schedule_debug = !g_schedule_debug;
-    printf("Schedule debug: %s\n", g_schedule_debug ? "ON" : "OFF");
+    joy_printf("Schedule debug: %s\n", g_schedule_debug ? "ON" : "OFF");
 }
 
 /* Play a schedule - sorts events and plays them with proper timing */
@@ -862,14 +863,14 @@ void schedule_play(MidiSchedule* sched) {
     qsort(sched->events, sched->count, sizeof(ScheduledEvent), compare_events);
 
     if (g_schedule_debug) {
-        printf("=== Schedule: %zu events, duration %d ms ===\n",
+        joy_printf("=== Schedule: %zu events, duration %d ms ===\n",
                sched->count, sched->total_duration_ms);
         for (size_t i = 0; i < sched->count && i < 30; i++) {
             ScheduledEvent* ev = &sched->events[i];
-            printf("  t=%4d ch=%d pitch=%3d vel=%3d dur=%d\n",
+            joy_printf("  t=%4d ch=%d pitch=%3d vel=%3d dur=%d\n",
                    ev->time_ms, ev->channel, ev->pitch, ev->velocity, ev->duration_ms);
         }
-        if (sched->count > 30) printf("  ... (%zu more)\n", sched->count - 30);
+        if (sched->count > 30) joy_printf("  ... (%zu more)\n", sched->count - 30);
     }
 
     /* Skip actual playback if no MIDI output */
@@ -916,7 +917,7 @@ void schedule_play(MidiSchedule* sched) {
                 msg[0] = 0x80 | ((active[i].channel - 1) & 0x0F);
                 msg[1] = active[i].pitch & 0x7F;
                 msg[2] = 0;
-                libremidi_midi_out_send_message(midi_out, msg, 3);
+                midi_out_send(midi_out, msg, 3);
 
                 /* Remove from active list */
                 active[i] = active[--active_count];
@@ -935,7 +936,7 @@ void schedule_play(MidiSchedule* sched) {
             msg[0] = 0x90 | ((ev->channel - 1) & 0x0F);
             msg[1] = ev->pitch & 0x7F;
             msg[2] = ev->velocity & 0x7F;
-            libremidi_midi_out_send_message(midi_out, msg, 3);
+            midi_out_send(midi_out, msg, 3);
 
             /* Add to active notes */
             active[active_count].pitch = ev->pitch;

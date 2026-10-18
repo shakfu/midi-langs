@@ -6,7 +6,10 @@ decimal
 
 \ ---------------------------------------------------------------- errors
 
-: ?midi ( ior -- )  abort" MIDI: no port open, or value out of range" ;
+\ -2 means the CLAP plugin's Stop, or its clip limit (midi_words.c)
+: ?midi ( ior -- )
+    dup -2 = abort" stopped"
+    abort" MIDI: no port open, or value out of range" ;
 
 \ ---------------------------------------------------------------- pitch literals
 

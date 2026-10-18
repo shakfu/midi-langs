@@ -2,6 +2,8 @@
 
 #include "stack_midi.h"
 #include "midi_open.h"
+#include "midi_clock.h"
+#include "midi_sleep.h"
 
 /* All globals now accessed via g_ctx macros defined in stack_midi.h */
 
@@ -101,7 +103,7 @@ void midi_send_note_on(int pitch, int velocity, int channel) {
     msg[0] = 0x90 | ((channel - 1) & 0x0F);
     msg[1] = pitch & 0x7F;
     msg[2] = velocity & 0x7F;
-    libremidi_midi_out_send_message(midi_out, msg, 3);
+    midi_out_send(midi_out, msg, 3);
 }
 
 void midi_send_note_off(int pitch, int channel) {
@@ -110,7 +112,7 @@ void midi_send_note_off(int pitch, int channel) {
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
     msg[1] = pitch & 0x7F;
     msg[2] = 0;
-    libremidi_midi_out_send_message(midi_out, msg, 3);
+    midi_out_send(midi_out, msg, 3);
 }
 
 void midi_send_cc(int cc, int value, int channel) {
@@ -119,7 +121,7 @@ void midi_send_cc(int cc, int value, int channel) {
     msg[0] = 0xB0 | ((channel - 1) & 0x0F);
     msg[1] = cc & 0x7F;
     msg[2] = value & 0x7F;
-    libremidi_midi_out_send_message(midi_out, msg, 3);
+    midi_out_send(midi_out, msg, 3);
 }
 
 void midi_send_program_change(int program, int channel) {
@@ -127,7 +129,7 @@ void midi_send_program_change(int program, int channel) {
     unsigned char msg[2];
     msg[0] = 0xC0 | ((channel - 1) & 0x0F);
     msg[1] = program & 0x7F;
-    libremidi_midi_out_send_message(midi_out, msg, 2);
+    midi_out_send(midi_out, msg, 2);
 }
 
 void midi_send_pitch_bend(int value, int channel) {
@@ -136,10 +138,14 @@ void midi_send_pitch_bend(int value, int channel) {
     msg[0] = 0xE0 | ((channel - 1) & 0x0F);
     msg[1] = value & 0x7F;         /* LSB */
     msg[2] = (value >> 7) & 0x7F;  /* MSB */
-    libremidi_midi_out_send_message(midi_out, msg, 3);
+    midi_out_send(midi_out, msg, 3);
 }
 
 void midi_sleep_ms(int ms) {
+    if (midi_sink_active()) {
+        midi_sleep(ms); /* script time */
+        return;
+    }
     if (ms > 0 && !stack_no_sleep()) {
         usleep(ms * 1000);
     }
@@ -157,14 +163,14 @@ void op_midi_output_list(Stack* s) {
     out_port_count = 0;
     libremidi_midi_observer_enumerate_output_ports(midi_observer, NULL, on_output_port_found);
 
-    printf("Hardware MIDI outputs:\n");
+    stack_printf("Hardware MIDI outputs:\n");
     if (out_port_count == 0) {
-        printf("  (none - use midi-output-virtual to create a virtual port)\n");
+        stack_printf("  (none - use midi-output-virtual to create a virtual port)\n");
     } else {
         char label[256];
         for (int i = 0; i < out_port_count; i++) {
             midi_port_label(out_ports[i], label, sizeof(label));
-            printf("  %d: %s\n", i, label);
+            stack_printf("  %d: %s\n", i, label);
         }
     }
 }
@@ -213,7 +219,7 @@ void op_midi_output_open(Stack* s) {
 
     char label[256];
     midi_port_label(out_ports[port_idx], label, sizeof(label));
-    printf("Opened MIDI output: %s\n", label);
+    stack_printf("Opened MIDI output: %s\n", label);
 }
 
 /* Helper to open port by name (searches hardware ports first, then creates virtual) */
@@ -257,7 +263,7 @@ int open_virtual_port(const char* name) {
                 stack_error("Failed to open MIDI output: %d", ret);
                 return ret;
             }
-            printf("Opened MIDI output: %s\n", label);
+            stack_printf("Opened MIDI output: %s\n", label);
             return 0;
         }
     }
@@ -294,7 +300,7 @@ int open_virtual_port(const char* name) {
         return ret;
     }
 
-    printf("Created virtual MIDI output: %s\n", name);
+    stack_printf("Created virtual MIDI output: %s\n", name);
     return 0;
 }
 
@@ -309,7 +315,7 @@ void op_midi_output_close(Stack* s) {
     (void)stack;
     if (midi_out != NULL) {
         free_midi_out();
-        printf("MIDI output closed\n");
+        stack_printf("MIDI output closed\n");
     }
 }
 
@@ -327,7 +333,7 @@ void op_all_notes_off(Stack* s) {
         msg[0] = 0xB0 | ch;
         msg[1] = 123;  /* All Notes Off */
         msg[2] = 0;
-        libremidi_midi_out_send_message(midi_out, msg, 3);
+        midi_out_send(midi_out, msg, 3);
     }
 }
 
@@ -438,15 +444,15 @@ void op_midi_input_list(Stack* s) {
     (void)s;
     midi_input_init();
 
-    printf("MIDI inputs:\n");
+    stack_printf("MIDI inputs:\n");
     if (in_port_count == 0) {
-        printf("  (none available)\n");
+        stack_printf("  (none available)\n");
     } else {
         for (int i = 0; i < in_port_count; i++) {
             const char* name = NULL;
             size_t len = 0;
             if (libremidi_midi_in_port_name(in_ports[i], &name, &len) == 0) {
-                printf("  %d: %s\n", i, name);
+                stack_printf("  %d: %s\n", i, name);
             }
         }
     }
@@ -510,7 +516,7 @@ void op_midi_input_open(Stack* s) {
     const char* name = NULL;
     size_t len = 0;
     libremidi_midi_in_port_name(in_ports[port_idx], &name, &len);
-    printf("Opened MIDI input: %s\n", name);
+    stack_printf("Opened MIDI input: %s\n", name);
 }
 
 /* midi-input-virtual ( -- ) Create virtual MIDI input */
@@ -563,7 +569,7 @@ void op_midi_input_open_virtual(Stack* s) {
         return;
     }
 
-    printf("Created virtual MIDI input: StackMIDI Input\n");
+    stack_printf("Created virtual MIDI input: StackMIDI Input\n");
 }
 
 /* midi-input-close ( -- ) Close MIDI input */
@@ -572,7 +578,7 @@ void op_midi_input_close(Stack* s) {
     if (midi_in != NULL) {
         libremidi_midi_in_free(midi_in);
         midi_in = NULL;
-        printf("MIDI input closed\n");
+        stack_printf("MIDI input closed\n");
     }
 }
 

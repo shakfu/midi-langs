@@ -4304,6 +4304,10 @@ __NEXT_STEP:
     }
 
 #if PK_ENABLE_WATCHDOG
+    if(py_interrupt_hook && py_interrupt_hook()) {  // midi-langs patch, see pocketpy.h
+        TimeoutError("stopped");
+        goto __ERROR;
+    }
     if(self->watchdog_info.max_reset_time > 0) {
         if(py_debugger_status() == 0 && clock() > self->watchdog_info.max_reset_time) {
             self->watchdog_info.max_reset_time = 0;
@@ -16137,6 +16141,8 @@ static bool pkpy_currentvm(int argc, py_Ref argv) {
 }
 
 #if PK_ENABLE_WATCHDOG
+int (*py_interrupt_hook)(void) = NULL;  // midi-langs patch, see pocketpy.h
+
 void py_watchdog_begin(py_i64 timeout) {
     WatchdogInfo* info = &pk_current_vm->watchdog_info;
     info->max_reset_time = clock() + (timeout * (CLOCKS_PER_SEC / 1000));

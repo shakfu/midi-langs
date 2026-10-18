@@ -1,6 +1,7 @@
 /* sequences.c - Sequence operations for stack-midi interpreter */
 
 #include "stack_midi.h"
+#include "midi_clock.h"
 
 /* All globals now accessed via g_ctx macros defined in stack_midi.h */
 
@@ -116,12 +117,12 @@ void op_seq_end(Stack* s) {
     }
 
     if (id != seq_recording_id) {
-        printf("Warning: seq-end id (%d) doesn't match seq-start id (%d)\n",
+        stack_printf("Warning: seq-end id (%d) doesn't match seq-start id (%d)\n",
                id, seq_recording_id);
     }
 
     seq_recording_mode = 0;
-    printf("Recorded %d events to sequence %d\n",
+    stack_printf("Recorded %d events to sequence %d\n",
            sequences[seq_recording_id].length, seq_recording_id);
 }
 
@@ -288,7 +289,7 @@ void op_seq_play(Stack* s) {
             default:
                 continue;
         }
-        libremidi_midi_out_send_message(midi_out, msg, 3);
+        midi_out_send(midi_out, msg, 3);
     }
 }
 
@@ -316,12 +317,12 @@ void op_seq_show(Stack* s) {
         return;
     }
     Sequence* seq = &sequences[current_seq];
-    printf("Sequence %d: %d events, bpm=%d\n", current_seq, seq->length, seq->bpm);
+    stack_printf("Sequence %d: %d events, bpm=%d\n", current_seq, seq->length, seq->bpm);
     for (int i = 0; i < seq->length; i++) {
         MidiEvent* e = &seq->events[i];
         const char* type_str = e->type == EVT_NOTE_ON ? "ON " :
                                e->type == EVT_NOTE_OFF ? "OFF" : "CC ";
-        printf("  t=%4d %s ch=%d d1=%3d d2=%3d\n",
+        stack_printf("  t=%4d %s ch=%d d1=%3d d2=%3d\n",
                e->time, type_str, e->channel + 1, e->data1, e->data2);
     }
 }
@@ -438,7 +439,7 @@ int seq_write_mid(const char* filename) {
         return -1;
     }
 
-    printf("Saved sequence %d (%d events) to '%s'\n", current_seq, seq->length, filename);
+    stack_printf("Saved sequence %d (%d events) to '%s'\n", current_seq, seq->length, filename);
     return 0;
 }
 
@@ -567,7 +568,7 @@ int seq_save(const char* filename) {
     fprintf(f, "\\ To play: midi-open 0 seq seq-play midi-close\n");
 
     fclose(f);
-    printf("Saved sequence %d (%d notes) to '%s'\n", current_seq, note_count, filename);
+    stack_printf("Saved sequence %d (%d notes) to '%s'\n", current_seq, note_count, filename);
     return 0;
 }
 

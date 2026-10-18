@@ -1,0 +1,14 @@
+[expr]
+piano: r
+[expr_out]
+ok
+[error]
+piano: c (oops
+[note]
+piano: (quant 100) (vol 79) o4 c4
+[voices]
+piano: (quant 100) (vol 79) o4 c4/e2
+[forever]
+piano: o4 c4*2000
+[live_voice]
+piano: (quant 50) o5 c8*100000

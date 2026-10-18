@@ -5,6 +5,7 @@
 
 #include "pf_all.h"
 #include "midi_ffi.h"
+#include "midi_clock.h"
 #include "music_theory.h"
 
 #include <stdio.h>
@@ -66,31 +67,41 @@ static cell_t open_virtual(cell_t addr, cell_t len) {
 static void close_port(void) { midi_close(); }
 static cell_t is_open(void) { return flag(midi_is_open()); }
 
-/* Messages; channels are 1-16 */
+/* Messages; channels are 1-16. Under a midi_sink, Stop and the clip limit
+ * return MIDI_STOPPED, which ?midi in midi.fth turns into an abort. */
+#define MIDI_STOPPED (-2)
+#define RETURN_IF_STOPPED() do { if (midi_clock_cancelled()) return MIDI_STOPPED; } while (0)
+
 
 static cell_t note_on(cell_t pitch, cell_t vel, cell_t ch) {
+    RETURN_IF_STOPPED();
     return midi_note_on((int)ch, (int)pitch, (int)vel) == 0 ? 0 : -1;
 }
 
 static cell_t note_off(cell_t pitch, cell_t ch) {
+    RETURN_IF_STOPPED();
     return midi_note_off((int)ch, (int)pitch) == 0 ? 0 : -1;
 }
 
 static cell_t cc(cell_t ch, cell_t ctl, cell_t val) {
+    RETURN_IF_STOPPED();
     return midi_cc((int)ch, (int)ctl, (int)val) == 0 ? 0 : -1;
 }
 
 static cell_t program(cell_t ch, cell_t prog) {
+    RETURN_IF_STOPPED();
     return midi_program((int)ch, (int)prog) == 0 ? 0 : -1;
 }
 
 /* val is 0-16383 with 8192 = centre, as in the spec; midi_ffi takes -8192..8191 */
 static cell_t pitch_bend(cell_t ch, cell_t val) {
+    RETURN_IF_STOPPED();
     if (val < 0 || val > 16383) return -1;
     return midi_pitch_bend((int)ch, (int)val - 8192) == 0 ? 0 : -1;
 }
 
 static cell_t all_notes_off(cell_t ch) {
+    RETURN_IF_STOPPED();
     return midi_cc((int)ch, 123, 0) == 0 ? 0 : -1;
 }
 

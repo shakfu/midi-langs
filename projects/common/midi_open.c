@@ -1,6 +1,7 @@
 /* midi_open.c - see midi_open.h */
 
 #include "midi_open.h"
+#include "midi_clock.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,9 @@ int midi_out_open(const libremidi_midi_configuration* conf,
 
 libremidi_api midi_backend_api(void) {
     static int warned = 0;
+    if (midi_sink_active()) {
+        return DUMMY; /* the sink receives every message; no OS port is needed */
+    }
     const char* backend = getenv("MIDI_LANGS_BACKEND");
     if (backend == NULL || backend[0] == '\0') {
         return UNSPECIFIED;

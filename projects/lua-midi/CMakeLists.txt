@@ -40,20 +40,30 @@ set(LUA_LIB_SOURCES
     ${LUA_DIR}/linit.c
 )
 
-add_executable(lua_midi
-    main.c
+# Interpreter and MIDI modules without the REPL, shared by lua_midi and the CLAP plugin
+add_library(lua_midi_core STATIC
     midi_module.c
     scheduler.c
     ${LUA_CORE_SOURCES}
     ${LUA_LIB_SOURCES}
 )
 
-target_include_directories(lua_midi PRIVATE
+target_include_directories(lua_midi_core PUBLIC
     ${LUA_DIR}
-    ${CMAKE_SOURCE_DIR}/thirdparty/libuv/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Compiler warnings (GCC/Clang only)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(lua_midi_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
+endif()
+
+# Lua requires libuv for async scheduler
+target_link_libraries(lua_midi_core PUBLIC music_theory midi_file midi_open uv_a)
+
+add_executable(lua_midi main.c)
+target_link_libraries(lua_midi PRIVATE lua_midi_core)
+
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(lua_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
@@ -69,25 +79,31 @@ else()
     endif()
 endif()
 
-# Lua requires libuv for async scheduler
-target_link_libraries(lua_midi PRIVATE music_theory midi_file midi_open uv_a)
-
 # Platform-specific dependencies
 if(APPLE)
-    target_link_libraries(lua_midi PRIVATE
+    target_link_libraries(lua_midi_core PUBLIC
         "-framework CoreMIDI"
         "-framework CoreFoundation"
         "-framework CoreAudio"
     )
 elseif(UNIX)
     # Math library and dl needed on Unix
-    target_link_libraries(lua_midi PRIVATE dl m)
+    target_link_libraries(lua_midi_core PUBLIC dl m)
     find_package(ALSA)
     if(ALSA_FOUND)
-        target_link_libraries(lua_midi PRIVATE ${ALSA_LIBRARIES})
+        target_link_libraries(lua_midi_core PUBLIC ${ALSA_LIBRARIES})
     endif()
 endif()
 
 add_strip_command(lua_midi)
+
+if(COMMAND midi_langs_add_clap)
+    midi_langs_add_clap(lua_midi_clap
+        NAME lua-midi
+        CLASS_PREFIX MidiLangsLuaMidi
+        SOURCES lua_clap.cpp
+        LIBRARIES lua_midi_core
+    )
+endif()
 
 install(TARGETS lua_midi RUNTIME DESTINATION bin)

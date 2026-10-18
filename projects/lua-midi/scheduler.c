@@ -6,6 +6,7 @@
 
 #include "scheduler.h"
 #include "midi_sleep.h"
+#include "midi_clock.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,6 +43,9 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
  * ============================================================================ */
 
 static SchedulerSystem sched = {0};
+
+static void (*error_handler)(void *user, const char *msg) = NULL;
+static void *error_handler_user = NULL;
 
 /* ============================================================================
  * Time Helpers
@@ -121,6 +125,34 @@ static void on_timer(uv_timer_t* handle) {
  * Resume Processing (called from main thread)
  * ============================================================================ */
 
+static void resume_voice(lua_State *L, Voice* v) {
+    v->waiting = 0;
+
+    /* Resume the coroutine */
+    int nres;
+    int status = lua_resume(v->co, L, 0, &nres);
+
+    if (status == LUA_OK) {
+        /* Coroutine completed */
+        cleanup_voice(v);
+    } else if (status == LUA_YIELD) {
+        /* Coroutine yielded, waiting flag set by yield_ms */
+    } else {
+        /* Error in coroutine */
+        const char* err = lua_tostring(v->co, -1);
+        char msg[512];
+        snprintf(msg, sizeof(msg), "Voice '%s' error: %s\n",
+                 v->name[0] ? v->name : "(unnamed)", err ? err : "unknown");
+        if (error_handler) {
+            error_handler(error_handler_user, msg);
+        } else {
+            fputs(msg, stderr);
+        }
+        lua_pop(v->co, 1);
+        cleanup_voice(v);
+    }
+}
+
 static void process_pending_resumes(lua_State *L) {
     int pending[MAX_VOICES];
     int count;
@@ -139,25 +171,7 @@ static void process_pending_resumes(lua_State *L) {
             continue;
         }
 
-        v->waiting = 0;
-
-        /* Resume the coroutine */
-        int nres;
-        int status = lua_resume(v->co, L, 0, &nres);
-
-        if (status == LUA_OK) {
-            /* Coroutine completed */
-            cleanup_voice(v);
-        } else if (status == LUA_YIELD) {
-            /* Coroutine yielded, waiting flag set by yield_ms */
-        } else {
-            /* Error in coroutine */
-            const char* err = lua_tostring(v->co, -1);
-            fprintf(stderr, "Voice '%s' error: %s\n",
-                    v->name[0] ? v->name : "(unnamed)", err ? err : "unknown");
-            lua_pop(v->co, 1);
-            cleanup_voice(v);
-        }
+        resume_voice(L, v);
     }
 }
 
@@ -251,6 +265,53 @@ int scheduler_process_pending(lua_State *L) {
     return sched.active_count;
 }
 
+int scheduler_next_wake(double *ms) {
+    int found = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        Voice* v = &sched.voices[i];
+        if (v->active && v->waiting && !v->stop_requested && (!found || v->wake_time_ms < *ms)) {
+            *ms = v->wake_time_ms;
+            found = 1;
+        }
+    }
+    return found;
+}
+
+void scheduler_resume_at(lua_State *L, double ms) {
+    /* Ids first: a resumed voice that yields 0 ms must wait for the next call */
+    int due[MAX_VOICES];
+    int count = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        Voice* v = &sched.voices[i];
+        if (v->active && v->waiting && !v->stop_requested && v->wake_time_ms <= ms) {
+            due[count++] = v->voice_id;
+        }
+    }
+    for (int i = 0; i < count; i++) {
+        Voice* v = find_voice_by_id(due[i]);
+        if (v && v->waiting && !v->stop_requested) {
+            midi_clock_set_ms(v->wake_time_ms);
+            resume_voice(L, v);
+        }
+    }
+}
+
+void scheduler_stop_all(void) {
+    sched.running = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        if (sched.voices[i].active) {
+            sched.voices[i].stop_requested = 1;
+            uv_timer_stop(&sched.voices[i].timer);
+            cleanup_voice(&sched.voices[i]);
+        }
+    }
+}
+
+void scheduler_set_error_handler(void (*fn)(void *user, const char *msg), void *user) {
+    error_handler = fn;
+    error_handler_user = user;
+}
+
 /* ============================================================================
  * Lua Functions
  * ============================================================================ */
@@ -300,8 +361,14 @@ static int l_spawn(lua_State *L) {
     int voice_id = v->voice_id;
     uv_mutex_unlock(&sched.mutex);
 
-    /* Schedule immediate resume (0ms timer) */
-    uv_timer_start(&v->timer, on_timer, 0, 0);
+    if (midi_sink_active()) {
+        /* Starts at the current script time, on the host's next resume */
+        v->wake_time_ms = midi_clock_ms();
+        v->waiting = 1;
+    } else {
+        /* Schedule immediate resume (0ms timer) */
+        uv_timer_start(&v->timer, on_timer, 0, 0);
+    }
 
     lua_pushinteger(L, voice_id);
     return 1;
@@ -331,10 +398,13 @@ static int l_yield_ms(lua_State *L) {
         return luaL_error(L, "Voice was stopped");
     }
 
-    /* Set wake time and start timer */
-    v->wake_time_ms = now_ms() + (uint64_t)ms;
     v->waiting = 1;
-    uv_timer_start(&v->timer, on_timer, (uint64_t)midi_wait_ms(ms), 0);
+    if (midi_sink_active()) {
+        v->wake_time_ms = midi_clock_ms() + (double)ms;
+    } else {
+        v->wake_time_ms = (double)(now_ms() + (uint64_t)ms);
+        uv_timer_start(&v->timer, on_timer, (uint64_t)midi_wait_ms(ms), 0);
+    }
 
     /* Yield the coroutine */
     return lua_yield(L, 0);
@@ -350,6 +420,16 @@ static int l_run(lua_State *L) {
     }
 
     sched.running = 1;
+
+    if (midi_sink_active()) {
+        double t;
+        while (sched.running && !midi_clock_cancelled() && scheduler_next_wake(&t)) {
+            midi_clock_wait_until(t);
+            scheduler_resume_at(L, t);
+        }
+        sched.running = 0;
+        return 0;
+    }
 
     while (sched.active_count > 0 && sched.running) {
         /* Block until a voice's timer fires, then resume it */
@@ -381,9 +461,13 @@ static int l_poll(lua_State *L) {
         return 1;
     }
 
-    /* Fire ready timers without blocking, then resume their voices */
-    uv_run(sched.loop, UV_RUN_NOWAIT);
-    process_pending_resumes(L);
+    if (midi_sink_active()) {
+        scheduler_resume_at(L, midi_clock_ms());
+    } else {
+        /* Fire ready timers without blocking, then resume their voices */
+        uv_run(sched.loop, UV_RUN_NOWAIT);
+        process_pending_resumes(L);
+    }
 
     /* Return true if voices still active */
     lua_pushboolean(L, sched.active_count > 0);
@@ -409,15 +493,7 @@ static int l_stop(lua_State *L) {
         return 1;
     }
 
-    /* Stop all voices */
-    sched.running = 0;
-    for (int i = 0; i < MAX_VOICES; i++) {
-        if (sched.voices[i].active) {
-            sched.voices[i].stop_requested = 1;
-            uv_timer_stop(&sched.voices[i].timer);
-            cleanup_voice(&sched.voices[i]);
-        }
-    }
+    scheduler_stop_all();
     return 0;
 }
 

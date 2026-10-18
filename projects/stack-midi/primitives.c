@@ -127,20 +127,20 @@ void op_ne(Stack* s) {
 /* Output operations */
 void op_print(Stack* s) {
     int32_t value = pop(&stack);
-    printf("%d ", value);
+    stack_printf("%d ", value);
 }
 
 void op_cr(Stack* s) {
     (void)stack;
-    printf("\n");
+    stack_printf("\n");
 }
 
 void op_space(Stack* s) {
     (void)stack;
-    printf(" ");
+    stack_printf(" ");
 }
 
 void op_emit(Stack* s) {
     int32_t c = pop(&stack);
-    printf("%c", (char)c);
+    stack_printf("%c", (char)c);
 }

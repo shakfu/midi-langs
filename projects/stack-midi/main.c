@@ -11,19 +11,19 @@
 
 /* Print usage */
 static void print_usage(const char* prog) {
-    printf("Usage: %s [options] [file.stk ...]\n", prog);
-    printf("Options:\n");
-    printf("  --script FILE   Run FILE in batch mode (no REPL, exit on error)\n");
-    printf("  --no-sleep      Disable all sleep/delay calls (for testing)\n");
-    printf("  --help          Show this help\n");
-    printf("\nWithout --script, files are loaded then REPL starts.\n");
+    stack_printf("Usage: %s [options] [file.stk ...]\n", prog);
+    stack_printf("Options:\n");
+    stack_printf("  --script FILE   Run FILE in batch mode (no REPL, exit on error)\n");
+    stack_printf("  --no-sleep      Disable all sleep/delay calls (for testing)\n");
+    stack_printf("  --help          Show this help\n");
+    stack_printf("\nWithout --script, files are loaded then REPL starts.\n");
 }
 
 /* Simple readline fallback for systems without GNU readline */
 #ifndef USE_READLINE
 static char* simple_readline(const char* prompt) {
     static char buf[MAX_INPUT_LENGTH];
-    printf("%s", prompt);
+    stack_printf("%s", prompt);
     fflush(stdout);
     if (fgets(buf, sizeof(buf), stdin) == NULL) {
         return NULL;
@@ -43,14 +43,14 @@ static char* simple_readline(const char* prompt) {
 static void interpreter_loop(void) {
     char* input;
 
-    printf("stack-midi (type 'help' for commands, 'quit' to exit)\n");
+    stack_printf("stack-midi (type 'help' for commands, 'quit' to exit)\n");
 
     while (1) {
         input = readline("> ");
 
         if (input == NULL) {
             /* EOF (Ctrl-D) */
-            printf("\n");
+            stack_printf("\n");
             break;
         }
 
@@ -95,33 +95,9 @@ static void interpreter_loop(void) {
         }
 
         interpret(input);
-        printf(" ok\n");
+        stack_printf(" ok\n");
 
         free(input);
-    }
-}
-
-/* Cleanup function */
-static void cleanup(void) {
-    async_player_cleanup();
-    midi_cleanup_observer();
-    recording_clear();
-    capture_clear();
-
-    /* Free block storage */
-    for (int i = 0; i < block_count; i++) {
-        if (block_storage[i]) {
-            free(block_storage[i]);
-            block_storage[i] = NULL;
-        }
-    }
-
-    /* Free user-defined word bodies */
-    for (int i = 0; i < dict_count; i++) {
-        if (!dictionary[i].is_primitive && dictionary[i].body) {
-            free(dictionary[i].body);
-            dictionary[i].body = NULL;
-        }
     }
 }
 
@@ -194,7 +170,7 @@ int main(int argc, char* argv[]) {
     /* Script mode: run file and exit */
     if (script_file) {
         int result = load_file(script_file);
-        cleanup();
+        stack_cleanup();
         return result == 0 ? 0 : 1;
     }
 
@@ -212,7 +188,7 @@ int main(int argc, char* argv[]) {
     interpreter_loop();
 
     /* Cleanup */
-    cleanup();
+    stack_cleanup();
 
     return 0;
 }

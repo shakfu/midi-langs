@@ -25,7 +25,8 @@ PRELUDE_HEADERS := $(HEADER_SCM) $(HEADER_LUA) $(HEADER_PY) $(HEADER_GUILE)
 		mhs-midi mhs-midi-all \
 		mhs-midi-src mhs-midi-src-zstd \
 		mhs-midi-pkg mhs-midi-pkg-zstd \
-		test-joy test-joy-passing test-joy-failing test-joy-verbose 
+		test-joy test-joy-passing test-joy-failing test-joy-verbose \
+		clap clap-dev
 
 all: build
 
@@ -77,6 +78,15 @@ pktpy-midi: configure
 
 s7-midi: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target s7_midi
+
+# CLAP plugins, in build/clap/
+clap: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target clap-plugins
+
+# A plugin's editor in a minimal host, MIDI to the first port: make clap-dev CLAP=s7-midi
+CLAP ?= lua-midi
+clap-dev: clap
+	@./$(BUILD_DIR)/clap_dev_host $(BUILD_DIR)/clap/$(CLAP).clap
 
 # mhs-midi variants
 mhs-midi: configure
@@ -166,6 +176,10 @@ help:
 	@echo "  lua-midi         Build Lua interpreter"
 	@echo "  pktpy-midi       Build PocketPy interpreter"
 	@echo "  s7-midi          Build s7 Scheme interpreter"
+	@echo ""
+	@echo "CLAP plugins (build/clap/):"
+	@echo "  clap             Build all CLAP plugins and the dev host"
+	@echo "  clap-dev         Open CLAP=<name> (default lua-midi) in the dev host"
 	@echo ""
 	@echo "mhs-midi variants:"
 	@echo "  mhs-midi         Non-standalone (requires MHSDIR)"

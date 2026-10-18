@@ -18,6 +18,7 @@ set(LIBALDA_SOURCES
     src/async.c
     # Compiled in, not linked: the midi_open target is not in aldaTargets
     ${CMAKE_SOURCE_DIR}/projects/common/midi_open.c
+    ${CMAKE_SOURCE_DIR}/projects/common/midi_clock.c
 )
 
 set(LIBALDA_HEADERS

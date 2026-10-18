@@ -265,9 +265,9 @@ static void op_quantize(Stack* s) {
 /* scales ( -- ) list all available scales */
 static void op_scales(Stack* s) {
     (void)stack;
-    printf("Available scales (%d total):\n", SCALE_ID_COUNT);
+    stack_printf("Available scales (%d total):\n", SCALE_ID_COUNT);
     for (int i = 0; i < SCALE_ID_COUNT; i++) {
-        printf("  %2d: scale-%s\n", i, scale_table[i].name);
+        stack_printf("  %2d: scale-%s\n", i, scale_table[i].name);
     }
 }
 

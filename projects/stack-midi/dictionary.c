@@ -39,7 +39,7 @@ static void add_user_word(const char* name, const char* body) {
     /* Check if word already exists and warn */
     Word* existing = find_word(name);
     if (existing != NULL) {
-        printf("Warning: redefining '%s'\n", name);
+        stack_printf("Warning: redefining '%s'\n", name);
         /* Free old body if it was user-defined */
         if (!existing->is_primitive && existing->body) {
             free(existing->body);
@@ -66,12 +66,12 @@ void register_user_word(const char* name, const char* body) {
 /* words ( -- ) List all words in the dictionary */
 void op_words(Stack* s) {
     (void)stack;
-    printf("Words (%d):\n", dict_count);
+    stack_printf("Words (%d):\n", dict_count);
     for (int i = 0; i < dict_count; i++) {
-        printf("%s ", dictionary[i].name);
-        if ((i + 1) % 8 == 0) printf("\n");
+        stack_printf("%s ", dictionary[i].name);
+        if ((i + 1) % 8 == 0) stack_printf("\n");
     }
-    if (dict_count % 8 != 0) printf("\n");
+    if (dict_count % 8 != 0) stack_printf("\n");
 }
 
 /* reset ( -- ) Reset interpreter runtime state */
@@ -88,7 +88,7 @@ void op_reset(Stack* s) {
     /* Also reset g_ctx for future use */
     stack_context_reset(&g_ctx);
 
-    printf("Interpreter state reset\n");
+    stack_printf("Interpreter state reset\n");
 }
 
 /* Dynamics - set default velocity */
@@ -347,4 +347,28 @@ void init_dictionary(void) {
     /* Misc */
     add_word("words", op_words, 1);
     add_word("reset", op_reset, 1);
+}
+
+/* Free interpreter state and stop async playback; the REPL and the CLAP plugin call it at exit */
+void stack_cleanup(void) {
+    async_player_cleanup();
+    midi_cleanup_observer();
+    recording_clear();
+    capture_clear();
+
+    /* Free block storage */
+    for (int i = 0; i < block_count; i++) {
+        if (block_storage[i]) {
+            free(block_storage[i]);
+            block_storage[i] = NULL;
+        }
+    }
+
+    /* Free user-defined word bodies */
+    for (int i = 0; i < dict_count; i++) {
+        if (!dictionary[i].is_primitive && dictionary[i].body) {
+            free(dictionary[i].body);
+            dictionary[i].body = NULL;
+        }
+    }
 }

@@ -12,7 +12,12 @@
 #include "music_theory.h"
 #include "midi_file.h"
 #include "midi_open.h"
+#include "midi_clock.h"
 #include "scheduler.h"
+
+/* Under a midi_sink (midi_clock.h), Stop and the clip limit end the script here */
+#define RETURN_IF_STOPPED() \
+    do { if (midi_clock_cancelled()) return py_exception(tp_RuntimeError, "stopped"); } while (0)
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -457,7 +462,7 @@ static void MidiOut_dtor(void* ud) {
         // Send all notes off on all channels before closing
         for (int ch = 0; ch < 16; ch++) {
             uint8_t msg[3] = { 0xB0 | ch, 123, 0 };  // CC 123 = All Notes Off
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
         }
         libremidi_midi_out_free(data->handle);
         data->handle = NULL;
@@ -466,6 +471,7 @@ static void MidiOut_dtor(void* ud) {
 
 // MidiOut.note_on(pitch, velocity=80, channel=1)
 static bool MidiOut_note_on(int argc, py_StackRef argv) {
+    RETURN_IF_STOPPED();
     if (argc < 2 || argc > 4) {
         return py_exception(tp_TypeError, "note_on() takes 1-3 arguments");
     }
@@ -506,7 +512,7 @@ static bool MidiOut_note_on(int argc, py_StackRef argv) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
 
     py_newnone(py_retval());
@@ -515,6 +521,7 @@ static bool MidiOut_note_on(int argc, py_StackRef argv) {
 
 // MidiOut.note_off(pitch, velocity=0, channel=1)
 static bool MidiOut_note_off(int argc, py_StackRef argv) {
+    RETURN_IF_STOPPED();
     if (argc < 2 || argc > 4) {
         return py_exception(tp_TypeError, "note_off() takes 1-3 arguments");
     }
@@ -555,7 +562,7 @@ static bool MidiOut_note_off(int argc, py_StackRef argv) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(1, channel - 1, pitch, velocity);
 
     py_newnone(py_retval());
@@ -565,6 +572,7 @@ static bool MidiOut_note_off(int argc, py_StackRef argv) {
 // MidiOut.note(pitch, velocity=80, duration=500, channel=1)
 // pitch can be int (MIDI number) or str (note name like "C4")
 static bool MidiOut_note(int argc, py_StackRef argv) {
+    RETURN_IF_STOPPED();
     if (argc < 2 || argc > 5) {
         return py_exception(tp_TypeError, "note() takes 1-4 arguments");
     }
@@ -625,7 +633,7 @@ static bool MidiOut_note(int argc, py_StackRef argv) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
 
     // Wait (scaled by tempo)
@@ -637,7 +645,7 @@ static bool MidiOut_note(int argc, py_StackRef argv) {
     // Note off
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
     msg[2] = 0;
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(1, channel - 1, pitch, 0);
 
     py_newnone(py_retval());
@@ -657,6 +665,7 @@ static int parse_pitch_arg(py_Ref arg) {
 // MidiOut.chord(pitches, velocity=80, duration=500, channel=1)
 // pitches is a list of int or str
 static bool MidiOut_chord(int argc, py_StackRef argv) {
+    RETURN_IF_STOPPED();
     if (argc < 2 || argc > 5) {
         return py_exception(tp_TypeError, "chord() takes 1-4 arguments");
     }
@@ -739,7 +748,7 @@ static bool MidiOut_chord(int argc, py_StackRef argv) {
     msg[2] = velocity & 0x7F;
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
         capture_add_event(0, channel - 1, pitches[i], velocity);
     }
 
@@ -754,7 +763,7 @@ static bool MidiOut_chord(int argc, py_StackRef argv) {
     msg[2] = 0;
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
         capture_add_event(1, channel - 1, pitches[i], 0);
     }
 
@@ -764,6 +773,7 @@ static bool MidiOut_chord(int argc, py_StackRef argv) {
 
 // MidiOut.cc(control, value, channel=1)
 static bool MidiOut_cc(int argc, py_StackRef argv) {
+    RETURN_IF_STOPPED();
     if (argc < 3 || argc > 4) {
         return py_exception(tp_TypeError, "cc() takes 2-3 arguments");
     }
@@ -800,7 +810,7 @@ static bool MidiOut_cc(int argc, py_StackRef argv) {
         control & 0x7F,
         value & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(2, channel - 1, control, value);
 
     py_newnone(py_retval());
@@ -809,6 +819,7 @@ static bool MidiOut_cc(int argc, py_StackRef argv) {
 
 // MidiOut.program_change(program, channel=1)
 static bool MidiOut_program_change(int argc, py_StackRef argv) {
+    RETURN_IF_STOPPED();
     if (argc < 2 || argc > 3) {
         return py_exception(tp_TypeError, "program_change() takes 1-2 arguments");
     }
@@ -839,7 +850,7 @@ static bool MidiOut_program_change(int argc, py_StackRef argv) {
         0xC0 | ((channel - 1) & 0x0F),
         program & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 2);
+    midi_out_send(data->handle, msg, 2);
 
     py_newnone(py_retval());
     return true;
@@ -873,7 +884,7 @@ static bool MidiOut_all_notes_off(int argc, py_StackRef argv) {
             123,  // All Notes Off CC
             0
         };
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
     }
 
     py_newnone(py_retval());
@@ -882,6 +893,7 @@ static bool MidiOut_all_notes_off(int argc, py_StackRef argv) {
 
 // MidiOut.pitch_bend(cents, channel=1) - for microtonal playback
 static bool MidiOut_pitch_bend(int argc, py_StackRef argv) {
+    RETURN_IF_STOPPED();
     if (argc < 2 || argc > 3) {
         return py_exception(tp_TypeError, "pitch_bend() takes 1-2 arguments");
     }
@@ -911,7 +923,7 @@ static bool MidiOut_pitch_bend(int argc, py_StackRef argv) {
         bend & 0x7F,
         (bend >> 7) & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
 
     py_newnone(py_retval());
     return true;
@@ -961,7 +973,7 @@ static bool MidiOut__exit__(int argc, py_StackRef argv) {
         // Send all notes off before closing
         for (int ch = 0; ch < 16; ch++) {
             uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
         }
         libremidi_midi_out_free(data->handle);
         data->handle = NULL;
@@ -995,6 +1007,20 @@ static bool MidiOut__repr__(int argc, py_StackRef argv) {
 // ============================================================================
 
 // midi._set_c_tempo(bpm) - Set tempo for C-layer duration scaling
+// midi._sleep_ms(ms): midi_sleep, so --no-sleep and plugin script time apply
+static bool midi_sleep_ms(int argc, py_StackRef argv) {
+    PY_CHECK_ARGC(1);
+    RETURN_IF_STOPPED();
+    if (py_isint(py_arg(0))) {
+        midi_sleep((int)py_toint(py_arg(0)));
+    } else {
+        PY_CHECK_ARG_TYPE(0, tp_float);
+        midi_sleep((int)py_tofloat(py_arg(0)));
+    }
+    py_newnone(py_retval());
+    return true;
+}
+
 static bool midi_set_c_tempo(int argc, py_StackRef argv) {
     PY_CHECK_ARGC(1);
     PY_CHECK_ARG_TYPE(0, tp_int);
@@ -1326,6 +1352,7 @@ void pk_midi_module_init(void) {
     // Tempo functions (internal, called from prelude.py)
     py_bindfunc(mod, "_set_c_tempo", midi_set_c_tempo);
     py_bindfunc(mod, "_get_c_tempo", midi_get_c_tempo);
+    py_bindfunc(mod, "_sleep_ms", midi_sleep_ms);
 
     // Recording functions
     py_bindfunc(mod, "record_midi", midi_record_midi);

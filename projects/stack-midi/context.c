@@ -3,6 +3,7 @@
 /* Disable macros to access ctx members directly */
 #define STACK_NO_MACROS
 #include "stack_midi.h"
+#include <stdlib.h>
 
 /* Global context instance */
 StackContext g_ctx;
@@ -10,6 +11,61 @@ StackContext g_ctx;
 /* Check if sleep is disabled */
 int stack_no_sleep(void) {
     return g_ctx.no_sleep_mode;
+}
+
+static void (*g_output)(const char* text, size_t len, void* user) = NULL;
+static void* g_output_user = NULL;
+int (*stack_interrupt_hook)(void) = NULL;
+
+void stack_set_output(void (*write)(const char* text, size_t len, void* user), void* user) {
+    g_output = write;
+    g_output_user = user;
+}
+
+static int stack_vfprint(FILE* stream, const char* fmt, va_list args) {
+    if (!g_output) {
+        return vfprintf(stream, fmt, args);
+    }
+    char buf[1024];
+    va_list copy;
+    va_copy(copy, args);
+    int n = vsnprintf(buf, sizeof(buf), fmt, copy);
+    va_end(copy);
+    if (n < 0) return n;
+    if ((size_t)n < sizeof(buf)) {
+        g_output(buf, (size_t)n, g_output_user);
+    } else {
+        char* big = malloc((size_t)n + 1);
+        if (!big) return -1;
+        vsnprintf(big, (size_t)n + 1, fmt, args);
+        g_output(big, (size_t)n, g_output_user);
+        free(big);
+    }
+    return n;
+}
+
+int stack_vprintf(const char* fmt, va_list args) {
+    return stack_vfprint(stdout, fmt, args);
+}
+
+int stack_printf(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int n = stack_vfprint(stdout, fmt, args);
+    va_end(args);
+    return n;
+}
+
+int stack_eprintf(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int n = stack_vfprint(stderr, fmt, args);
+    va_end(args);
+    return n;
+}
+
+int stack_interrupted(void) {
+    return stack_interrupt_hook && stack_interrupt_hook();
 }
 
 /* Set no-sleep mode (called from main) */

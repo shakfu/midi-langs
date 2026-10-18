@@ -38,7 +38,7 @@ void op_dur_fetch(Stack* s) {
 /* note. ( packed-note -- ) print note info */
 void op_note_print(Stack* s) {
     int32_t n = pop(&stack);
-    printf("note: pitch=%d vel=%d ch=%d dur=%d",
+    stack_printf("note: pitch=%d vel=%d ch=%d dur=%d",
            note_pitch(n), note_vel(n), note_ch(n) + 1, note_dur(n));
 }
 

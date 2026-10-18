@@ -1,6 +1,7 @@
 /* midi_sleep.c - see midi_sleep.h */
 
 #include "midi_sleep.h"
+#include "midi_clock.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -19,6 +20,10 @@ int midi_no_sleep(void) {
 }
 
 void midi_sleep(int ms) {
+    if (midi_sink_active()) {
+        midi_clock_wait_until(midi_clock_ms() + (ms > 0 ? ms : 0));
+        return;
+    }
     if (ms <= 0 || g_no_sleep) {
         return;
     }

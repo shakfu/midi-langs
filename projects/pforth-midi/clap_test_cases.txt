@@ -1,0 +1,16 @@
+[expr]
+2 3 + .
+[expr_out]
+5
+[error]
+nosuchword
+[note]
+60 100 1 note-on 500 ms 60 1 note-off
+[voices]
+60 100 1 note-on 64 100 1 note-on
+500 ms 60 1 note-off
+500 ms 64 1 note-off
+[forever]
+: forever begin 60 100 1 note-on 10 ms 60 1 note-off again ; forever
+[live_voice]
+: pulse begin 72 100 1 note-on 125 ms 72 1 note-off 125 ms again ; pulse

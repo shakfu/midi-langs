@@ -1,0 +1,2 @@
+Dear ImGui v1.93.0 (https://github.com/ocornut/imgui/releases/tag/v1.93.0), MIT.
+Subset: core, backends/imgui_impl_opengl3, misc/cpp/imgui_stdlib. Used by projects/clap.

@@ -107,7 +107,7 @@ def blocks_in(path: Path) -> list[Block]:
     text = path.read_text()
     fences = list(FENCE.finditer(text))
     parts = rel.split("/")
-    dir_interp = parts[1] if parts[0] == "docs" and len(parts) > 2 else None
+    dir_interp = parts[1] if parts[0] == "docs" and len(parts) > 2 and parts[1] in INTERPRETERS else None
     sections = interpreter_sections(text, fences) if dir_interp is None else []
 
     found = []

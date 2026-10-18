@@ -28,6 +28,8 @@ A Lua-based MIDI language using [Lua 5.5](https://www.lua.org/), providing a fam
 
 - Tempo-aware duration constants
 
+- A CLAP plugin, `lua-midi.clap`, that sends its MIDI to a DAW ([docs/clap](../clap/README.md)); the other languages have one too
+
 - Readline support for command history
 
 ## Quick Start

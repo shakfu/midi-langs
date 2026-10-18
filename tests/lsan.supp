@@ -7,3 +7,8 @@ leak:lz77d
 
 # s7: permanent strings made by s7_init, deliberately outside all s7 GCs
 leak:make_permanent_string
+
+# Guile: objects that only its GC frees (midi-out smobs, libguile internals);
+# the GC does not run before exit
+leak:libguile
+leak:g_midi_open

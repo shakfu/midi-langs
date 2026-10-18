@@ -1,0 +1,19 @@
+[expr]
+(+ 2 3)
+[expr_out]
+5
+[error]
+(nosuch)
+[note]
+(n 60 100 500)
+[voices]
+(spawn (make-note-voice 60 100 500))
+(spawn (make-note-voice 64 100 1000))
+[forever]
+(let loop () (n 60 100 10) (loop))
+[live_voice]
+(spawn (let ((on #f))
+         (lambda ()
+           (set! on (not on))
+           (if on (midi-note-on *midi* 72 100 1) (midi-note-off *midi* 72 1))
+           125)))

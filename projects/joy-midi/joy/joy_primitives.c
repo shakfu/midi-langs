@@ -1969,9 +1969,9 @@ static void prim_putch(JoyContext* ctx) {
     REQUIRE(1, "putch");
     JoyValue v = POP();
     if (v.type == JOY_CHAR) {
-        putchar(v.data.character);
+        joy_putchar(v.data.character);
     } else if (v.type == JOY_INTEGER) {
-        putchar((char)v.data.integer);
+        joy_putchar((char)v.data.integer);
     } else {
         joy_error_type("putch", "CHAR or INTEGER", v.type);
     }
@@ -1982,13 +1982,13 @@ static void prim_putchars(JoyContext* ctx) {
     REQUIRE(1, "putchars");
     JoyValue v = POP();
     EXPECT_TYPE(v, JOY_STRING, "putchars");
-    printf("%s", v.data.string);
+    joy_printf("%s", v.data.string);
     joy_value_free(&v);
 }
 
 static void prim_newline(JoyContext* ctx) {
     (void)ctx;
-    printf("\n");
+    joy_printf("\n");
 }
 
 static void prim_putln(JoyContext* ctx) {
@@ -1996,7 +1996,7 @@ static void prim_putln(JoyContext* ctx) {
     REQUIRE(1, "putln");
     JoyValue v = POP();
     joy_value_print(v);
-    printf("\n");
+    joy_printf("\n");
     joy_value_free(&v);
 }
 
@@ -2006,7 +2006,7 @@ static void prim_dot(JoyContext* ctx) {
     if (ctx->stack->depth == 0) return;
     JoyValue v = POP();
     joy_value_print(v);
-    printf("\n");
+    joy_printf("\n");
     joy_value_free(&v);
 }
 
@@ -3578,7 +3578,7 @@ static void prim_include(JoyContext* ctx) {
 
     int result = joy_load_file(ctx, v.data.string);
     if (result != 0) {
-        fprintf(stderr, "include: could not load file '%s'\n", v.data.string);
+        joy_eprintf("include: could not load file '%s'\n", v.data.string);
     }
     joy_value_free(&v);
 }
@@ -3805,8 +3805,7 @@ static void prim_mktime(JoyContext* ctx) {
 
     if (v.data.list->length < 9) {
         joy_value_free(&v);
-        fprintf(stderr, "Error: mktime requires list of 9 integers\n");
-        exit(1);
+        joy_error("mktime requires list of 9 integers");
     }
 
     /* Input format: [year mon day hour min sec isdst yday wday] (Python format) */
@@ -3851,8 +3850,7 @@ static void prim_strftime(JoyContext* ctx) {
     if (t.data.list->length < 9) {
         joy_value_free(&t);
         joy_value_free(&fmt);
-        fprintf(stderr, "Error: strftime requires time struct with 9 elements\n");
-        exit(1);
+        joy_error("strftime requires time struct with 9 elements");
     }
 
     /* Input format: [year mon day hour min sec isdst yday wday] (Python format) */
@@ -4826,13 +4824,13 @@ static void prim_argv(JoyContext* ctx) {
 static void prim_abort(JoyContext* ctx) {
     /* -> : abort execution with error status */
     (void)ctx;  /* unused */
-    exit(1);
+    joy_exit(1);
 }
 
 static void prim_quit(JoyContext* ctx) {
     /* -> : quit interpreter with success status */
     (void)ctx;  /* unused */
-    exit(0);
+    joy_exit(0);
 }
 
 static void prim_gc(JoyContext* ctx) {
@@ -4905,29 +4903,29 @@ static void prim_undefs(JoyContext* ctx) {
 static void prim_help(JoyContext* ctx) {
     /* -> : list defined symbols and primitives */
     (void)ctx;
-    printf("Joy - compiled program\n");
-    printf("Use 'manual' for full documentation.\n");
-    printf("Help system has limited functionality in compiled code.\n");
+    joy_printf("Joy - compiled program\n");
+    joy_printf("Use 'manual' for full documentation.\n");
+    joy_printf("Help system has limited functionality in compiled code.\n");
 }
 
 static void prim_helpdetail(JoyContext* ctx) {
     /* [S1 S2 ..] -> : give brief help on symbols */
     REQUIRE(1, "helpdetail");
     JoyValue symbols = POP();
-    printf("helpdetail: limited functionality in compiled code\n");
+    joy_printf("helpdetail: limited functionality in compiled code\n");
     joy_value_free(&symbols);
 }
 
 static void prim_manual(JoyContext* ctx) {
     /* -> : print manual of all primitives */
     (void)ctx;
-    printf("Joy Language Manual\n");
-    printf("===================\n\n");
-    printf("This is a compiled Joy program.\n");
-    printf("For full documentation, see the Joy language specification.\n");
-    printf("\nCore primitives: dup pop swap + - * / < > = etc.\n");
-    printf("Combinators: i x dip map fold linrec primrec etc.\n");
-    printf("Aggregates: first rest cons size null etc.\n");
+    joy_printf("Joy Language Manual\n");
+    joy_printf("===================\n\n");
+    joy_printf("This is a compiled Joy program.\n");
+    joy_printf("For full documentation, see the Joy language specification.\n");
+    joy_printf("\nCore primitives: dup pop swap + - * / < > = etc.\n");
+    joy_printf("Combinators: i x dip map fold linrec primrec etc.\n");
+    joy_printf("Aggregates: first rest cons size null etc.\n");
 }
 
 static void prim_get(JoyContext* ctx) {
@@ -4935,7 +4933,7 @@ static void prim_get(JoyContext* ctx) {
     (void)ctx;
     /* No Joy parser available at runtime in compiled code.
      * Programs requiring get should use the Python interpreter. */
-    fprintf(stderr, "Warning: 'get' is not supported in compiled code\n");
+    joy_eprintf("Warning: 'get' is not supported in compiled code\n");
 }
 
 /* ---------- Registration ---------- */

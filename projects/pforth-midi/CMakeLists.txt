@@ -28,9 +28,9 @@ else()
         ${PFORTH_CSRC}/stdio/pf_fileio_stdio.c
         ${PFORTH_CSRC}/posix/pf_io_posix.c
         pf_io_midi.c)
-    # pf_io_midi.c wraps these two; see that file for why
+    # pf_io_midi.c wraps these; see that file for why
     set_source_files_properties(${PFORTH_CSRC}/posix/pf_io_posix.c PROPERTIES
-        COMPILE_DEFINITIONS "sdTerminalIn=pf_posix_sdTerminalIn;sdTerminalEcho=pf_posix_sdTerminalEcho;sdTerminalInit=pf_posix_sdTerminalInit")
+        COMPILE_DEFINITIONS "sdTerminalIn=pf_posix_sdTerminalIn;sdTerminalEcho=pf_posix_sdTerminalEcho;sdTerminalInit=pf_posix_sdTerminalInit;sdTerminalOut=pf_posix_sdTerminalOut;sdSleepMillis=pf_posix_sdSleepMillis")
 endif()
 
 set(PFORTH_MIDI_SOURCES
@@ -113,3 +113,13 @@ target_link_libraries(pforth_midi PRIVATE pforth_midi_core_sd)
 add_strip_command(pforth_midi)
 
 install(TARGETS pforth_midi RUNTIME DESTINATION bin)
+
+if(COMMAND midi_langs_add_clap)
+    midi_langs_add_clap(pforth_midi_clap
+        NAME pforth-midi
+        CLASS_PREFIX MidiLangsPforthMidi
+        SOURCES pforth_clap.cpp pforth_glue.c
+        LIBRARIES pforth_midi_core_sd
+    )
+    target_include_directories(pforth_midi_clap PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+endif()

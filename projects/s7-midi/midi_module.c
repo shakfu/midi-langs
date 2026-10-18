@@ -41,6 +41,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 
 #include "s7.h"
 #include "midi_sleep.h"
+#include "midi_clock.h"
 #include <libremidi/libremidi-c.h>
 #include "scm_prelude.h"
 #include "music_theory.h"
@@ -199,7 +200,7 @@ static void free_midi_out(void *val) {
             /* Send all notes off before closing */
             for (int ch = 0; ch < 16; ch++) {
                 uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-                libremidi_midi_out_send_message(data->handle, msg, 3);
+                midi_out_send(data->handle, msg, 3);
             }
             libremidi_midi_out_free(data->handle);
         }
@@ -235,6 +236,13 @@ static s7_pointer is_midi_out(s7_scheme *sc, s7_pointer args) {
  * ============================================================================ */
 
 /* (midi-list-ports) -> list of (index name) */
+/* Under a midi_sink (midi_clock.h), Stop and the clip limit end the script here */
+#define RETURN_IF_STOPPED(sc) \
+    do { \
+        if (midi_clock_cancelled()) \
+            return s7_error(sc, s7_make_symbol(sc, "stopped"), s7_list(sc, 1, s7_make_string(sc, "stopped"))); \
+    } while (0)
+
 static s7_pointer g_midi_list_ports(s7_scheme *sc, s7_pointer args) {
     (void)args;
 
@@ -370,7 +378,7 @@ static s7_pointer g_midi_close(s7_scheme *sc, s7_pointer args) {
         /* Send all notes off */
         for (int ch = 0; ch < 16; ch++) {
             uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
         }
         libremidi_midi_out_free(data->handle);
         data->handle = NULL;
@@ -390,6 +398,7 @@ static s7_pointer g_midi_open_p(s7_scheme *sc, s7_pointer args) {
 
 /* (midi-note-on m pitch [velocity] [channel]) */
 static s7_pointer g_midi_note_on(s7_scheme *sc, s7_pointer args) {
+    RETURN_IF_STOPPED(sc);
     GET_MIDI_OUT(args);
     args = s7_cdr(args);
 
@@ -419,7 +428,7 @@ static s7_pointer g_midi_note_on(s7_scheme *sc, s7_pointer args) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
 
     return s7_unspecified(sc);
@@ -427,6 +436,7 @@ static s7_pointer g_midi_note_on(s7_scheme *sc, s7_pointer args) {
 
 /* (midi-note-off m pitch [velocity] [channel]) */
 static s7_pointer g_midi_note_off(s7_scheme *sc, s7_pointer args) {
+    RETURN_IF_STOPPED(sc);
     GET_MIDI_OUT(args);
     args = s7_cdr(args);
 
@@ -456,7 +466,7 @@ static s7_pointer g_midi_note_off(s7_scheme *sc, s7_pointer args) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(1, channel - 1, pitch, 0);
 
     return s7_unspecified(sc);
@@ -464,6 +474,7 @@ static s7_pointer g_midi_note_off(s7_scheme *sc, s7_pointer args) {
 
 /* (midi-note m pitch [velocity] [duration] [channel]) - high level */
 static s7_pointer g_midi_note(s7_scheme *sc, s7_pointer args) {
+    RETURN_IF_STOPPED(sc);
     GET_MIDI_OUT(args);
     args = s7_cdr(args);
 
@@ -501,7 +512,7 @@ static s7_pointer g_midi_note(s7_scheme *sc, s7_pointer args) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
 
     /* Wait (scaled for tempo) */
@@ -513,7 +524,7 @@ static s7_pointer g_midi_note(s7_scheme *sc, s7_pointer args) {
     /* Note off */
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
     msg[2] = 0;
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(1, channel - 1, pitch, 0);
 
     return s7_unspecified(sc);
@@ -521,6 +532,7 @@ static s7_pointer g_midi_note(s7_scheme *sc, s7_pointer args) {
 
 /* (midi-chord m pitches [velocity] [duration] [channel]) */
 static s7_pointer g_midi_chord(s7_scheme *sc, s7_pointer args) {
+    RETURN_IF_STOPPED(sc);
     GET_MIDI_OUT(args);
     args = s7_cdr(args);
 
@@ -574,7 +586,7 @@ static s7_pointer g_midi_chord(s7_scheme *sc, s7_pointer args) {
     msg[2] = velocity & 0x7F;
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
         capture_add_event(0, channel - 1, pitches[i], velocity);
     }
 
@@ -589,7 +601,7 @@ static s7_pointer g_midi_chord(s7_scheme *sc, s7_pointer args) {
     msg[2] = 0;
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
         capture_add_event(1, channel - 1, pitches[i], 0);
     }
 
@@ -598,6 +610,7 @@ static s7_pointer g_midi_chord(s7_scheme *sc, s7_pointer args) {
 
 /* (midi-cc m control value [channel]) */
 static s7_pointer g_midi_cc(s7_scheme *sc, s7_pointer args) {
+    RETURN_IF_STOPPED(sc);
     GET_MIDI_OUT(args);
     args = s7_cdr(args);
 
@@ -620,7 +633,7 @@ static s7_pointer g_midi_cc(s7_scheme *sc, s7_pointer args) {
         control & 0x7F,
         value & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(2, channel - 1, control, value);
 
     return s7_unspecified(sc);
@@ -628,6 +641,7 @@ static s7_pointer g_midi_cc(s7_scheme *sc, s7_pointer args) {
 
 /* (midi-program m program [channel]) */
 static s7_pointer g_midi_program(s7_scheme *sc, s7_pointer args) {
+    RETURN_IF_STOPPED(sc);
     GET_MIDI_OUT(args);
     args = s7_cdr(args);
 
@@ -646,7 +660,7 @@ static s7_pointer g_midi_program(s7_scheme *sc, s7_pointer args) {
         0xC0 | ((channel - 1) & 0x0F),
         program & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 2);
+    midi_out_send(data->handle, msg, 2);
 
     return s7_unspecified(sc);
 }
@@ -670,7 +684,7 @@ static s7_pointer g_midi_all_notes_off(s7_scheme *sc, s7_pointer args) {
             123,
             0
         };
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
     }
 
     return s7_unspecified(sc);
@@ -678,6 +692,7 @@ static s7_pointer g_midi_all_notes_off(s7_scheme *sc, s7_pointer args) {
 
 /* (midi-sleep ms) */
 static s7_pointer g_midi_sleep(s7_scheme *sc, s7_pointer args) {
+    RETURN_IF_STOPPED(sc);
     int ms = (int)s7_integer(s7_car(args));
     int scaled_ms = scale_duration_for_tempo(ms);
     if (scaled_ms > 0) {
@@ -847,6 +862,7 @@ static s7_pointer g_quantize_to_scale(s7_scheme *sc, s7_pointer args) {
 
 /* (midi-pitch-bend m cents [channel]) - send pitch bend for microtonal */
 static s7_pointer g_midi_pitch_bend(s7_scheme *sc, s7_pointer args) {
+    RETURN_IF_STOPPED(sc);
     GET_MIDI_OUT(args);
     args = s7_cdr(args);
 
@@ -866,7 +882,7 @@ static s7_pointer g_midi_pitch_bend(s7_scheme *sc, s7_pointer args) {
         bend & 0x7F,
         (bend >> 7) & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
 
     return s7_unspecified(sc);
 }

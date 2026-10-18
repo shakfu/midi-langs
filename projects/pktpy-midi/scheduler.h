@@ -26,7 +26,7 @@ typedef struct {
     int slot_index;                /* Index in the generators list */
 
     /* Timing state */
-    uint64_t wake_time_ms;         /* Absolute time to resume */
+    double wake_time_ms;           /* Absolute time to resume; script time under a midi_sink */
     int waiting;                   /* Currently waiting on yield? */
 
     /* libuv timer handle */
@@ -73,5 +73,20 @@ void pk_scheduler_register(py_GlobalRef mod);
 
 /* Check if scheduler has active voices */
 int pk_scheduler_active_count(void);
+
+/* Under a midi_sink (midi_clock.h), voices wait in script time, not on timers,
+ * and a host drives them with these. */
+
+/* Earliest wake time of a waiting voice; returns 0 if no voice waits. */
+int pk_scheduler_next_wake(double *ms);
+
+/* Resume, in slot order, each voice due at or before ms, at its own wake time. */
+void pk_scheduler_resume_at(double ms);
+
+/* Stop every voice. */
+void pk_scheduler_stop_all(void);
+
+/* Voice errors go to fn instead of stderr; NULL restores stderr. */
+void pk_scheduler_set_error_handler(void (*fn)(void *user, const char *msg), void *user);
 
 #endif /* PKTPY_MIDI_SCHEDULER_H */

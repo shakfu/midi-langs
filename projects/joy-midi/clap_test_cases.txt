@@ -1,0 +1,18 @@
+[expr]
+2 3 +
+[expr_out]
+5
+[error]
+nosuchword
+[note]
+60 100 500 midi-note
+[voices]
+60 100 midi-note-on 64 100 midi-note-on
+500 midi-sleep 60 midi-note-off
+500 midi-sleep 64 midi-note-off
+[forever]
+[true] [60 100 10 midi-note] while
+[busy]
+[true] [] while
+[live_voice]
+[true] [72 100 125 midi-note 125 midi-sleep] while

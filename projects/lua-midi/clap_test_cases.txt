@@ -1,0 +1,17 @@
+[expr]
+2 + 3
+[expr_out]
+5
+[error]
+nosuch.call()
+[note]
+n(60, 100, 500)
+[voices]
+spawn(function() play(60, 100, 500) end)
+spawn(function() play(64, 100, 1000) end)
+[forever]
+while true do n(60, 100, 10) end
+[busy]
+while true do end
+[live_voice]
+spawn(function() while true do play(72, 100, 250) end end)

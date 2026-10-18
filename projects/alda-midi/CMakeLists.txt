@@ -16,6 +16,15 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 add_subdirectory(lib)
 add_subdirectory(cli)
 
+if(COMMAND midi_langs_add_clap)
+    midi_langs_add_clap(alda_midi_clap
+        NAME alda-midi
+        CLASS_PREFIX MidiLangsAldaMidi
+        SOURCES alda_clap.cpp
+        LIBRARIES alda
+    )
+endif()
+
 # Tests
 enable_testing()
 add_subdirectory(tests)

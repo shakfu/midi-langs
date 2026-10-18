@@ -62,26 +62,26 @@ static void load_prelude(JoyContext* ctx, const char* argv0) {
 }
 
 static void banner(void) {
-    printf("Joy-MIDI  -  Joy interpreter with MIDI extensions\n");
-    printf("Type 'quit' to exit, 'help' for MIDI words\n");
+    joy_printf("Joy-MIDI  -  Joy interpreter with MIDI extensions\n");
+    joy_printf("Type 'quit' to exit, 'help' for MIDI words\n");
     fflush(stdout);
 }
 
 static void usage(const char* prog) {
-    printf("Usage: %s [options] [file.joy]\n", prog);
-    printf("Options:\n");
-    printf("  -h, --help     Show this help\n");
-    printf("  -v, --version  Show version\n");
-    printf("  --no-sleep     Skip all waits (for testing)\n");
-    printf("\nMIDI words:\n");
-    printf("  midi-list    - List MIDI output ports\n");
-    printf("  midi-virtual - Create virtual MIDI port 'JoyMIDI'\n");
-    printf("  midi-open    - Open port by index (n -- )\n");
-    printf("  midi-note    - Play note (pitch vel dur -- )\n");
-    printf("  midi-chord   - Play chord ([pitches] vel dur -- )\n");
-    printf("  pitch        - Parse pitch name (\"C4\" -- 60)\n");
-    printf("  major        - Build major triad (root -- [pitches])\n");
-    printf("  minor        - Build minor triad (root -- [pitches])\n");
+    joy_printf("Usage: %s [options] [file.joy]\n", prog);
+    joy_printf("Options:\n");
+    joy_printf("  -h, --help     Show this help\n");
+    joy_printf("  -v, --version  Show version\n");
+    joy_printf("  --no-sleep     Skip all waits (for testing)\n");
+    joy_printf("\nMIDI words:\n");
+    joy_printf("  midi-list    - List MIDI output ports\n");
+    joy_printf("  midi-virtual - Create virtual MIDI port 'JoyMIDI'\n");
+    joy_printf("  midi-open    - Open port by index (n -- )\n");
+    joy_printf("  midi-note    - Play note (pitch vel dur -- )\n");
+    joy_printf("  midi-chord   - Play chord ([pitches] vel dur -- )\n");
+    joy_printf("  pitch        - Parse pitch name (\"C4\" -- 60)\n");
+    joy_printf("  major        - Build major triad (root -- [pitches])\n");
+    joy_printf("  minor        - Build minor triad (root -- [pitches])\n");
 }
 
 int main(int argc, char** argv) {
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
                     banner();
                     return 0;
                 default:
-                    fprintf(stderr, "Unknown option: -%c\n", argv[i][j]);
+                    joy_eprintf("Unknown option: -%c\n", argv[i][j]);
                     return 1;
                 }
             }
@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
     /* Create execution context */
     JoyContext* ctx = joy_context_new();
     if (!ctx) {
-        fprintf(stderr, "Failed to create Joy context\n");
+        joy_eprintf("Failed to create Joy context\n");
         return 1;
     }
 
@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     /* If a file was specified, run it */
     if (filename) {
         if (joy_load_file(ctx, filename) != 0) {
-            fprintf(stderr, "Failed to open file: %s\n", filename);
+            joy_eprintf("Failed to open file: %s\n", filename);
             joy_midi_cleanup();
             joy_context_free(ctx);
             return 1;
@@ -176,10 +176,10 @@ int main(int argc, char** argv) {
             /* Print final stack */
             if (ctx->stack->depth > 0) {
                 for (size_t i = 0; i < ctx->stack->depth; i++) {
-                    if (i > 0) printf(" ");
+                    if (i > 0) joy_printf(" ");
                     joy_value_print(ctx->stack->items[i]);
                 }
-                printf("\n");
+                joy_printf("\n");
             }
             free(buffer);
         }

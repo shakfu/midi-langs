@@ -566,3 +566,27 @@ add_null_backend_test(lua $<TARGET_FILE:lua_midi> ${EX}/demo_lua.lua)
 add_null_backend_test(pktpy $<TARGET_FILE:pktpy_midi> ${EX}/demo_pktpy.py)
 add_null_backend_test(s7 $<TARGET_FILE:s7_midi> ${EX}/demo_s7.scm)
 add_null_backend_test(joy $<TARGET_FILE:joy_midi> ${EX}/demo_joy.joy)
+
+# CLAP plugins (projects/clap)
+if(TARGET test_clap_units)
+    add_test(NAME clap_units COMMAND test_clap_units)
+    set_tests_properties(clap_units PROPERTIES LABELS "quick;unit")
+endif()
+# One test per plugin, each on its own UDP port so they can run in parallel
+set(CLAP_TEST_PORT 57290)
+foreach(lang lua pktpy s7 guile joy stack pforth alda)
+    if(TARGET ${lang}_midi_clap)
+        math(EXPR CLAP_TEST_PORT "${CLAP_TEST_PORT} + 1")
+        string(TOUPPER ${lang} LANG_UPPER)
+        add_test(
+            NAME ${lang}_midi_clap
+            COMMAND test_clap_host $<TARGET_FILE:${lang}_midi_clap>
+                ${CMAKE_SOURCE_DIR}/projects/${lang}-midi/clap_test_cases.txt ${CLAP_TEST_PORT}
+        )
+        set_tests_properties(${lang}_midi_clap PROPERTIES
+            ENVIRONMENT "${LANG_UPPER}_MIDI_CLAP_UDP_PORT=${CLAP_TEST_PORT}"
+            TIMEOUT 120
+            LABELS "clap"
+        )
+    endif()
+endforeach()

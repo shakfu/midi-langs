@@ -55,6 +55,8 @@ Set `MIDI_LANGS_BACKEND=null` to run any interpreter without a MIDI server: port
 sudo apt-get install libasound2-dev libreadline-dev
 ```
 
+**CLAP plugins:** `make clap` builds each language but mhs-midi as a CLAP note-effect plugin in `build/clap/`, whose MIDI goes to the DAW. On Linux it also needs `libx11-dev libgl-dev`. See [docs/clap](docs/clap/README.md).
+
 ## Quick Examples
 
 ### alda-midi
@@ -641,6 +643,8 @@ Download a GM SoundFont like [FluidR3_GM.sf2](https://musical-artifacts.com/arti
 | mhs-midi | [README](docs/mhs-midi/README.md), [API](docs/mhs-midi/api-reference.md), [Examples](docs/mhs-midi/examples.md) |
 | pktpy-midi | [README](docs/pktpy-midi/README.md), [API](docs/pktpy-midi/api-reference.md), [Examples](docs/pktpy-midi/examples.md) |
 | s7-midi | [README](docs/s7-midi/README.md), [API](docs/s7-midi/api-reference.md), [Examples](docs/s7-midi/examples.md) |
+
+CLAP plugins, all languages but mhs-midi: [docs/clap](docs/clap/README.md).
 
 See [CHANGELOG.md](CHANGELOG.md) for recent changes.
 

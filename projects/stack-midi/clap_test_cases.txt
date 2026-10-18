@@ -1,0 +1,26 @@
+[expr]
+2 3 + .
+[expr_out]
+5
+[error]
+nosuchword
+[note]
+100 vel! 500 dur! 60,
+[voices]
+seq-new drop
+0 60 100 480 seq-note
+seq-play&
+seq-new drop
+0 64 100 960 seq-note
+seq-play&
+[forever]
+: f 60, ;
+f 1000000000 times
+[busy]
+: w 1 drop ;
+w 1000000000 times
+[live_voice]
+seq-new drop
+0 72 100 240 seq-note
+480 72 100 240 seq-note
+seq-loop&

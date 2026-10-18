@@ -75,8 +75,8 @@ void op_clear(Stack* s) {
 
 void op_print_stack(Stack* s) {
     (void)s;
-    printf("<%d> ", stack.top + 1);
+    stack_printf("<%d> ", stack.top + 1);
     for (int i = 0; i <= stack.top; i++) {
-        printf("%d ", stack.data[i]);
+        stack_printf("%d ", stack.data[i]);
     }
 }

@@ -333,7 +333,7 @@ void music_notation_init(JoyContext* ctx) {
     /* Create music context */
     MusicContext* mctx = music_context_new();
     if (!mctx) {
-        fprintf(stderr, "Failed to create music context\n");
+        joy_eprintf("Failed to create music context\n");
         return;
     }
 

@@ -44,7 +44,7 @@ void op_rec_start(Stack* s) {
     }
     recording_count = 0;
     recording_active = 1;
-    printf("Recording started. Use 'stop' to end, 'save filename' to save.\n");
+    stack_printf("Recording started. Use 'stop' to end, 'save filename' to save.\n");
 }
 
 /* stop ( -- ) Stop recording */
@@ -55,7 +55,7 @@ void op_rec_stop(Stack* s) {
         return;
     }
     recording_active = 0;
-    printf("Recording stopped. %d lines captured. Use 'save filename' to save.\n", recording_count);
+    stack_printf("Recording stopped. %d lines captured. Use 'save filename' to save.\n", recording_count);
 }
 
 /* save ( filename -- ) Save recording to file (handled in interpreter) */
@@ -100,7 +100,7 @@ int recording_save(const char* filename) {
     }
 
     fclose(f);
-    printf("Saved %d lines to '%s'\n", recording_count, filename);
+    stack_printf("Saved %d lines to '%s'\n", recording_count, filename);
     return 0;
 }
 
@@ -124,7 +124,7 @@ void op_capture_start(Stack* s) {
     capture_count = 0;
     capture_active = 1;
     clock_gettime(CLOCK_MONOTONIC, &capture_start_time);
-    printf("MIDI recording started. Play notes, then 'stop' and 'save-midi filename'.\n");
+    stack_printf("MIDI recording started. Play notes, then 'stop' and 'save-midi filename'.\n");
 }
 
 /* stop ( -- ) Stop recording (also called by op_rec_stop) */
@@ -134,7 +134,7 @@ void op_capture_stop(Stack* s) {
         return;  /* Silent if not recording */
     }
     capture_active = 0;
-    printf("MIDI recording stopped. %d events recorded. Use 'save-midi filename' to save.\n", capture_count);
+    stack_printf("MIDI recording stopped. %d events recorded. Use 'save-midi filename' to save.\n", capture_count);
 }
 
 /* save-midi ( filename -- ) Save captured MIDI to file (handled in interpreter) */
@@ -252,7 +252,7 @@ int capture_save_midi(const char* filename) {
     fprintf(f, "\\ To play: midi-open 0 seq seq-play midi-close\n");
 
     fclose(f);
-    printf("Saved %d notes to '%s'\n", note_count, filename);
+    stack_printf("Saved %d notes to '%s'\n", note_count, filename);
     return 0;
 }
 
@@ -316,7 +316,7 @@ int capture_write_mid(const char* filename) {
         return -1;
     }
 
-    printf("Saved %d events to '%s'\n", capture_count, filename);
+    stack_printf("Saved %d events to '%s'\n", capture_count, filename);
     return 0;
 }
 
@@ -327,7 +327,7 @@ static void read_mid_callback(void* ctx, const midi_file_event* event) {
     /* Filter meta events for tempo display */
     if (event->type == 0x51) {
         /* Tempo meta event */
-        printf("  tempo: %d us/beat (%d BPM)\n",
+        stack_printf("  tempo: %d us/beat (%d BPM)\n",
                event->data1, 60000000 / event->data1);
         return;
     }
@@ -348,7 +348,7 @@ static void read_mid_callback(void* ctx, const midi_file_event* event) {
         default: break;
     }
 
-    printf("  t=%5d ch=%2d %-10s %3d %3d\n",
+    stack_printf("  t=%5d ch=%2d %-10s %3d %3d\n",
            event->tick, event->channel, type_name, event->data1, event->data2);  /* channel is 1-16 */
 }
 
@@ -374,13 +374,13 @@ int capture_read_mid(const char* filename) {
     float duration = midi_file_reader_duration(reader);
     int format = midi_file_reader_format(reader);
 
-    printf("MIDI file: %s\n", filename);
-    printf("  format: %d\n", format);
-    printf("  tracks: %d\n", num_tracks);
-    printf("  ppqn: %.0f\n", ppqn);
-    printf("  tempo: %.0f us/beat (%.0f BPM)\n", tempo, 60000000.0 / tempo);
-    printf("  duration: %.0f ms\n", duration);
-    printf("Events:\n");
+    stack_printf("MIDI file: %s\n", filename);
+    stack_printf("  format: %d\n", format);
+    stack_printf("  tracks: %d\n", num_tracks);
+    stack_printf("  ppqn: %.0f\n", ppqn);
+    stack_printf("  tempo: %.0f us/beat (%.0f BPM)\n", tempo, 60000000.0 / tempo);
+    stack_printf("  duration: %.0f ms\n", duration);
+    stack_printf("Events:\n");
 
     /* Display events */
     midi_file_reader_for_each(reader, NULL, read_mid_callback);

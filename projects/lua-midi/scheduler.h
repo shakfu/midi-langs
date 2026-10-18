@@ -28,7 +28,7 @@ typedef struct {
     int registry_ref;              /* LUA_REGISTRYINDEX reference (prevents GC) */
 
     /* Timing state */
-    uint64_t wake_time_ms;         /* Absolute time to resume */
+    double wake_time_ms;           /* Absolute time to resume; script time under a midi_sink */
     int waiting;                   /* Currently waiting on yield_ms? */
 
     /* libuv timer handle */
@@ -81,5 +81,20 @@ int scheduler_has_pending(void);
 
 /* Process one batch of pending resumes (for REPL integration) */
 int scheduler_process_pending(lua_State *L);
+
+/* Under a midi_sink (midi_clock.h), voices wait in script time, not on timers,
+ * and a host drives them with these. */
+
+/* Earliest wake time of a waiting voice; returns 0 if no voice waits. */
+int scheduler_next_wake(double *ms);
+
+/* Resume, in slot order, each voice due at or before ms, at its own wake time. */
+void scheduler_resume_at(lua_State *L, double ms);
+
+/* Stop every voice. */
+void scheduler_stop_all(void);
+
+/* Voice errors go to fn instead of stderr; NULL restores stderr. */
+void scheduler_set_error_handler(void (*fn)(void *user, const char *msg), void *user);
 
 #endif /* LUA_MIDI_SCHEDULER_H */

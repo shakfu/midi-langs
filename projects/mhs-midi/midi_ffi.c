@@ -3,6 +3,7 @@
 #include "music_theory.h"
 #include "midi_file.h"
 #include "midi_open.h"
+#include "midi_clock.h"
 #include <libremidi/libremidi-c.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -260,7 +261,7 @@ int midi_send(uint8_t status, uint8_t data1, uint8_t data2) {
     if (!g_midi_out) return -1;
 
     unsigned char msg[3] = { status, data1 & 0x7F, data2 & 0x7F };
-    return libremidi_midi_out_send_message(g_midi_out, msg, 3);
+    return midi_out_send(g_midi_out, msg, 3);
 }
 
 int midi_note_on(int channel, int pitch, int velocity) {
@@ -294,7 +295,7 @@ int midi_program(int channel, int program) {
     unsigned char msg[2];
     msg[0] = 0xC0 | ((channel - 1) & 0x0F);
     msg[1] = (uint8_t)(program & 0x7F);
-    return libremidi_midi_out_send_message(g_midi_out, msg, 2);
+    return midi_out_send(g_midi_out, msg, 2);
 }
 
 int midi_pitch_bend(int channel, int value) {
@@ -310,10 +311,15 @@ int midi_pitch_bend(int channel, int value) {
     msg[0] = 0xE0 | ((channel - 1) & 0x0F);
     msg[1] = (uint8_t)(bent & 0x7F);        /* LSB */
     msg[2] = (uint8_t)((bent >> 7) & 0x7F); /* MSB */
-    return libremidi_midi_out_send_message(g_midi_out, msg, 3);
+    return midi_out_send(g_midi_out, msg, 3);
 }
 
 void midi_sleep(int ms) {
+    if (midi_sink_active()) {
+        /* Script time (midi_clock.h); this midi_sleep shadows common's in its links */
+        midi_clock_wait_until(midi_clock_ms() + (ms > 0 ? ms : 0));
+        return;
+    }
     if (ms > 0) {
         usleep((useconds_t)(ms * 1000));
     }

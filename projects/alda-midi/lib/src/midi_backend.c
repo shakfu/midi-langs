@@ -8,6 +8,7 @@
 #include "alda/midi_backend.h"
 #include "alda/tsf_backend.h"
 #include "midi_open.h"
+#include "midi_clock.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -321,7 +322,7 @@ void alda_midi_send_note_on(AldaContext* ctx, int channel, int pitch, int veloci
         msg[0] = 0x90 | ((channel - 1) & 0x0F);
         msg[1] = pitch & 0x7F;
         msg[2] = velocity & 0x7F;
-        libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+        midi_out_send(ctx->midi_out, msg, 3);
     }
 }
 
@@ -340,7 +341,7 @@ void alda_midi_send_note_off(AldaContext* ctx, int channel, int pitch) {
         msg[0] = 0x80 | ((channel - 1) & 0x0F);
         msg[1] = pitch & 0x7F;
         msg[2] = 0;
-        libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+        midi_out_send(ctx->midi_out, msg, 3);
     }
 }
 
@@ -358,7 +359,7 @@ void alda_midi_send_program(AldaContext* ctx, int channel, int program) {
         unsigned char msg[2];
         msg[0] = 0xC0 | ((channel - 1) & 0x0F);
         msg[1] = program & 0x7F;
-        libremidi_midi_out_send_message(ctx->midi_out, msg, 2);
+        midi_out_send(ctx->midi_out, msg, 2);
     }
 }
 
@@ -377,7 +378,7 @@ void alda_midi_send_cc(AldaContext* ctx, int channel, int cc, int value) {
         msg[0] = 0xB0 | ((channel - 1) & 0x0F);
         msg[1] = cc & 0x7F;
         msg[2] = value & 0x7F;
-        libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+        midi_out_send(ctx->midi_out, msg, 3);
     }
 }
 
@@ -397,7 +398,7 @@ void alda_midi_all_notes_off(AldaContext* ctx) {
             msg[0] = 0xB0 | ch;
             msg[1] = 123;  /* All Notes Off */
             msg[2] = 0;
-            libremidi_midi_out_send_message(ctx->midi_out, msg, 3);
+            midi_out_send(ctx->midi_out, msg, 3);
         }
     }
 }
@@ -407,6 +408,10 @@ void alda_midi_all_notes_off(AldaContext* ctx) {
  * ============================================================================ */
 
 void alda_midi_sleep_ms(AldaContext* ctx, int ms) {
+    if (midi_sink_active()) {
+        midi_clock_wait_until(midi_clock_ms() + (ms > 0 ? ms : 0)); /* script time */
+        return;
+    }
     if (ms > 0 && !alda_no_sleep(ctx)) {
         usleep(ms * 1000);
     }

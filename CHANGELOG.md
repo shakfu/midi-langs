@@ -4,6 +4,24 @@ All notable changes to midi-langs are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **CLAP plugins** for every language but mhs-midi: `make clap` builds `build/clap/<name>.clap`, note-effect plugins with an editor, UDP input, and one MIDI note output port. By default an evaluation runs at once and becomes a clip in beats. The clip loops on the host's song position, so it follows tempo, seeks, loops and offline render, and the project saves it. **Live** mode plays code as it runs, with script time waiting on the frames the host renders; events land on their exact frame in real time and offline. The host frame clock was chosen over wall-clock stamping, which jitters by up to a block and bunches notes in offline render. Clips exist because running code cannot follow a seek. Docs: `docs/clap/README.md`; design: `docs/dev/clap.md`. Tested on Linux only. mhs-midi waits for the MicroHs upgrade.
+
+  Stop has to end running code, so each interpreter got a way to poll it. pocketpy needed a 6-line patch (`py_interrupt_hook`). Joy and stack-midi gained output and interrupt hooks. In s7 and pforth-midi, a tight loop without a MIDI call cannot be stopped.
+
+- **Script time** (`projects/common/midi_clock.h`): with a `midi_sink` installed, `midi_out_send` stamps messages with script time, and `midi_sleep` advances it instead of sleeping. Every language but mhs-midi sends through it, and each scheduler has a script-time path. The CLIs install no sink, so their behaviour is unchanged, apart from the fixes below.
+
+### Changed
+
+- **pktpy-midi `midi.sleep` and `midi.rest`** wait through `midi_sleep` instead of `time.sleep`, so `--no-sleep` now skips them.
+
+- **joy-midi `quit`, `abort`, and errors in `mktime` and `strftime`** go through `joy_exit` and `joy_error`. The two errors now report like other errors instead of exiting.
+
+### Fixed
+
+- **stack-midi async player**: its loop thread cleared `running` as it exited while cleanup read it to decide whether to join, a data race that could leave the thread unjoined. Only the creating thread writes it now. Found by ThreadSanitizer.
+
 ## [0.2.0]
 
 ### Added

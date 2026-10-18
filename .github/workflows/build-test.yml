@@ -32,7 +32,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libreadline-dev guile-3.0-dev pkg-config
+          sudo apt-get install -y libasound2-dev libreadline-dev guile-3.0-dev pkg-config libx11-dev libgl-dev
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'

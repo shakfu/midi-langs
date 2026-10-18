@@ -610,16 +610,16 @@ void op_program_change(Stack* s) {
 /* ctx@ ( -- ) Show current context defaults */
 void op_ctx_fetch(Stack* s) {
     (void)s;
-    printf("Context defaults:\n");
-    printf("  channel:  %d\n", default_channel);
-    printf("  velocity: %d\n", default_velocity);
-    printf("  duration: %d ms\n", default_duration);
-    printf("  gate:     %d%%\n", default_gate);
-    printf("  bpm:      %d\n", global_bpm);
-    printf("  pitch:    %d\n", current_pitch);
+    stack_printf("Context defaults:\n");
+    stack_printf("  channel:  %d\n", default_channel);
+    stack_printf("  velocity: %d\n", default_velocity);
+    stack_printf("  duration: %d ms\n", default_duration);
+    stack_printf("  gate:     %d%%\n", default_gate);
+    stack_printf("  bpm:      %d\n", global_bpm);
+    stack_printf("  pitch:    %d\n", current_pitch);
     if (midi_out != NULL) {
-        printf("  midi:     open\n");
+        stack_printf("  midi:     open\n");
     } else {
-        printf("  midi:     closed\n");
+        stack_printf("  midi:     closed\n");
     }
 }

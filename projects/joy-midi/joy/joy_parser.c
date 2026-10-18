@@ -465,7 +465,7 @@ static bool is_seq_keyword(const char* sym) {
 static bool parse_single_definition(Lexer* lex) {
     /* Expect name */
     if (lex->current.type != TOK_SYMBOL) {
-        fprintf(stderr, "DEFINE: expected name, got token type %d\n", lex->current.type);
+        joy_eprintf("DEFINE: expected name, got token type %d\n", lex->current.type);
         return false;
     }
 
@@ -475,7 +475,7 @@ static bool parse_single_definition(Lexer* lex) {
     /* Expect == */
     if (lex->current.type != TOK_SYMBOL ||
         strcmp(lex->current.value.string, "==") != 0) {
-        fprintf(stderr, "DEFINE: expected '==' after '%s'\n", name);
+        joy_eprintf("DEFINE: expected '==' after '%s'\n", name);
         free(name);
         return false;
     }
@@ -600,7 +600,7 @@ static void parse_seq_block(Lexer* lex) {
 
     /* Expect name */
     if (lex->current.type != TOK_SYMBOL) {
-        fprintf(stderr, "SEQ: expected name\n");
+        joy_eprintf("SEQ: expected name\n");
         return;
     }
 
@@ -651,13 +651,13 @@ static void parse_seq_block(Lexer* lex) {
             seq_definition_add_part(seq, channel, part_body);
         } else {
             /* No channel prefix - error or skip */
-            fprintf(stderr, "SEQ %s: expected channel prefix (N:), got ", name);
+            joy_eprintf("SEQ %s: expected channel prefix (N:), got ", name);
             if (lex->current.type == TOK_SYMBOL) {
-                fprintf(stderr, "'%s'\n", lex->current.value.string);
+                joy_eprintf("'%s'\n", lex->current.value.string);
             } else if (lex->current.type == TOK_INTEGER) {
-                fprintf(stderr, "%lld\n", lex->current.value.integer);
+                joy_eprintf("%lld\n", lex->current.value.integer);
             } else {
-                fprintf(stderr, "token type %d\n", lex->current.type);
+                joy_eprintf("token type %d\n", lex->current.type);
             }
             lexer_next(lex);  /* skip problematic token */
         }
@@ -800,7 +800,7 @@ void joy_repl(JoyContext* ctx) {
         input = readline(in_definition ? ".. " : "> ");
 
         if (!input) {
-            printf("\n");
+            joy_printf("\n");
             if (accumulated) free(accumulated);
             break;
         }
@@ -876,10 +876,10 @@ void joy_repl(JoyContext* ctx) {
             /* Print stack if autoput is enabled */
             if (ctx->autoput && ctx->stack->depth > 0) {
                 for (size_t i = 0; i < ctx->stack->depth; i++) {
-                    if (i > 0) printf(" ");
+                    if (i > 0) joy_printf(" ");
                     joy_value_print(ctx->stack->items[i]);
                 }
-                printf("\n");
+                joy_printf("\n");
             }
         }
         /* If setjmp returned non-zero, an error occurred - just continue */
@@ -896,7 +896,7 @@ void joy_repl(JoyContext* ctx) {
     accumulated[0] = '\0';
 
     while (1) {
-        printf(in_definition ? ".. " : "> ");
+        joy_printf(in_definition ? ".. " : "> ");
         fflush(stdout);
 
         if (!fgets(line, sizeof(line), stdin)) {
@@ -962,10 +962,10 @@ void joy_repl(JoyContext* ctx) {
             /* Print stack if autoput is enabled */
             if (ctx->autoput && ctx->stack->depth > 0) {
                 for (size_t i = 0; i < ctx->stack->depth; i++) {
-                    if (i > 0) printf(" ");
+                    if (i > 0) joy_printf(" ");
                     joy_value_print(ctx->stack->items[i]);
                 }
-                printf("\n");
+                joy_printf("\n");
             }
         }
         /* If setjmp returned non-zero, an error occurred - just continue */

@@ -15,10 +15,10 @@ void stack_error(const char* fmt, ...) {
     error_count++;
 
     if (current_file != NULL) {
-        printf("%s:%d: ", current_file, current_line);
+        stack_printf("%s:%d: ", current_file, current_line);
     }
-    vprintf(fmt, args);
-    printf("\n");
+    stack_vprintf(fmt, args);
+    stack_printf("\n");
 
     va_end(args);
 }
@@ -86,7 +86,7 @@ void op_seq_gc(Stack* s) {
         }
     }
     bracket_seq_count = write;
-    printf("seq-gc: freed %d sequences, %d remaining\n", freed, bracket_seq_count);
+    stack_printf("seq-gc: freed %d sequences, %d remaining\n", freed, bracket_seq_count);
 }
 
 /* Check if character is a special single-char token */
@@ -623,7 +623,7 @@ void op_times(Stack* s) {
     }
 
     /* Already executed once, so repeat n-1 more times */
-    for (int i = 1; i < n; i++) {
+    for (int i = 1; i < n && !stack_interrupted(); i++) {
         if (word->is_primitive) {
             word->function(&stack);
         } else if (word->body) {
@@ -649,7 +649,7 @@ void op_star(Stack* s) {
             return;
         }
         /* Execute sequence n times */
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n && !stack_interrupted(); i++) {
             execute_bracket_sequence(bracket_seq_storage[idx]);
         }
         return;
@@ -663,7 +663,7 @@ void op_star(Stack* s) {
             return;
         }
         /* Execute block n times */
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n && !stack_interrupted(); i++) {
             interpret(block_storage[idx]);
         }
         return;
@@ -683,46 +683,46 @@ void op_load(Stack* s) {
 void op_help(Stack* s) {
     (void)stack;
 
-    printf("\nstack-midi - a stack language for MIDI sequence generation\n\n");
+    stack_printf("\nstack-midi - a stack language for MIDI sequence generation\n\n");
 
-    printf("Concise Notation:\n");
-    printf("  c4,                     Play C4 with defaults\n");
-    printf("  c#4, db4, 60,           Sharps, flats, or MIDI numbers\n");
-    printf("  (c4 e4 g4),             Chord (concurrent)\n");
-    printf("  r,                      Rest (silence)\n");
-    printf("  ch! vel! dur!           Set default channel/velocity/duration\n");
-    printf("\n");
-    printf("Word Definitions:\n");
-    printf("  : name ... ;            Define a new word\n");
-    printf("  name N times            Execute word N times total\n");
-    printf("\n");
-    printf("File Operations:\n");
-    printf("  load filename           Load and execute a .stk file\n");
-    printf("  rec / stop / save       Record commands to file\n");
-    printf("  rec-midi / stop / save-midi  Record MIDI events (stack-midi source)\n");
-    printf("  write-mid filename      Write captured events to .mid file\n");
-    printf("  read-mid filename       Read and display .mid file info\n");
-    printf("\n");
-    printf("Generative:\n");
-    printf("  c4|e4,                  Alternative (random selection)\n");
-    printf("  c4 75%%,                 75%% chance to play\n");
-    printf("  seed! seed@ next-random  PRNG functions\n");
-    printf("  [[ ... ]] list-len      List operations\n");
-    printf("  euclidean shuffle pick  Pattern operations\n");
-    printf("\n");
-    printf("Dynamics: ppp pp p mp mf f ff fff\n");
-    printf("Articulation: c4. (staccato) c4> (accent) c4- (tenuto)\n");
-    printf("\n");
-    printf("MIDI Output: midi-output-list midi-output-open midi-output-virtual midi-output-close\n");
-    printf("  (aliases: midi-list midi-open-port midi-open midi-close)\n");
-    printf("MIDI Input: midi-input-list midi-input-open midi-input-virtual midi-input-close\n");
-    printf("  midi-input? midi-input@ midi-input-flush\n");
-    printf("MIDI Control: cc panic\n");
-    printf("Sequences: seq-start seq-end seq-play seq-show\n");
-    printf("Scales: scale-major scale-minor scale-blues ... scales\n");
-    printf("\n");
-    printf("Type 'words' to see all available words.\n");
-    printf("Type 'quit' to exit.\n");
+    stack_printf("Concise Notation:\n");
+    stack_printf("  c4,                     Play C4 with defaults\n");
+    stack_printf("  c#4, db4, 60,           Sharps, flats, or MIDI numbers\n");
+    stack_printf("  (c4 e4 g4),             Chord (concurrent)\n");
+    stack_printf("  r,                      Rest (silence)\n");
+    stack_printf("  ch! vel! dur!           Set default channel/velocity/duration\n");
+    stack_printf("\n");
+    stack_printf("Word Definitions:\n");
+    stack_printf("  : name ... ;            Define a new word\n");
+    stack_printf("  name N times            Execute word N times total\n");
+    stack_printf("\n");
+    stack_printf("File Operations:\n");
+    stack_printf("  load filename           Load and execute a .stk file\n");
+    stack_printf("  rec / stop / save       Record commands to file\n");
+    stack_printf("  rec-midi / stop / save-midi  Record MIDI events (stack-midi source)\n");
+    stack_printf("  write-mid filename      Write captured events to .mid file\n");
+    stack_printf("  read-mid filename       Read and display .mid file info\n");
+    stack_printf("\n");
+    stack_printf("Generative:\n");
+    stack_printf("  c4|e4,                  Alternative (random selection)\n");
+    stack_printf("  c4 75%%,                 75%% chance to play\n");
+    stack_printf("  seed! seed@ next-random  PRNG functions\n");
+    stack_printf("  [[ ... ]] list-len      List operations\n");
+    stack_printf("  euclidean shuffle pick  Pattern operations\n");
+    stack_printf("\n");
+    stack_printf("Dynamics: ppp pp p mp mf f ff fff\n");
+    stack_printf("Articulation: c4. (staccato) c4> (accent) c4- (tenuto)\n");
+    stack_printf("\n");
+    stack_printf("MIDI Output: midi-output-list midi-output-open midi-output-virtual midi-output-close\n");
+    stack_printf("  (aliases: midi-list midi-open-port midi-open midi-close)\n");
+    stack_printf("MIDI Input: midi-input-list midi-input-open midi-input-virtual midi-input-close\n");
+    stack_printf("  midi-input? midi-input@ midi-input-flush\n");
+    stack_printf("MIDI Control: cc panic\n");
+    stack_printf("Sequences: seq-start seq-end seq-play seq-show\n");
+    stack_printf("Scales: scale-major scale-minor scale-blues ... scales\n");
+    stack_printf("\n");
+    stack_printf("Type 'words' to see all available words.\n");
+    stack_printf("Type 'quit' to exit.\n");
 }
 
 /* ============================================================================
@@ -778,7 +778,7 @@ void op_plus_loop(Stack* s) {
 /* i ( -- n ) Push current loop index */
 void op_i(Stack* s) {
     if (return_stack_top < 2) {
-        printf("i: not inside a do...loop\n");
+        stack_printf("i: not inside a do...loop\n");
         return;
     }
     /* Return stack has pairs: [limit, index] with index at top */
@@ -788,7 +788,7 @@ void op_i(Stack* s) {
 /* j ( -- n ) Push outer loop index */
 void op_j(Stack* s) {
     if (return_stack_top < 4) {
-        printf("j: not inside nested do...loop\n");
+        stack_printf("j: not inside nested do...loop\n");
         return;
     }
     /* Outer loop's index is at return_stack_top - 3 */
@@ -824,7 +824,7 @@ void op_leave(Stack* s) {
     (void)s;
     /* Sets index to limit to exit loop on next iteration */
     if (return_stack_top < 2) {
-        printf("leave: not inside a do...loop\n");
+        stack_printf("leave: not inside a do...loop\n");
         return;
     }
     /* Set index equal to limit */
@@ -836,6 +836,9 @@ static int next_is_comma = 0;
 
 /* Process a single token */
 void process_token(const char* token) {
+    if (stack_interrupted()) {
+        return;
+    }
     Word* word = find_word(token);
 
     if (word == NULL) {
@@ -894,7 +897,7 @@ void process_token(const char* token) {
             int final_depth = stack.top;
             /* REPL only: in files a stray value already fails the next `,` */
             if (final_depth > initial_depth && current_file == NULL) {
-                printf("Note: '%s' left %d item(s) on stack\n",
+                stack_printf("Note: '%s' left %d item(s) on stack\n",
                        token, final_depth - initial_depth);
             }
         }
@@ -981,7 +984,7 @@ static int next_token(const char* input, int* pos, char* out) {
  * Returns 1 if token was consumed, 0 if sequence ended. */
 static int handle_seq_capture_token(const char* word) {
     if (strcmp(word, "[") == 0) {
-        printf("Nested sequences not allowed\n");
+        stack_printf("Nested sequences not allowed\n");
         return 1;
     }
 
@@ -1211,7 +1214,7 @@ void interpret(const char* input) {
                         int32_t limit = return_stack[return_stack_top - 2];
                         int32_t idx = return_stack[return_stack_top - 1];
 
-                        while (idx < limit) {
+                        while (idx < limit && !stack_interrupted()) {
                             return_stack[return_stack_top - 1] = idx;
                             interpret(saved_body);
                             /* Check if leave was called */

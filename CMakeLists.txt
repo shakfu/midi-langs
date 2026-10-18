@@ -11,6 +11,27 @@ endif()
 
 option(BUILD_EXAMPLES "Build language standalone examples" OFF)
 option(BUILD_MHS_MIDI "Build mhs-midi targets (requires MicroHs)" ON)
+# The CLAP plugins have not been built on Windows yet
+if(WIN32)
+    option(BUILD_CLAP "Build CLAP plugins (projects/clap)" OFF)
+else()
+    option(BUILD_CLAP "Build CLAP plugins (projects/clap)" ON)
+endif()
+if(BUILD_CLAP AND UNIX AND NOT APPLE)
+    find_package(X11)
+    find_package(OpenGL COMPONENTS OpenGL GLX)
+    if(NOT X11_FOUND OR NOT OpenGL_OpenGL_FOUND OR NOT OpenGL_GLX_FOUND)
+        message(WARNING "CLAP plugins skipped: they need X11 and OpenGL headers (libx11-dev libgl-dev)")
+        set(BUILD_CLAP OFF)
+    endif()
+endif()
+if(BUILD_CLAP)
+    # Static libraries link into the plugins, which are shared libraries
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    if(APPLE)
+        enable_language(OBJC) # thirdparty/pugl
+    endif()
+endif()
 # Option to enable address and undefined behavior sanitizers
 option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
@@ -85,6 +106,11 @@ add_subdirectory(thirdparty/libuv)
 # Build common music theory library
 add_subdirectory(projects/common)
 
+# Defines midi_langs_add_clap, which language subdirectories call
+if(BUILD_CLAP)
+    add_subdirectory(projects/clap)
+endif()
+
 # Add project subdirectories
 add_subdirectory(projects/stack-midi)
 # pforth-midi has not been built on Windows yet
@@ -138,6 +164,16 @@ if(BUILD_MHS_MIDI)
         # Standalone variants require fmemopen (not available on Windows)
         add_dependencies(all-midi-langs mhs-midi-src mhs-midi-src-zstd mhs-midi-pkg mhs-midi-pkg-zstd)
     endif()
+endif()
+
+# All CLAP plugins and the dev host (`make clap`)
+if(BUILD_CLAP)
+    add_custom_target(clap-plugins DEPENDS clap_dev_host)
+    foreach(lang lua pktpy s7 guile joy stack pforth alda)
+        if(TARGET ${lang}_midi_clap)
+            add_dependencies(clap-plugins ${lang}_midi_clap)
+        endif()
+    endforeach()
 endif()
 
 # Enable testing

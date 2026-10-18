@@ -43,6 +43,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 #include <libremidi/libremidi-c.h>
 #include "scm_prelude.h"
 #include "midi_sleep.h"
+#include "midi_clock.h"
 #include "music_theory.h"
 #include "midi_file.h"
 #include "midi_open.h"
@@ -206,7 +207,7 @@ static void finalize_midi_out(SCM obj) {
             /* Send all notes off before closing */
             for (int ch = 0; ch < 16; ch++) {
                 uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-                libremidi_midi_out_send_message(data->handle, msg, 3);
+                midi_out_send(data->handle, msg, 3);
             }
             libremidi_midi_out_free(data->handle);
         }
@@ -235,6 +236,10 @@ static MidiOutData* get_midi_out_data(SCM obj) {
  * ============================================================================ */
 
 /* (midi-list-ports) -> list of (index name) */
+/* Under a midi_sink (midi_clock.h), Stop and the clip limit end the script here */
+#define THROW_IF_STOPPED() \
+    do { if (midi_clock_cancelled()) scm_throw(scm_from_utf8_symbol("stopped"), SCM_EOL); } while (0)
+
 static SCM g_midi_list_ports(void) {
     if (midi_init_observer() != 0) {
         scm_error(scm_from_utf8_symbol("midi-error"),
@@ -357,7 +362,7 @@ static SCM g_midi_close(SCM obj) {
         /* Send all notes off */
         for (int ch = 0; ch < 16; ch++) {
             uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
         }
         libremidi_midi_out_free(data->handle);
         data->handle = NULL;
@@ -381,6 +386,7 @@ static SCM g_midi_out_p(SCM obj) {
 
 /* (midi-note-on m pitch [velocity] [channel]) */
 static SCM g_midi_note_on(SCM obj, SCM pitch_arg, SCM rest) {
+    THROW_IF_STOPPED();
     MidiOutData *data = get_midi_out_data(obj);
     if (!data->handle) {
         scm_error(scm_from_utf8_symbol("midi-error"),
@@ -414,7 +420,7 @@ static SCM g_midi_note_on(SCM obj, SCM pitch_arg, SCM rest) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
 
     return SCM_UNSPECIFIED;
@@ -422,6 +428,7 @@ static SCM g_midi_note_on(SCM obj, SCM pitch_arg, SCM rest) {
 
 /* (midi-note-off m pitch [velocity] [channel]) */
 static SCM g_midi_note_off(SCM obj, SCM pitch_arg, SCM rest) {
+    THROW_IF_STOPPED();
     MidiOutData *data = get_midi_out_data(obj);
     if (!data->handle) {
         scm_error(scm_from_utf8_symbol("midi-error"),
@@ -455,7 +462,7 @@ static SCM g_midi_note_off(SCM obj, SCM pitch_arg, SCM rest) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(1, channel - 1, pitch, 0);
 
     return SCM_UNSPECIFIED;
@@ -463,6 +470,7 @@ static SCM g_midi_note_off(SCM obj, SCM pitch_arg, SCM rest) {
 
 /* (midi-note m pitch [velocity] [duration] [channel]) - high level */
 static SCM g_midi_note(SCM obj, SCM pitch_arg, SCM rest) {
+    THROW_IF_STOPPED();
     MidiOutData *data = get_midi_out_data(obj);
     if (!data->handle) {
         scm_error(scm_from_utf8_symbol("midi-error"),
@@ -503,7 +511,7 @@ static SCM g_midi_note(SCM obj, SCM pitch_arg, SCM rest) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
 
     /* Wait (scaled for tempo) */
@@ -515,7 +523,7 @@ static SCM g_midi_note(SCM obj, SCM pitch_arg, SCM rest) {
     /* Note off */
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
     msg[2] = 0;
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(1, channel - 1, pitch, 0);
 
     return SCM_UNSPECIFIED;
@@ -523,6 +531,7 @@ static SCM g_midi_note(SCM obj, SCM pitch_arg, SCM rest) {
 
 /* (midi-chord m pitches [velocity] [duration] [channel]) */
 static SCM g_midi_chord(SCM obj, SCM pitches_list, SCM rest) {
+    THROW_IF_STOPPED();
     MidiOutData *data = get_midi_out_data(obj);
     if (!data->handle) {
         scm_error(scm_from_utf8_symbol("midi-error"),
@@ -578,7 +587,7 @@ static SCM g_midi_chord(SCM obj, SCM pitches_list, SCM rest) {
     msg[2] = velocity & 0x7F;
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
         capture_add_event(0, channel - 1, pitches[i], velocity);
     }
 
@@ -593,7 +602,7 @@ static SCM g_midi_chord(SCM obj, SCM pitches_list, SCM rest) {
     msg[2] = 0;
     for (int i = 0; i < count; i++) {
         msg[1] = pitches[i] & 0x7F;
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
         capture_add_event(1, channel - 1, pitches[i], 0);
     }
 
@@ -602,6 +611,7 @@ static SCM g_midi_chord(SCM obj, SCM pitches_list, SCM rest) {
 
 /* (midi-cc m control value [channel]) */
 static SCM g_midi_cc(SCM obj, SCM control_arg, SCM value_arg, SCM rest) {
+    THROW_IF_STOPPED();
     MidiOutData *data = get_midi_out_data(obj);
     if (!data->handle) {
         scm_error(scm_from_utf8_symbol("midi-error"),
@@ -626,7 +636,7 @@ static SCM g_midi_cc(SCM obj, SCM control_arg, SCM value_arg, SCM rest) {
         control & 0x7F,
         value & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(2, channel - 1, control, value);
 
     return SCM_UNSPECIFIED;
@@ -634,6 +644,7 @@ static SCM g_midi_cc(SCM obj, SCM control_arg, SCM value_arg, SCM rest) {
 
 /* (midi-program m program [channel]) */
 static SCM g_midi_program(SCM obj, SCM program_arg, SCM rest) {
+    THROW_IF_STOPPED();
     MidiOutData *data = get_midi_out_data(obj);
     if (!data->handle) {
         scm_error(scm_from_utf8_symbol("midi-error"),
@@ -655,7 +666,7 @@ static SCM g_midi_program(SCM obj, SCM program_arg, SCM rest) {
         0xC0 | ((channel - 1) & 0x0F),
         program & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 2);
+    midi_out_send(data->handle, msg, 2);
 
     return SCM_UNSPECIFIED;
 }
@@ -683,7 +694,7 @@ static SCM g_midi_all_notes_off(SCM obj, SCM rest) {
             123,
             0
         };
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
     }
 
     return SCM_UNSPECIFIED;
@@ -691,6 +702,7 @@ static SCM g_midi_all_notes_off(SCM obj, SCM rest) {
 
 /* (midi-sleep ms) */
 static SCM g_midi_sleep(SCM ms_arg) {
+    THROW_IF_STOPPED();
     int ms = scm_to_int(ms_arg);
     int scaled_ms = scale_duration_for_tempo(ms);
     if (scaled_ms > 0) {
@@ -839,6 +851,7 @@ static SCM g_quantize_to_scale(SCM pitch_arg, SCM root_arg, SCM intervals_list) 
 
 /* (midi-pitch-bend m cents [channel]) - send pitch bend for microtonal */
 static SCM g_midi_pitch_bend(SCM obj, SCM cents_arg, SCM rest) {
+    THROW_IF_STOPPED();
     MidiOutData *data = get_midi_out_data(obj);
     if (!data->handle) {
         scm_error(scm_from_utf8_symbol("midi-error"),
@@ -861,7 +874,7 @@ static SCM g_midi_pitch_bend(SCM obj, SCM cents_arg, SCM rest) {
         bend & 0x7F,
         (bend >> 7) & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
 
     return SCM_UNSPECIFIED;
 }

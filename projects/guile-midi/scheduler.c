@@ -6,6 +6,7 @@
 
 #include "scheduler.h"
 #include "midi_sleep.h"
+#include "midi_clock.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,6 +100,8 @@ static void cleanup_voice(Voice* v) {
  * Timer Callback (runs on main thread via libuv)
  * ============================================================================ */
 
+static void resume_voice(Voice* v);
+
 static void on_timer(uv_timer_t* handle) {
     Voice* v = (Voice*)handle->data;
 
@@ -106,6 +109,10 @@ static void on_timer(uv_timer_t* handle) {
         return;
     }
 
+    resume_voice(v);
+}
+
+static void resume_voice(Voice* v) {
     v->waiting = 0;
 
     /* Call the thunk - it should return ms to wait or #f */
@@ -122,9 +129,13 @@ static void on_timer(uv_timer_t* handle) {
         if (wait_ms < 0) wait_ms = 0;
 
         /* Set wake time and start timer */
-        v->wake_time_ms = now_ms() + (uint64_t)wait_ms;
         v->waiting = 1;
-        uv_timer_start(&v->timer, on_timer, (uint64_t)midi_wait_ms(wait_ms), 0);
+        if (midi_sink_active()) {
+            v->wake_time_ms = midi_clock_ms() + (double)wait_ms;
+        } else {
+            v->wake_time_ms = (double)(now_ms() + (uint64_t)wait_ms);
+            uv_timer_start(&v->timer, on_timer, (uint64_t)midi_wait_ms(wait_ms), 0);
+        }
     } else {
         /* Invalid return - treat as done */
         fprintf(stderr, "Voice '%s': invalid return (expected number or #f)\n",
@@ -205,6 +216,48 @@ int guile_scheduler_active_count(void) {
     return sched.active_count;
 }
 
+int guile_scheduler_next_wake(double *ms) {
+    int found = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        Voice* v = &sched.voices[i];
+        if (v->active && v->waiting && !v->stop_requested && (!found || v->wake_time_ms < *ms)) {
+            *ms = v->wake_time_ms;
+            found = 1;
+        }
+    }
+    return found;
+}
+
+void guile_scheduler_resume_at(double ms) {
+    /* Ids first: a resumed voice that waits 0 ms must wait for the next call */
+    int due[MAX_VOICES];
+    int count = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        Voice* v = &sched.voices[i];
+        if (v->active && v->waiting && !v->stop_requested && v->wake_time_ms <= ms) {
+            due[count++] = v->voice_id;
+        }
+    }
+    for (int i = 0; i < count; i++) {
+        Voice* v = find_voice_by_id(due[i]);
+        if (v && v->waiting && !v->stop_requested) {
+            midi_clock_set_ms(v->wake_time_ms);
+            resume_voice(v);
+        }
+    }
+}
+
+void guile_scheduler_stop_all(void) {
+    sched.running = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        if (sched.voices[i].active) {
+            sched.voices[i].stop_requested = 1;
+            uv_timer_stop(&sched.voices[i].timer);
+            cleanup_voice(&sched.voices[i]);
+        }
+    }
+}
+
 /* ============================================================================
  * Scheme Functions
  * ============================================================================ */
@@ -278,8 +331,14 @@ static SCM g_spawn(SCM thunk, SCM rest) {
     sched.active_count++;
     int voice_id = v->voice_id;
 
-    /* Schedule immediate call (0ms timer) */
-    uv_timer_start(&v->timer, on_timer, 0, 0);
+    if (midi_sink_active()) {
+        /* Starts at the current script time, on the host's next resume */
+        v->wake_time_ms = midi_clock_ms();
+        v->waiting = 1;
+    } else {
+        /* Schedule immediate call (0ms timer) */
+        uv_timer_start(&v->timer, on_timer, 0, 0);
+    }
 
     return scm_from_int(voice_id);
 }
@@ -292,6 +351,16 @@ static SCM g_run(void) {
     }
 
     sched.running = 1;
+
+    if (midi_sink_active()) {
+        double t;
+        while (sched.running && !midi_clock_cancelled() && guile_scheduler_next_wake(&t)) {
+            midi_clock_wait_until(t);
+            guile_scheduler_resume_at(t);
+        }
+        sched.running = 0;
+        return SCM_UNSPECIFIED;
+    }
 
     /* Run the event loop until all voices complete */
     while (sched.active_count > 0 && sched.running) {
@@ -316,8 +385,12 @@ static SCM g_poll(void) {
         return SCM_BOOL_F;
     }
 
-    /* Process any ready timers without blocking */
-    uv_run(sched.loop, UV_RUN_NOWAIT);
+    if (midi_sink_active()) {
+        guile_scheduler_resume_at(midi_clock_ms());
+    } else {
+        /* Process any ready timers without blocking */
+        uv_run(sched.loop, UV_RUN_NOWAIT);
+    }
 
     /* Return #t if voices still active */
     return sched.active_count > 0 ? SCM_BOOL_T : SCM_BOOL_F;
@@ -344,15 +417,7 @@ static SCM g_stop(SCM rest) {
         return SCM_BOOL_F;
     }
 
-    /* Stop all voices */
-    sched.running = 0;
-    for (int i = 0; i < MAX_VOICES; i++) {
-        if (sched.voices[i].active) {
-            sched.voices[i].stop_requested = 1;
-            uv_timer_stop(&sched.voices[i].timer);
-            cleanup_voice(&sched.voices[i]);
-        }
-    }
+    guile_scheduler_stop_all();
     return SCM_UNSPECIFIED;
 }
 

@@ -13,7 +13,7 @@ uv run --no-project --with pytest pytest -q tests/test_docs.py -k 'lua-midi and 
 The first rule that applies picks the interpreter:
 
 1. Under `docs/<interpreter>/`: that interpreter.
-2. In `README.md`: the enclosing `### <interpreter>` section.
+2. In `README.md` and other `docs/` directories, such as `docs/clap/`: the enclosing `### <interpreter>` section.
 3. Otherwise, the fence language: `alda`, `forth` (stack-midi), `joy`, `lua`, `python` (pktpy-midi), `scheme` (s7-midi).
 
 Other fence languages (`sh`, `text`, `c`, `haskell`) are not run. These paths are not collected:

@@ -1026,6 +1026,10 @@ PK_API bool py_pickle_loads(const unsigned char* data, int size) PY_RAISE PY_RET
 PK_API void py_watchdog_begin(py_i64 timeout);
 /// Reset the watchdog.
 PK_API void py_watchdog_end();
+/// midi-langs patch: when set, the VM calls it before each instruction, as it checks the
+/// watchdog; a nonzero result raises `TimeoutError("stopped")`. Lets another thread stop
+/// a running script. `PK_ENABLE_WATCHDOG` must be defined to `1`.
+PK_API extern int (*py_interrupt_hook)(void);
 
 PK_API void py_profiler_begin();
 PK_API void py_profiler_end();

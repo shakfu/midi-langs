@@ -1,0 +1,31 @@
+[expr]
+2 + 3
+[expr_out]
+5
+[error]
+nosuch.call()
+[note]
+m = midi.open()
+m.note_on(60, 100)
+midi.sleep(500)
+m.note_off(60)
+[voices]
+m = midi.open()
+def a():
+    yield from midi.play(m, 60, 100, 500)
+def b():
+    yield from midi.play(m, 64, 100, 1000)
+midi.spawn(a)
+midi.spawn(b)
+[forever]
+m = midi.open()
+while True:
+    m.note(60, 100, 10)
+[busy]
+while True: pass
+[live_voice]
+m = midi.open()
+def forever():
+    while True:
+        yield from midi.play(m, 72, 100, 250)
+midi.spawn(forever)

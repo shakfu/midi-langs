@@ -35,7 +35,7 @@ typedef struct {
     SCM thunk;                     /* The voice procedure */
 
     /* Timing state */
-    uint64_t wake_time_ms;         /* Absolute time to resume */
+    double wake_time_ms;           /* Absolute time to resume; script time under a midi_sink */
     int waiting;                   /* Currently waiting on timer? */
 
     /* libuv timer handle */
@@ -77,5 +77,17 @@ void guile_scheduler_register(void);
 
 /* Check if scheduler has active voices */
 int guile_scheduler_active_count(void);
+
+/* Under a midi_sink (midi_clock.h), voices wait in script time, not on timers,
+ * and a host drives them with these. */
+
+/* Earliest wake time of a waiting voice; returns 0 if no voice waits. */
+int guile_scheduler_next_wake(double *ms);
+
+/* Resume, in slot order, each voice due at or before ms, at its own wake time. */
+void guile_scheduler_resume_at(double ms);
+
+/* Stop every voice. */
+void guile_scheduler_stop_all(void);
 
 #endif /* GUILE_MIDI_SCHEDULER_H */

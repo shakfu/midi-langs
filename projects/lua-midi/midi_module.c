@@ -48,6 +48,7 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 #include "music_theory.h"
 #include "midi_file.h"
 #include "midi_open.h"
+#include "midi_clock.h"
 
 #define MAX_PORTS 64
 #define MIDI_OUT_MT "MidiOut"
@@ -208,7 +209,7 @@ static int midi_out_gc(lua_State *L) {
         /* Send all notes off before closing */
         for (int ch = 0; ch < 16; ch++) {
             uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
         }
         libremidi_midi_out_free(data->handle);
         data->handle = NULL;
@@ -346,7 +347,7 @@ static int l_close(lua_State *L) {
         /* Send all notes off */
         for (int ch = 0; ch < 16; ch++) {
             uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
         }
         libremidi_midi_out_free(data->handle);
         data->handle = NULL;
@@ -384,7 +385,7 @@ static int l_note_on(lua_State *L) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
     return 0;
 }
@@ -412,7 +413,7 @@ static int l_note_off(lua_State *L) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(1, channel - 1, pitch, 0);
     return 0;
 }
@@ -442,7 +443,7 @@ static int l_note(lua_State *L) {
         pitch & 0x7F,
         velocity & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(0, channel - 1, pitch, velocity);
 
     /* Sleep (scaled by tempo) */
@@ -451,7 +452,7 @@ static int l_note(lua_State *L) {
     /* Note off */
     msg[0] = 0x80 | ((channel - 1) & 0x0F);
     msg[2] = 0;
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(1, channel - 1, pitch, 0);
 
     return 0;
@@ -492,7 +493,7 @@ static int l_chord(lua_State *L) {
             pitches[i] & 0x7F,
             velocity & 0x7F
         };
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
         capture_add_event(0, channel - 1, pitches[i], velocity);
     }
 
@@ -506,7 +507,7 @@ static int l_chord(lua_State *L) {
             pitches[i] & 0x7F,
             0
         };
-        libremidi_midi_out_send_message(data->handle, msg, 3);
+        midi_out_send(data->handle, msg, 3);
         capture_add_event(1, channel - 1, pitches[i], 0);
     }
 
@@ -539,7 +540,7 @@ static int l_arpeggio(lua_State *L) {
                 pitch & 0x7F,
                 velocity & 0x7F
             };
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
             capture_add_event(0, channel - 1, pitch, velocity);
 
             /* Sleep (scaled by tempo) */
@@ -548,7 +549,7 @@ static int l_arpeggio(lua_State *L) {
             /* Note off */
             msg[0] = 0x80 | ((channel - 1) & 0x0F);
             msg[2] = 0;
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
             capture_add_event(1, channel - 1, pitch, 0);
         }
         lua_pop(L, 1);
@@ -577,7 +578,7 @@ static int l_cc(lua_State *L) {
         control & 0x7F,
         value & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     capture_add_event(2, channel - 1, control, value);
     return 0;
 }
@@ -599,7 +600,7 @@ static int l_program(lua_State *L) {
         0xC0 | ((channel - 1) & 0x0F),
         program & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 2);
+    midi_out_send(data->handle, msg, 2);
     return 0;
 }
 
@@ -614,12 +615,12 @@ static int l_all_notes_off(lua_State *L) {
         int channel = luaL_checkinteger(L, 2);
         if (channel >= 1 && channel <= 16) {
             uint8_t msg[3] = { 0xB0 | ((channel - 1) & 0x0F), 123, 0 };
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
         }
     } else {
         for (int ch = 0; ch < 16; ch++) {
             uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-            libremidi_midi_out_send_message(data->handle, msg, 3);
+            midi_out_send(data->handle, msg, 3);
         }
     }
     return 0;
@@ -884,7 +885,7 @@ static int l_pitch_bend(lua_State *L) {
         bend & 0x7F,
         (bend >> 7) & 0x7F
     };
-    libremidi_midi_out_send_message(data->handle, msg, 3);
+    midi_out_send(data->handle, msg, 3);
     return 0;
 }
 
@@ -1353,7 +1354,7 @@ void lua_midi_cleanup(void) {
         /* Send all notes off */
         for (int ch = 0; ch < 16; ch++) {
             uint8_t msg[3] = { 0xB0 | ch, 123, 0 };
-            libremidi_midi_out_send_message(default_midi_out, msg, 3);
+            midi_out_send(default_midi_out, msg, 3);
         }
         libremidi_midi_out_free(default_midi_out);
         default_midi_out = NULL;

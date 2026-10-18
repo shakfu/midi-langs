@@ -11,6 +11,7 @@
 #include "alda/scheduler.h"
 #include "alda/midi_backend.h"
 #include "alda/tsf_backend.h"
+#include "midi_clock.h"
 #include <uv.h>
 #include <stdlib.h>
 #include <string.h>
@@ -130,34 +131,34 @@ static void send_event(AldaScheduledEvent* evt) {
             msg[0] = 0x90 | (channel & 0x0F);
             msg[1] = evt->data1 & 0x7F;
             msg[2] = evt->data2 & 0x7F;
-            libremidi_midi_out_send_message(async_sys.midi_out, msg, 3);
+            midi_out_send(async_sys.midi_out, msg, 3);
             break;
 
         case ALDA_EVT_NOTE_OFF:
             msg[0] = 0x80 | (channel & 0x0F);
             msg[1] = evt->data1 & 0x7F;
             msg[2] = 0;
-            libremidi_midi_out_send_message(async_sys.midi_out, msg, 3);
+            midi_out_send(async_sys.midi_out, msg, 3);
             break;
 
         case ALDA_EVT_PROGRAM:
             msg[0] = 0xC0 | (channel & 0x0F);
             msg[1] = evt->data1 & 0x7F;
-            libremidi_midi_out_send_message(async_sys.midi_out, msg, 2);
+            midi_out_send(async_sys.midi_out, msg, 2);
             break;
 
         case ALDA_EVT_CC:
             msg[0] = 0xB0 | (channel & 0x0F);
             msg[1] = evt->data1 & 0x7F;
             msg[2] = evt->data2 & 0x7F;
-            libremidi_midi_out_send_message(async_sys.midi_out, msg, 3);
+            midi_out_send(async_sys.midi_out, msg, 3);
             break;
 
         case ALDA_EVT_PAN:
             msg[0] = 0xB0 | (channel & 0x0F);
             msg[1] = 10;  /* CC 10 = Pan */
             msg[2] = evt->data1 & 0x7F;
-            libremidi_midi_out_send_message(async_sys.midi_out, msg, 3);
+            midi_out_send(async_sys.midi_out, msg, 3);
             break;
 
         case ALDA_EVT_TEMPO:

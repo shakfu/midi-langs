@@ -4,6 +4,7 @@
  */
 
 #include "alda/scheduler.h"
+#include "midi_clock.h"
 #include "alda/midi_backend.h"
 #include <stdlib.h>
 #include <string.h>
@@ -217,8 +218,8 @@ int alda_events_play(AldaContext* ctx) {
     int segment_ms = 0;
     int elapsed_ms = 0;
 
-    /* Play events in order */
-    for (int i = 0; i < ctx->event_count; i++) {
+    /* Play events in order; under a midi_sink, Stop ends playback */
+    for (int i = 0; i < ctx->event_count && !midi_clock_cancelled(); i++) {
         AldaScheduledEvent* evt = &ctx->events[i];
 
         /* Wait until event time */

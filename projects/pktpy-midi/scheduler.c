@@ -7,6 +7,7 @@
 #define PK_IS_PUBLIC_INCLUDE
 #include "pocketpy.h"
 #include "midi_sleep.h"
+#include "midi_clock.h"
 #include "scheduler.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,6 +43,9 @@ static int clock_gettime(int clk_id, struct timespec *tp) {
 /* ============================================================================
  * Static State
  * ============================================================================ */
+
+static void (*error_handler)(void *user, const char *msg) = NULL;
+static void *error_handler_user = NULL;
 
 static SchedulerState sched = {0};
 
@@ -147,6 +151,60 @@ static void on_timer(uv_timer_t* handle) {
  * Resume Processing (called from main thread)
  * ============================================================================ */
 
+static void resume_voice(Voice* v) {
+    v->waiting = 0;
+
+    /* Get the generator from our list */
+    py_Ref gen = get_generator(v->slot_index);
+    if (!gen || py_isnone(gen)) {
+        cleanup_voice(v);
+        return;
+    }
+
+    /* Resume the generator with py_next */
+    py_StackRef p0 = py_peek(0);
+    int status = py_next(gen);
+
+    if (status == 0) {
+        /* StopIteration - generator completed */
+        cleanup_voice(v);
+    } else if (status == 1) {
+        /* Generator yielded a value - should be ms to wait */
+        py_Ref yielded = py_retval();
+        int64_t wait_ms = 0;
+
+        if (py_isint(yielded)) {
+            wait_ms = py_toint(yielded);
+            if (wait_ms < 0) wait_ms = 0;
+        }
+
+        /* Set wake time and start timer */
+        v->waiting = 1;
+        if (midi_sink_active()) {
+            v->wake_time_ms = midi_clock_ms() + (double)wait_ms;
+        } else {
+            v->wake_time_ms = (double)(now_ms() + (uint64_t)wait_ms);
+            uv_timer_start(&v->timer, on_timer, (uint64_t)midi_wait_ms(wait_ms), 0);
+        }
+    } else {
+        /* Error in generator */
+        if (error_handler) {
+            char* exc = py_formatexc();
+            char msg[1024];
+            snprintf(msg, sizeof(msg), "Voice '%s' error: %s\n",
+                     v->name[0] ? v->name : "(unnamed)", exc ? exc : "unknown");
+            error_handler(error_handler_user, msg);
+            PK_FREE(exc);
+        } else {
+            fprintf(stderr, "Voice '%s' error: ",
+                    v->name[0] ? v->name : "(unnamed)");
+            py_printexc();
+        }
+        py_clearexc(p0);
+        cleanup_voice(v);
+    }
+}
+
 static void process_pending_resumes(void) {
     int pending[MAX_VOICES];
     int count;
@@ -165,44 +223,7 @@ static void process_pending_resumes(void) {
             continue;
         }
 
-        v->waiting = 0;
-
-        /* Get the generator from our list */
-        py_Ref gen = get_generator(v->slot_index);
-        if (!gen || py_isnone(gen)) {
-            cleanup_voice(v);
-            continue;
-        }
-
-        /* Resume the generator with py_next */
-        int status = py_next(gen);
-
-        if (status == 0) {
-            /* StopIteration - generator completed */
-            cleanup_voice(v);
-        } else if (status == 1) {
-            /* Generator yielded a value - should be ms to wait */
-            py_Ref yielded = py_retval();
-            int64_t wait_ms = 0;
-
-            if (py_isint(yielded)) {
-                wait_ms = py_toint(yielded);
-                if (wait_ms < 0) wait_ms = 0;
-            }
-
-            /* Set wake time and start timer */
-            v->wake_time_ms = now_ms() + (uint64_t)wait_ms;
-            v->waiting = 1;
-            uv_timer_start(&v->timer, on_timer, (uint64_t)midi_wait_ms(wait_ms), 0);
-        } else {
-            /* Error in generator */
-            fprintf(stderr, "Voice '%s' error: ",
-                    v->name[0] ? v->name : "(unnamed)");
-            py_printexc();
-            py_StackRef p0 = py_peek(0);
-            py_clearexc(p0);
-            cleanup_voice(v);
-        }
+        resume_voice(v);
     }
 }
 
@@ -290,6 +311,53 @@ int pk_scheduler_active_count(void) {
     return sched.active_count;
 }
 
+int pk_scheduler_next_wake(double *ms) {
+    int found = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        Voice* v = &sched.voices[i];
+        if (v->active && v->waiting && !v->stop_requested && (!found || v->wake_time_ms < *ms)) {
+            *ms = v->wake_time_ms;
+            found = 1;
+        }
+    }
+    return found;
+}
+
+void pk_scheduler_resume_at(double ms) {
+    /* Ids first: a resumed voice that yields 0 ms must wait for the next call */
+    int due[MAX_VOICES];
+    int count = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        Voice* v = &sched.voices[i];
+        if (v->active && v->waiting && !v->stop_requested && v->wake_time_ms <= ms) {
+            due[count++] = v->voice_id;
+        }
+    }
+    for (int i = 0; i < count; i++) {
+        Voice* v = find_voice_by_id(due[i]);
+        if (v && v->waiting && !v->stop_requested) {
+            midi_clock_set_ms(v->wake_time_ms);
+            resume_voice(v);
+        }
+    }
+}
+
+void pk_scheduler_stop_all(void) {
+    sched.running = 0;
+    for (int i = 0; i < MAX_VOICES; i++) {
+        if (sched.voices[i].active) {
+            sched.voices[i].stop_requested = 1;
+            uv_timer_stop(&sched.voices[i].timer);
+            cleanup_voice(&sched.voices[i]);
+        }
+    }
+}
+
+void pk_scheduler_set_error_handler(void (*fn)(void *user, const char *msg), void *user) {
+    error_handler = fn;
+    error_handler_user = user;
+}
+
 /* ============================================================================
  * Python Functions
  * ============================================================================ */
@@ -355,8 +423,14 @@ static bool pk_spawn(int argc, py_StackRef argv) {
     int voice_id = v->voice_id;
     uv_mutex_unlock(&sched.mutex);
 
-    /* Schedule immediate resume (0ms timer) */
-    uv_timer_start(&v->timer, on_timer, 0, 0);
+    if (midi_sink_active()) {
+        /* Starts at the current script time, on the host's next resume */
+        v->wake_time_ms = midi_clock_ms();
+        v->waiting = 1;
+    } else {
+        /* Schedule immediate resume (0ms timer) */
+        uv_timer_start(&v->timer, on_timer, 0, 0);
+    }
 
     py_newint(py_retval(), voice_id);
     return true;
@@ -378,6 +452,17 @@ static bool pk_run(int argc, py_StackRef argv) {
     }
 
     sched.running = 1;
+
+    if (midi_sink_active()) {
+        double t;
+        while (sched.running && !midi_clock_cancelled() && pk_scheduler_next_wake(&t)) {
+            midi_clock_wait_until(t);
+            pk_scheduler_resume_at(t);
+        }
+        sched.running = 0;
+        py_newnone(py_retval());
+        return true;
+    }
 
     while (sched.active_count > 0 && sched.running) {
         /* Block until a voice's timer fires, then resume it */
@@ -420,9 +505,13 @@ static bool pk_poll(int argc, py_StackRef argv) {
         return true;
     }
 
-    /* Fire ready timers without blocking, then resume their voices */
-    uv_run(sched.loop, UV_RUN_NOWAIT);
-    process_pending_resumes();
+    if (midi_sink_active()) {
+        pk_scheduler_resume_at(midi_clock_ms());
+    } else {
+        /* Fire ready timers without blocking, then resume their voices */
+        uv_run(sched.loop, UV_RUN_NOWAIT);
+        process_pending_resumes();
+    }
 
     /* Return True if voices still active */
     py_newbool(py_retval(), sched.active_count > 0);
@@ -453,15 +542,7 @@ static bool pk_stop(int argc, py_StackRef argv) {
         return true;
     }
 
-    /* Stop all voices */
-    sched.running = 0;
-    for (int i = 0; i < MAX_VOICES; i++) {
-        if (sched.voices[i].active) {
-            sched.voices[i].stop_requested = 1;
-            uv_timer_stop(&sched.voices[i].timer);
-            cleanup_voice(&sched.voices[i]);
-        }
-    }
+    pk_scheduler_stop_all();
     py_newnone(py_retval());
     return true;
 }

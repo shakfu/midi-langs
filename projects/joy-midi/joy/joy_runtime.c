@@ -3,6 +3,7 @@
  */
 
 #include "joy_runtime.h"
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,6 +43,66 @@ void joy_set_current_context(JoyContext* ctx) {
     g_current_ctx = ctx;
 }
 
+static void (*g_output)(const char* text, size_t len, void* user) = NULL;
+static void* g_output_user = NULL;
+int (*joy_interrupt_hook)(void) = NULL;
+void (*joy_exit_handler)(int code) = NULL;
+
+void joy_set_output(void (*write)(const char* text, size_t len, void* user), void* user) {
+    g_output = write;
+    g_output_user = user;
+}
+
+static int joy_vprint(FILE* stream, const char* fmt, va_list args) {
+    if (!g_output) {
+        return vfprintf(stream, fmt, args);
+    }
+    char buf[1024];
+    va_list copy;
+    va_copy(copy, args);
+    int n = vsnprintf(buf, sizeof(buf), fmt, copy);
+    va_end(copy);
+    if (n < 0) return n;
+    if ((size_t)n < sizeof(buf)) {
+        g_output(buf, (size_t)n, g_output_user);
+    } else {
+        char* big = malloc((size_t)n + 1);
+        if (!big) return -1;
+        vsnprintf(big, (size_t)n + 1, fmt, args);
+        g_output(big, (size_t)n, g_output_user);
+        free(big);
+    }
+    return n;
+}
+
+int joy_printf(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int n = joy_vprint(stdout, fmt, args);
+    va_end(args);
+    return n;
+}
+
+int joy_eprintf(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int n = joy_vprint(stderr, fmt, args);
+    va_end(args);
+    return n;
+}
+
+int joy_putchar(int c) {
+    if (!g_output) return putchar(c);
+    char ch = (char)c;
+    g_output(&ch, 1, g_output_user);
+    return c;
+}
+
+void joy_exit(int code) {
+    if (joy_exit_handler) joy_exit_handler(code);
+    exit(code);
+}
+
 static void joy_do_error(void) {
     if (g_current_ctx && g_current_ctx->error_jmp) {
         longjmp(*g_current_ctx->error_jmp, 1);
@@ -50,7 +111,7 @@ static void joy_do_error(void) {
 }
 
 void joy_error(const char* message) {
-    fprintf(stderr, "Joy error: %s\n", message);
+    joy_eprintf("Joy error: %s\n", message);
     joy_do_error();
 }
 
@@ -59,13 +120,13 @@ void joy_error_type(const char* op, const char* expected, JoyType got) {
         "INTEGER", "FLOAT", "BOOLEAN", "CHAR", "STRING",
         "LIST", "SET", "QUOTATION", "SYMBOL", "FILE"
     };
-    fprintf(stderr, "Joy type error in '%s': expected %s, got %s\n",
+    joy_eprintf("Joy type error in '%s': expected %s, got %s\n",
             op, expected, type_names[got]);
     joy_do_error();
 }
 
 void joy_error_underflow(const char* op, size_t required, size_t actual) {
-    fprintf(stderr, "Joy stack underflow in '%s': need %zu, have %zu\n",
+    joy_eprintf("Joy stack underflow in '%s': need %zu, have %zu\n",
             op, required, actual);
     joy_do_error();
 }
@@ -347,60 +408,60 @@ bool joy_value_truthy(JoyValue value) {
 void joy_value_print(JoyValue value) {
     switch (value.type) {
         case JOY_INTEGER:
-            printf("%lld", (long long)value.data.integer);
+            joy_printf("%lld", (long long)value.data.integer);
             break;
         case JOY_FLOAT:
-            printf("%g", value.data.floating);
+            joy_printf("%g", value.data.floating);
             break;
         case JOY_BOOLEAN:
-            printf("%s", value.data.boolean ? "true" : "false");
+            joy_printf("%s", value.data.boolean ? "true" : "false");
             break;
         case JOY_CHAR:
-            printf("'%c'", value.data.character);
+            joy_printf("'%c'", value.data.character);
             break;
         case JOY_STRING:
-            printf("\"%s\"", value.data.string);
+            joy_printf("\"%s\"", value.data.string);
             break;
         case JOY_LIST:
-            printf("[");
+            joy_printf("[");
             for (size_t i = 0; i < value.data.list->length; i++) {
-                if (i > 0) printf(" ");
+                if (i > 0) joy_printf(" ");
                 joy_value_print(value.data.list->items[i]);
             }
-            printf("]");
+            joy_printf("]");
             break;
         case JOY_SET:
-            printf("{");
+            joy_printf("{");
             bool first = true;
             for (int i = 0; i < 64; i++) {
                 if (value.data.set & (1ULL << i)) {
-                    if (!first) printf(" ");
-                    printf("%d", i);
+                    if (!first) joy_printf(" ");
+                    joy_printf("%d", i);
                     first = false;
                 }
             }
-            printf("}");
+            joy_printf("}");
             break;
         case JOY_QUOTATION:
-            printf("[");
+            joy_printf("[");
             for (size_t i = 0; i < value.data.quotation->length; i++) {
-                if (i > 0) printf(" ");
+                if (i > 0) joy_printf(" ");
                 joy_value_print(value.data.quotation->terms[i]);
             }
-            printf("]");
+            joy_printf("]");
             break;
         case JOY_SYMBOL:
-            printf("%s", value.data.symbol);
+            joy_printf("%s", value.data.symbol);
             break;
         case JOY_FILE:
             if (value.data.file == stdin)
-                printf("<stdin>");
+                joy_printf("<stdin>");
             else if (value.data.file == stdout)
-                printf("<stdout>");
+                joy_printf("<stdout>");
             else if (value.data.file == stderr)
-                printf("<stderr>");
+                joy_printf("<stderr>");
             else
-                printf("<file:%p>", (void*)value.data.file);
+                joy_printf("<file:%p>", (void*)value.data.file);
             break;
     }
 }
@@ -664,12 +725,12 @@ JoyStack* joy_stack_copy(JoyStack* stack) {
 }
 
 void joy_stack_print(JoyStack* stack) {
-    printf("Stack(%zu): ", stack->depth);
+    joy_printf("Stack(%zu): ", stack->depth);
     for (size_t i = 0; i < stack->depth; i++) {
-        if (i > 0) printf(" ");
+        if (i > 0) joy_printf(" ");
         joy_value_print(stack->items[i]);
     }
-    printf("\n");
+    joy_printf("\n");
 }
 
 /* ---------- Dictionary Operations ---------- */
@@ -897,10 +958,13 @@ void joy_context_free(JoyContext* ctx) {
 }
 
 void joy_execute_value(JoyContext* ctx, JoyValue value) {
+    if (joy_interrupt_hook && joy_interrupt_hook()) {
+        joy_error("stopped");
+    }
     if (ctx->trace_enabled) {
-        printf("  exec: ");
+        joy_printf("  exec: ");
         joy_value_print(value);
-        printf("\n");
+        joy_printf("\n");
     }
 
     switch (value.type) {
@@ -930,7 +994,7 @@ void joy_execute_symbol(JoyContext* ctx, const char* name) {
         if (ctx->undef_handler && ctx->undef_handler(ctx, name)) {
             return;  /* Handler processed it */
         }
-        fprintf(stderr, "Undefined word: %s\n", name);
+        joy_eprintf("Undefined word: %s\n", name);
         joy_error("Undefined word");
     }
 

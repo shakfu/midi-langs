@@ -13,18 +13,27 @@ endif()
 
 message(STATUS "Found Guile: ${GUILE_VERSION}")
 
-add_executable(guile_midi
-    main.c
+# MIDI module and scheduler without the REPL, shared by guile_midi and the CLAP plugin
+add_library(guile_midi_core STATIC
     midi_module.c
     scheduler.c
 )
 
-target_include_directories(guile_midi PRIVATE
+target_include_directories(guile_midi_core PUBLIC
     ${GUILE_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/thirdparty/libuv/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Compiler warnings (GCC/Clang only)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(guile_midi_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
+endif()
+
+target_link_libraries(guile_midi_core PUBLIC music_theory midi_file midi_open uv_a)
+
+add_executable(guile_midi main.c)
+target_link_libraries(guile_midi PRIVATE guile_midi_core)
+
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(guile_midi PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
@@ -41,7 +50,7 @@ else()
 endif()
 
 # Add Guile library directories (needed for linker to find guile-3.0)
-target_link_directories(guile_midi PRIVATE ${GUILE_LIBRARY_DIRS})
+target_link_directories(guile_midi_core PUBLIC ${GUILE_LIBRARY_DIRS})
 
 # Option to link Guile statically (default ON for macOS)
 if(APPLE)
@@ -69,45 +78,44 @@ if(GUILE_STATIC)
     message(STATUS "Static GC: ${GC_STATIC_LIB}")
     message(STATUS "Static unistring: ${UNISTRING_STATIC_LIB}")
 
-    target_link_libraries(guile_midi PRIVATE
+    target_link_libraries(guile_midi_core PUBLIC
         ${GUILE_STATIC_LIB}
         ${GMP_STATIC_LIB}
         ${GC_STATIC_LIB}
         ${UNISTRING_STATIC_LIB}
         ffi          # Dynamic - no static available on macOS
         iconv        # Dynamic - system library
-        music_theory
-        midi_file
-        midi_open
-        uv_a
     )
 else()
     # Dynamic linking (default)
-    target_link_libraries(guile_midi PRIVATE
-        ${GUILE_LIBRARIES}
-        music_theory
-        midi_file
-        midi_open
-        uv_a
-    )
+    target_link_libraries(guile_midi_core PUBLIC ${GUILE_LIBRARIES})
 endif()
 
 # Platform-specific dependencies
 if(APPLE)
-    target_link_libraries(guile_midi PRIVATE
+    target_link_libraries(guile_midi_core PUBLIC
         "-framework CoreMIDI"
         "-framework CoreFoundation"
         "-framework CoreAudio"
     )
 elseif(UNIX)
     # Math library needed on Unix
-    target_link_libraries(guile_midi PRIVATE m)
+    target_link_libraries(guile_midi_core PUBLIC m)
     find_package(ALSA)
     if(ALSA_FOUND)
-        target_link_libraries(guile_midi PRIVATE ${ALSA_LIBRARIES})
+        target_link_libraries(guile_midi_core PUBLIC ${ALSA_LIBRARIES})
     endif()
 endif()
 
 add_strip_command(guile_midi)
+
+if(COMMAND midi_langs_add_clap)
+    midi_langs_add_clap(guile_midi_clap
+        NAME guile-midi
+        CLASS_PREFIX MidiLangsGuileMidi
+        SOURCES guile_clap.cpp
+        LIBRARIES guile_midi_core
+    )
+endif()
 
 install(TARGETS guile_midi RUNTIME DESTINATION bin)
