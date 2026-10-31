@@ -412,9 +412,12 @@ void CheckLive(const clap_plugin_t* plugin, std::map<std::string, std::string>& 
 	// without voices it is a loop, which replies only once stopped, so the reply is not awaited.
 	Udp liveVoice;
 	liveVoice.send(cases["live_voice"]);
-	// The datagram may reach the plugin after rendering starts: wait for the first note.
+	// The datagram may reach the plugin after rendering starts: wait for the first note. By
+	// time, not blocks: offline blocks render as fast as the CPU allows, so under load the
+	// datagram could come after any number of them.
 	Events voice;
-	for (int b = 0; b < 2000 && voice.list.empty(); ++b) Process(plugin, voice, -1., false);
+	const auto give_up = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+	while (voice.list.empty() && std::chrono::steady_clock::now() < give_up) Process(plugin, voice, -1., false);
 	for (int b = 0; b < 200; ++b) Process(plugin, voice, -1., false);
 	const size_t played = voice.list.size();
 	check(played >= 6, "live voice keeps playing:" + Describe(voice));

@@ -20,6 +20,10 @@ All notable changes to midi-langs are documented in this file.
 
 ### Fixed
 
+- `make clap-dev` on macOS passed the `.clap` bundle directory to the dev host, which `dlopen` cannot load; it passes the binary inside the bundle.
+
+- `test_clap_host` waited a fixed 2000 offline blocks for a live voice's first note. Offline blocks render as fast as the CPU allows, so under `ctest -j8` the evaluation's datagram could arrive later, and the voice then played into the real-time check. It waits up to 10 s instead.
+
 - **stack-midi async player**: its loop thread cleared `running` as it exited while cleanup read it to decide whether to join, a data race that could leave the thread unjoined. Only the creating thread writes it now. Found by ThreadSanitizer.
 
 ## [0.2.0]

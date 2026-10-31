@@ -85,8 +85,14 @@ clap: configure
 
 # A plugin's editor in a minimal host, MIDI to the first port: make clap-dev CLAP=s7-midi
 CLAP ?= lua-midi
+# On macOS a .clap is a bundle; dlopen needs the binary inside it
+ifeq ($(shell uname),Darwin)
+CLAP_BIN = $(BUILD_DIR)/clap/$(CLAP).clap/Contents/MacOS/$(CLAP)
+else
+CLAP_BIN = $(BUILD_DIR)/clap/$(CLAP).clap
+endif
 clap-dev: clap
-	@./$(BUILD_DIR)/clap_dev_host $(BUILD_DIR)/clap/$(CLAP).clap
+	@./$(BUILD_DIR)/clap_dev_host $(CLAP_BIN)
 
 # mhs-midi variants
 mhs-midi: configure
