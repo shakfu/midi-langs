@@ -15,3 +15,5 @@ while true do n(60, 100, 10) end
 while true do end
 [live_voice]
 spawn(function() while true do play(72, 100, 250) end end)
+[cc]
+midi._out:cc(7, 100)

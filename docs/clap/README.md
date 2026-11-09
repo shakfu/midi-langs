@@ -22,6 +22,18 @@ Copy a plugin to the CLAP folder:
 
 The dev host (`build/clap_dev_host PLUGIN.clap`) plays the plugin at 120 BPM and sends its MIDI to the first MIDI port. With no ports, it creates a virtual port `midi-langs-dev`. `-l` lists ports, `-p N` picks one, and `--virtual NAME` creates one.
 
+## VST3
+
+Each plugin is also built as a VST3, for hosts without CLAP such as Ableton Live:
+
+```sh
+make vst3                     # every plugin, in build/vst3/
+```
+
+`BUILD_VST3` is on wherever `BUILD_CLAP` is. Copy the `.vst3` bundle to `~/Library/Audio/Plug-Ins/VST3/` on macOS, or `~/.vst3/` on Linux. It is self-contained and needs no `.clap`.
+
+The VST3 behaves as the CLAP does. VST3 has no MIDI-effect category, so hosts list it as an instrument. Live refuses an instrument without a note input and an audio output, so the VST3 adds both: the input is ignored and the output is silent. Notes leave as VST3 note events. Control change, program change, pitch bend, channel and poly pressure leave as legacy MIDI CC events. Whether a host passes these to other tracks depends on the host.
+
 ## Modes
 
 The **Live** checkbox selects the mode. Both modes play the same code.
@@ -121,7 +133,8 @@ run()
 - No MIDI input. Sysex is not sent.
 - Live mode ignores the host's transport position and play state.
 - Code that Stop cannot interrupt blocks removing the plugin.
-- Tested on Linux only. The macOS bundles are configured but have not been built or run. Windows is not built.
+- The CLAPs are tested on Linux and macOS. The VST3s are tested on macOS in `test_vst3_host` and in Ableton Live 12.4. Windows is not built.
+- A CLAP and a VST3 of the same language share a UDP port. If both turn UDP on, the second fails to bind and its UDP stays off.
 
 ## Adding a language
 
@@ -129,6 +142,6 @@ run()
 2. Give the scheduler, if any, a script-time path: next wake, resume due voices, stop all. See `projects/lua-midi/scheduler.c`.
 3. Give the interpreter a way for Stop to end running code, polling `midi_clock_cancelled()`.
 4. Move the interpreter into a library, and write an adapter that defines `kLanguage` (`projects/clap/language.hpp`).
-5. Call `midi_langs_add_clap` in the language's `CMakeLists.txt`, add the language to the loop in `tests/CMakeLists.txt`, and write its `clap_test_cases.txt`.
+5. Call `midi_langs_add_clap` in the language's `CMakeLists.txt`; it adds the VST3 too. Add the language to the CLAP and VST3 loops in `tests/CMakeLists.txt` and the plugin loops in the top-level `CMakeLists.txt`, and write its `clap_test_cases.txt`.
 
 Design and threads: [docs/dev/clap.md](../dev/clap.md).

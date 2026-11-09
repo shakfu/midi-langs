@@ -86,6 +86,12 @@ if(GUILE_STATIC)
         ffi          # Dynamic - no static available on macOS
         iconv        # Dynamic - system library
     )
+    if(APPLE)
+        # An object in each binary, not an archive member, so the linker binds libguile's
+        # pipe2 calls to it rather than to libSystem's, which macOS 26 and earlier lack.
+        set(GUILE_PIPE2_COMPAT ${CMAKE_CURRENT_SOURCE_DIR}/pipe2_compat.c)
+        target_sources(guile_midi PRIVATE ${GUILE_PIPE2_COMPAT})
+    endif()
 else()
     # Dynamic linking (default)
     target_link_libraries(guile_midi_core PUBLIC ${GUILE_LIBRARIES})
@@ -113,7 +119,7 @@ if(COMMAND midi_langs_add_clap)
     midi_langs_add_clap(guile_midi_clap
         NAME guile-midi
         CLASS_PREFIX MidiLangsGuileMidi
-        SOURCES guile_clap.cpp
+        SOURCES guile_clap.cpp ${GUILE_PIPE2_COMPAT}
         LIBRARIES guile_midi_core
     )
 endif()

@@ -19,3 +19,5 @@
            125)))
 [busy]
 (let loop () (loop))
+[gc]
+(begin (iota 100000) (gc) (gc) "collected")

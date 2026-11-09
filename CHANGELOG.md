@@ -10,6 +10,8 @@ All notable changes to midi-langs are documented in this file.
 
   Stop has to end running code, so each interpreter got a way to poll it. pocketpy needed a 6-line patch (`py_interrupt_hook`). Joy and stack-midi gained output and interrupt hooks. In s7 and pforth-midi, a tight loop without a MIDI call cannot be stopped.
 
+- **VST3 plugins** for hosts without CLAP, such as Ableton Live: `make vst3` builds `build/vst3/<name>.vst3` for each CLAP plugin, through clap-wrapper (`thirdparty/clap-wrapper`, VST3 SDK in `thirdparty/vst3sdk`). The plugin code is linked in, so a `.vst3` needs no `.clap`. clap-wrapper's VST3 output dropped raw MIDI, the only event the plugins send; the vendored copy carries the fix, with three others, from open clap-wrapper PRs #630 and #632-#634. Live refuses a VST3 instrument without a note input and an audio output, so in the VST3 only, the plugin adds an ignored note input and a silent stereo output. Design: `docs/dev/clap.md`. Tested on macOS in a headless host and in Ableton Live 12.4.
+
 - **Script time** (`projects/common/midi_clock.h`): with a `midi_sink` installed, `midi_out_send` stamps messages with script time, and `midi_sleep` advances it instead of sleeping. Every language but mhs-midi sends through it, and each scheduler has a script-time path. The CLIs install no sink, so their behaviour is unchanged, apart from the fixes below.
 
 ### Changed
@@ -19,6 +21,10 @@ All notable changes to midi-langs are documented in this file.
 - **joy-midi `quit`, `abort`, and errors in `mktime` and `strftime`** go through `joy_exit` and `joy_error`. The two errors now report like other errors instead of exiting.
 
 ### Fixed
+
+- **guile-midi on macOS 26 with the macOS 27 SDK**: every binary aborted at load with `Symbol not found: _pipe2`. Homebrew's static `libguile-3.0.a` calls `pipe2` but leaves out gnulib's replacement, which its dylib carries. The 27 SDK exports `pipe2` from libSystem, so the link succeeded against a function macOS 26 lacks. `projects/guile-midi/pipe2_compat.c` defines it for deployment targets before macOS 27.
+
+- **guile-midi plugin destroyed and created again in one process**: the next garbage collection aborted with `thread_suspend failed`. The collector adopts the thread that initializes Guile without registering it, so Guile never unregistered it, and that thread was the first instance's evaluator, which exits with the plugin. Guile now initializes on a thread that lives for the process. Hosts do this when a device is removed and added again.
 
 - `make clap-dev` on macOS passed the `.clap` bundle directory to the dev host, which `dlopen` cannot load; it passes the binary inside the bundle.
 

@@ -1,0 +1,3 @@
+clap-wrapper 149e7b6 (https://github.com/shakfu/clap-wrapper, branch midi-langs), MIT.
+That is upstream next 5823343 (https://github.com/free-audio/clap-wrapper) plus four fixes, each an open PR: #630 VST3 raw MIDI output, #632 empty macOS deployment target, #633 target_add_vst3_wrapper variable names, #634 VST3 MIDI mapping without parameters. Re-vendor from upstream once they merge.
+Subset: CMakeLists.txt, LICENSE, README.md, cmake/, include/, libs/, src/. Used by projects/clap.

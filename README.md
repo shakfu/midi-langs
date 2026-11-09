@@ -55,7 +55,7 @@ Set `MIDI_LANGS_BACKEND=null` to run any interpreter without a MIDI server: port
 sudo apt-get install libasound2-dev libreadline-dev
 ```
 
-**CLAP plugins:** `make clap` builds each language but mhs-midi as a CLAP note-effect plugin in `build/clap/`, whose MIDI goes to the DAW. On Linux it also needs `libx11-dev libgl-dev`. See [docs/clap](docs/clap/README.md).
+**CLAP plugins:** `make clap` builds each language but mhs-midi as a CLAP note-effect plugin in `build/clap/`, whose MIDI goes to the DAW. On Linux it also needs `libx11-dev libgl-dev`. `make vst3` builds the same plugins as VST3, for Ableton Live and other hosts without CLAP. See [docs/clap](docs/clap/README.md).
 
 ## Quick Examples
 

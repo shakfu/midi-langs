@@ -62,10 +62,24 @@ pocketpy got a patch where s7 and pForth did not. Its only polled check is a CPU
 
 pocketpy, s7, Guile and Lua take output callbacks or ports. Joy and stack-midi printed with `printf` directly; their prints now go through `joy_printf` and `stack_printf`, which write to stdout unless a host redirects them. pForth's `sdTerminalOut`, `sdSleepMillis` and `sdTerminalIn` are renamed at compile time and wrapped in `projects/pforth-midi/pf_io_midi.c`, as `sdTerminalIn` already was.
 
+## VST3
+
+`thirdparty/clap-wrapper` builds each VST3 from the same plugin code. Two layouts were possible:
+
+1. **Nested:** a generic wrapper that loads the `.clap` from its bundle at run time.
+2. **Linked:** the plugin code linked into the VST3, which exports `clap_entry` for the wrapper to find in its own binary.
+
+Linked was chosen: one binary, and no search path that differs by platform (on macOS the wrapper ignores `CLAP_PATH`). Both modules link one OBJECT library. A static archive would drop `plugin.cpp`, since only the exported `clap_entry` refers to it.
+
+- Each module links its own pugl with its own Objective-C class prefix, so a CLAP and a VST3 can load in one host.
+- clap-wrapper's VST3 output dropped `CLAP_EVENT_MIDI`, the only event the plugins send. The vendored copy carries that fix and three others as open upstream PRs; see `thirdparty/clap-wrapper/VERSION.txt`.
+- Live refuses a VST3 instrument without a note input and an audio output ([clap-wrapper#635](https://github.com/free-audio/clap-wrapper/issues/635)). In the VST3 only, found through clap-wrapper's host-information extension, the plugin declares both: the input takes CLAP note events and is ignored, and the output is silent. A MIDI input would make clap-wrapper add about 2100 MIDI-CC mapping parameters.
+
 ## Tests
 
 - `clap_units` (`test_clap_units.cpp`): eval-code selection, clip length and serialisation, clip looping, release on stop, seek and new clip, live ordering.
 - `<lang>_midi_clap` (`test_clap_host.cpp` with each language's `clap_test_cases.txt`): loads the built plugin and checks exact frames for clips and voices, in Live offline and real time, plus Stop, state and the one-instance rule. Only note-on and note-off events are checked, so a language may add program and control changes. `[busy]` is optional, for languages whose Stop interrupts any code.
+- `<lang>_midi_vst3` (`test_vst3_host.cpp`, same cases): loads the VST3 and checks what the wrapper adds: class and buses, notes as VST3 note events on exact frames, and state. `[cc]` is optional; it checks a control change as a legacy MIDI CC event.
 
 Sanitizers, on Linux:
 

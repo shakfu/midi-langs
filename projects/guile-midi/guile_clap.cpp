@@ -16,9 +16,30 @@ void guile_midi_cleanup(void);
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <future>
+#include <mutex>
 #include <thread>
 
 namespace {
+
+// Initializes Guile once per process, on a thread that never exits. The collector adopts the
+// thread that initializes it without registering it, and Guile unregisters only the threads
+// it registered. Initialized on an evaluator thread, which exits when the plugin is destroyed,
+// the next collection aborts with "thread_suspend failed" trying to stop that dead thread.
+void InitGuileOnce()
+{
+	static std::once_flag once;
+	std::call_once(once, [] {
+		std::promise<void> initialized;
+		std::future<void> done = initialized.get_future();
+		std::thread([initialized = std::move(initialized)]() mutable {
+			scm_init_guile();
+			initialized.set_value();
+			for (;;) std::this_thread::sleep_for(std::chrono::hours(24));
+		}).detach();
+		done.wait();
+	});
+}
 
 const char* const kDefaultCode =
 	"; Ctrl+Return evaluates the bracket group around the caret, Ctrl+Shift+Return\n"
@@ -61,7 +82,8 @@ class GuileLanguage : public Language {
 public:
 	GuileLanguage()
 	{
-		scm_init_guile();
+		InitGuileOnce();
+		scm_init_guile(); // this evaluator thread, which Guile unregisters when it exits
 		evalThread_ = scm_gc_protect_object(scm_current_thread());
 		stopper_ = scm_gc_protect_object(scm_c_make_gsubr("%clap-stop", 0, 0, 0, (scm_t_subr)ThrowIfStopped));
 		guile_midi_init();

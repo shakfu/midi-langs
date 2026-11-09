@@ -590,3 +590,22 @@ foreach(lang lua pktpy s7 guile joy stack pforth alda)
         )
     endif()
 endforeach()
+
+# VST3 plugins: the same cases through clap-wrapper, on a second range of ports
+set(VST3_TEST_PORT 57390)
+foreach(lang lua pktpy s7 guile joy stack pforth alda)
+    if(TARGET ${lang}_midi_clap_vst3 AND TARGET test_vst3_host)
+        math(EXPR VST3_TEST_PORT "${VST3_TEST_PORT} + 1")
+        string(TOUPPER ${lang} LANG_UPPER)
+        add_test(
+            NAME ${lang}_midi_vst3
+            COMMAND test_vst3_host ${CMAKE_BINARY_DIR}/vst3/${lang}-midi.vst3
+                ${CMAKE_SOURCE_DIR}/projects/${lang}-midi/clap_test_cases.txt ${VST3_TEST_PORT}
+        )
+        set_tests_properties(${lang}_midi_vst3 PROPERTIES
+            ENVIRONMENT "${LANG_UPPER}_MIDI_CLAP_UDP_PORT=${VST3_TEST_PORT}"
+            TIMEOUT 120
+            LABELS "clap;vst3"
+        )
+    endif()
+endforeach()

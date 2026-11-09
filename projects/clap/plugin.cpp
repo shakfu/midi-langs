@@ -24,6 +24,7 @@
 #include "midi_clock.h"
 
 #include <clap/clap.h>
+#include <clapwrapper/wrapper_host.h>
 
 #include <algorithm>
 #include <atomic>
@@ -358,6 +359,8 @@ private:
 
 	bool init()
 	{
+		auto* wrapper = (const clap_wrapper_host_information_t*)host_->get_extension(host_, CLAP_WRAPPER_HOST_INFORMATION);
+		inVst3_ = wrapper && !strcmp(wrapper->get_wrapper_flavor(host_), CLAP_WRAPPER_HOST_FLAVOR_VST3);
 		evaluator_ = std::make_unique<Evaluator>(tl_, [this](const std::string& text) { log(text); });
 		if (!evaluator_->ok()) {
 			fprintf(stderr, "%s: the interpreter failed to start\n", kLanguage.name);
@@ -387,6 +390,14 @@ private:
 	{
 		const clap_output_events_t* out = process->out_events;
 		const uint32_t frames = process->frames_count;
+		for (uint32_t p = 0; p < process->audio_outputs_count; ++p) { // the VST3's silent output
+			clap_audio_buffer_t& buffer = process->audio_outputs[p];
+			for (uint32_t c = 0; c < buffer.channel_count; ++c) {
+				if (buffer.data32) memset(buffer.data32[c], 0, frames * sizeof(float));
+				if (buffer.data64) memset(buffer.data64[c], 0, frames * sizeof(double));
+			}
+			buffer.constant_mask = ~0ull;
+		}
 		if (!out || frames == 0 || sampleRate_ <= 0.) return CLAP_PROCESS_CONTINUE;
 		auto emit = [out](uint32_t offset, const uint8_t* data, uint8_t size) {
 			clap_event_midi_t ev{};
@@ -627,6 +638,7 @@ private:
 	uint16_t udpPort_ = 0;
 	bool udpOn_ = false;
 	bool wrap_ = true;
+	bool inVst3_ = false; // in clap-wrapper's VST3: adds the buses Live requires
 	unsigned width_ = kEditorWidth, height_ = kEditorHeight;
 	double sampleRate_ = 0.;
 
@@ -643,21 +655,34 @@ private:
 	std::string pendingLog_;
 };
 
+// In the VST3 only, a note input (ignored) and a silent stereo output: Live refuses a VST3
+// instrument without both. The input is not MIDI: clap-wrapper would add about 2100 MIDI-CC
+// mapping parameters for an input the plugin ignores.
 const clap_plugin_note_ports_t Plugin::kNotePorts = {
-	[](const clap_plugin_t*, bool isInput) -> uint32_t { return isInput ? 0 : 1; },
-	[](const clap_plugin_t*, uint32_t index, bool isInput, clap_note_port_info_t* info) {
-		if (isInput || index != 0) return false;
-		info->id = 0;
-		info->supported_dialects = CLAP_NOTE_DIALECT_MIDI;
-		info->preferred_dialect = CLAP_NOTE_DIALECT_MIDI;
-		snprintf(info->name, sizeof(info->name), "%s", "midi out");
+	[](const clap_plugin_t* p, bool isInput) -> uint32_t { return !isInput || self(p)->inVst3_ ? 1 : 0; },
+	[](const clap_plugin_t* p, uint32_t index, bool isInput, clap_note_port_info_t* info) {
+		if (index != 0 || (isInput && !self(p)->inVst3_)) return false;
+		info->id = isInput ? 1 : 0;
+		const uint32_t dialect = isInput ? CLAP_NOTE_DIALECT_CLAP : CLAP_NOTE_DIALECT_MIDI;
+		info->supported_dialects = dialect;
+		info->preferred_dialect = dialect;
+		snprintf(info->name, sizeof(info->name), "%s", isInput ? "midi in" : "midi out");
 		return true;
 	},
 };
 
 const clap_plugin_audio_ports_t Plugin::kAudioPorts = {
-	[](const clap_plugin_t*, bool) -> uint32_t { return 0; },
-	[](const clap_plugin_t*, uint32_t, bool, clap_audio_port_info_t*) { return false; },
+	[](const clap_plugin_t* p, bool isInput) -> uint32_t { return !isInput && self(p)->inVst3_ ? 1 : 0; },
+	[](const clap_plugin_t* p, uint32_t index, bool isInput, clap_audio_port_info_t* info) {
+		if (index != 0 || isInput || !self(p)->inVst3_) return false;
+		info->id = 0;
+		snprintf(info->name, sizeof(info->name), "%s", "silence");
+		info->flags = CLAP_AUDIO_PORT_IS_MAIN;
+		info->channel_count = 2;
+		info->port_type = CLAP_PORT_STEREO;
+		info->in_place_pair = CLAP_INVALID_ID;
+		return true;
+	},
 };
 
 const clap_plugin_state_t Plugin::kState = {

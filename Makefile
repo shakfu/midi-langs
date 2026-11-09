@@ -26,7 +26,7 @@ PRELUDE_HEADERS := $(HEADER_SCM) $(HEADER_LUA) $(HEADER_PY) $(HEADER_GUILE)
 		mhs-midi-src mhs-midi-src-zstd \
 		mhs-midi-pkg mhs-midi-pkg-zstd \
 		test-joy test-joy-passing test-joy-failing test-joy-verbose \
-		clap clap-dev
+		clap clap-dev vst3
 
 all: build
 
@@ -93,6 +93,10 @@ CLAP_BIN = $(BUILD_DIR)/clap/$(CLAP).clap
 endif
 clap-dev: clap
 	@./$(BUILD_DIR)/clap_dev_host $(CLAP_BIN)
+
+# VST3 plugins, in build/vst3/
+vst3: configure
+	@$(CMAKE) --build $(BUILD_DIR) --target vst3-plugins
 
 # mhs-midi variants
 mhs-midi: configure
@@ -186,6 +190,7 @@ help:
 	@echo "CLAP plugins (build/clap/):"
 	@echo "  clap             Build all CLAP plugins and the dev host"
 	@echo "  clap-dev         Open CLAP=<name> (default lua-midi) in the dev host"
+	@echo "  vst3             Build all VST3 plugins, in build/vst3/"
 	@echo ""
 	@echo "mhs-midi variants:"
 	@echo "  mhs-midi         Non-standalone (requires MHSDIR)"

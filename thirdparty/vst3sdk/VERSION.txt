@@ -1,0 +1,2 @@
+VST 3 SDK v3.8.0_build_66 (https://github.com/steinbergmedia/vst3sdk), MIT. The version thirdparty/clap-wrapper pins.
+Subset: CMakeLists.txt (clap-wrapper reads its version), LICENSE.txt, README.md, base/, pluginterfaces/, public.sdk/source/ and public.sdk/LICENSE.txt. Used by projects/clap. Without public.sdk/source/main/macexport.exp and public.sdk/source/vst/auwrapper/auwrapper_prefix.pch, which .gitignore excludes and the build does not use.

@@ -12,6 +12,7 @@
 //   busy             optional: a loop that neither sends nor sleeps, for languages whose Stop
 //                    interrupts any code
 //   live_voice       a voice, or a loop, that plays key 72 forever
+//   gc               optional: code that forces a garbage collection, run in the second instance
 
 #include <clap/clap.h>
 
@@ -502,6 +503,11 @@ int main(int argc, char** argv)
 		Events ev = Play(again, 0., (int)(kBeatFrames / kBlock) + 1);
 		check(ev.list.size() == 2 && Is(ev.list[0], 0, 0x90, 60) && Is(ev.list[1], kBeatFrames, 0x80, 60),
 		      "the saved clip plays in a new instance:" + Describe(ev));
+		if (cases.count("gc")) {
+			std::string reply = Eval(cases["gc"]);
+			check(!reply.empty() && reply.find("error") == std::string::npos,
+			      "garbage collection in a new instance: " + reply);
+		}
 		again->deactivate(again);
 		again->destroy(again);
 	}
