@@ -41,6 +41,7 @@ module Midi (
     midiReadMid,
 ) where
 
+import Control.Concurrent (threadDelay)
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
@@ -62,6 +63,7 @@ foreign import ccall "midi_ffi.h midi_program" c_midi_program :: CInt -> CInt ->
 foreign import ccall "midi_ffi.h midi_pitch_bend" c_midi_pitch_bend :: CInt -> CInt -> IO CInt
 foreign import ccall "midi_ffi.h midi_cents_to_bend" c_midi_cents_to_bend :: CInt -> IO CInt
 foreign import ccall "midi_ffi.h midi_sleep" c_midi_sleep :: CInt -> IO ()
+foreign import ccall "midi_ffi.h midi_script_time" c_midi_script_time :: IO CInt
 foreign import ccall "midi_ffi.h midi_panic" c_midi_panic :: IO ()
 foreign import ccall "midi_ffi.h midi_seed_random" c_midi_seed_random :: CInt -> IO ()
 foreign import ccall "midi_ffi.h midi_random" c_midi_random :: IO CInt
@@ -165,9 +167,14 @@ midiPitchBend ch val = do
     _ <- c_midi_pitch_bend (fromIntegral ch) (fromIntegral val)
     return ()
 
--- | Sleep for milliseconds
+-- | Sleep for milliseconds. In the plugin, script time: a threadDelay, so other
+-- threads (voices) run meanwhile, each at its own time.
 midiSleep :: Int -> IO ()
-midiSleep ms = c_midi_sleep (fromIntegral ms)
+midiSleep ms = do
+    scripted <- c_midi_script_time
+    if scripted /= 0
+        then threadDelay (max 0 ms * 1000)
+        else c_midi_sleep (fromIntegral ms)
 
 -- | Panic - all notes off
 midiPanic :: IO ()

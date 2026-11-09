@@ -51,6 +51,10 @@ int midi_cents_to_bend(int cents);
 
 /* Sleep for given milliseconds */
 void midi_sleep(int ms);
+/* Nonzero when script time runs the clock (a plugin's midi_sink is installed). */
+int midi_script_time(void);
+/* Removes --no-sleep from argv, after which MIDI sleeps return at once; returns the new argc. */
+int midi_strip_no_sleep(int argc, char **argv);
 
 /* All notes off on all channels */
 void midi_panic(void);

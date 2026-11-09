@@ -293,11 +293,11 @@ main = do
 module TimesM(main) where
 import MusicPerform
 
-pattern = line [c4, e4, g4, e4] mf sixteenth
+riff = line [c4, e4, g4, e4] mf sixteenth
 bassNote = note c3 ff quarter
 
--- Repeat pattern 4 times over a bass note
-piece = timesM 4 pattern ||| timesM 4 bassNote
+-- Repeat riff 4 times over a bass note
+piece = timesM 4 riff ||| timesM 4 bassNote
 
 main :: IO ()
 main = do
@@ -342,7 +342,7 @@ Start the REPL:
 
 ### Quick Test with MidiPerform
 
-```haskell
+```haskell norun
 > import MidiPerform
 > open
 MIDI open
@@ -354,7 +354,7 @@ MIDI open
 
 ### Generative Session
 
-```haskell
+```haskell norun
 > import MidiPerform
 > open
 MIDI open
@@ -367,7 +367,7 @@ MIDI open
 
 ### Pure Composition in REPL
 
-```haskell
+```haskell norun
 > import MusicPerform
 > midiOpenVirtual "repl"
 > let m = line [c4, e4, g4] mf quarter
@@ -379,7 +379,7 @@ MIDI open
 
 ### List MIDI Ports
 
-```haskell
+```haskell norun
 > import MidiPerform
 > ports
 2 MIDI port(s):
@@ -399,8 +399,8 @@ These functions are pure and use explicit seeds for reproducibility.
 module EuclideanPure(main) where
 import MusicPerform
 
--- Generate rhythm pattern: 3 hits over 8 steps
-pattern = euclideanRhythm 3 8  -- [True,False,False,True,False,False,True,False]
+-- Generate rhythm rhythm: 3 hits over 8 steps
+rhythm = euclideanRhythm 3 8  -- [True,False,False,True,False,False,True,False]
 
 -- Convert to music
 rhythmToMusic :: [Bool] -> Pitch -> Velocity -> Duration -> Music

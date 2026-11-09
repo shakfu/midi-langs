@@ -1,12 +1,13 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Float(Float) where
+module Data.Float(Float, floatToDouble, doubleToFloat, castWord32ToFloat, castFloatToWord32) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bits.Base
 import Data.Bool
 import Data.Char
+import Data.Double(Double)
 import Data.Enum
 import Data.Eq
 import Data.Floating
@@ -23,6 +24,7 @@ import Data.RealFloat
 import Data.RealFrac
 import Data.Num
 import Data.Word.Word
+import Data.Word.Word32
 import {-# SOURCE #-} Numeric.FormatFloat(showFloat)
 import Numeric.Show(showSignedNeg)
 import Text.Show
@@ -114,6 +116,7 @@ instance Floating Float where
   asin x = casin x
   acos x = cacos x
   atan x = catan x
+  (**) x y = cpow x y
 
 foreign import ccall "logf"  clog  :: Float -> Float
 foreign import ccall "expf"  cexp  :: Float -> Float
@@ -126,6 +129,7 @@ foreign import ccall "acosf" cacos :: Float -> Float
 foreign import ccall "atanf" catan :: Float -> Float
 foreign import ccall "atan2f" catan2 :: Float -> Float -> Float
 foreign import ccall "scalbnf" cscalbn :: Float -> Int -> Float
+foreign import ccall "powf"  cpow  :: Float -> Float -> Float
 
 -- Assumes 32/64 bit floats
 instance RealFloat Float where
@@ -197,3 +201,15 @@ scaleFloat32 n x = cscalbn x n
 
 encodeFloat32 :: Integer -> Int -> Float
 encodeFloat32 mant expn = scaleFloat32 expn (fromInteger mant)
+
+floatToDouble :: Float -> Double
+floatToDouble = primFloatToDouble
+
+doubleToFloat :: Double -> Float
+doubleToFloat = primDoubleToFloat
+
+castWord32ToFloat :: Word32 -> Float
+castWord32ToFloat w = primWordToFloatRaw (primUnsafeCoerce w) -- Safety: Word32 is a newtype over Word
+
+castFloatToWord32 :: Float -> Word32
+castFloatToWord32 f = primUnsafeCoerce (primWordFromFloatRaw f) -- Safety: Word32 is a newtype over Word

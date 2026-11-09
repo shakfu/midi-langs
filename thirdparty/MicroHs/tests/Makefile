@@ -1,11 +1,11 @@
 MHSTARGET=
 MHSOUTPUT=
 MHS=../bin/gmhs
-TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT) -i../lib
+TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT)
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest:	info test errtest testforimp testforexp testforimpexp testapplysp
+alltest: info test errtest testforimp testforexp testforimpexp testapplysp testpipenonblockio testpreprocessorpaths
 # interactivetest
 
 cache:
@@ -20,6 +20,7 @@ test:
 #	$(TMHS) IOTest     && (echo q | $(EVAL) a bb ccc | sed 's/^[0-9]*ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
 	$(TMHS) Serdes     && $(EVAL) > Serdes.out     && diff Serdes.ref Serdes.out
 	$(TMHS) StringTest && $(EVAL) > StringTest.out && diff StringTest.ref StringTest.out
+	$(TMHS) LargeGetLine && $(EVAL) > LargeGetLine.out && diff LargeGetLine.ref LargeGetLine.out
 	$(TMHS) ListTest   && $(EVAL) > ListTest.out   && diff ListTest.ref ListTest.out
 	$(TMHS) Fac        && $(EVAL) > Fac.out        && diff Fac.ref Fac.out
 	$(TMHS) Misc       && $(EVAL) > Misc.out       && diff Misc.ref Misc.out
@@ -28,6 +29,8 @@ test:
 	$(TMHS) Arith64    && $(EVAL) > Arith64.out    && diff Arith64.ref Arith64.out
 	$(TMHS) Guard      && $(EVAL) > Guard.out      && diff Guard.ref Guard.out
 	$(TMHS) Newtype    && $(EVAL) > Newtype.out    && diff Newtype.ref Newtype.out
+	$(TMHS) HashOper   && $(EVAL) > HashOper.out   && diff HashOper.ref HashOper.out
+	$(TMHS) RecordBind && $(EVAL) > RecordBind.out && diff RecordBind.ref RecordBind.out
 	$(TMHS) LitMatch   && $(EVAL) > LitMatch.out   && diff LitMatch.ref LitMatch.out
 	$(TMHS) Word       && $(EVAL) > Word.out       && diff Word.ref Word.out
 	$(TMHS) Integer    && $(EVAL) > Integer.out    && diff Integer.ref Integer.out
@@ -104,11 +107,13 @@ test:
 	$(TMHS) Forall     && $(EVAL) > Forall.out     && diff Forall.ref Forall.out
 	$(TMHS) Block      && $(EVAL) > Block.out      && diff Block.ref Block.out
 	$(TMHS) Fork       && $(EVAL) > Fork.out       && diff Fork.ref Fork.out
-	$(TMHS) Concur     && $(EVAL) > Concur.out     && diff Concur.ref Concur.out
+#	$(TMHS) Concur     && $(EVAL) > Concur.out     && diff Concur.ref Concur.out
 	$(TMHS) MVar       && $(EVAL) > MVar.out       && diff MVar.ref MVar.out
 	$(TMHS) Delay      && $(EVAL) > Delay.out      && diff Delay.ref Delay.out
 	$(TMHS) ThrSt      && $(EVAL) > ThrSt.out      && diff ThrSt.ref ThrSt.out
 	$(TMHS) Throw      && $(EVAL) > Throw.out      && diff Throw.ref Throw.out
+	$(TMHS) ThrowMVar  && $(EVAL) > ThrowMVar.out  && diff ThrowMVar.ref ThrowMVar.out
+	$(TMHS) ThrowToSync && $(EVAL) > ThrowToSync.out && diff ThrowToSync.ref ThrowToSync.out
 	$(TMHS) RtsExn     && $(EVAL) > RtsExn.out     && diff RtsExn.ref RtsExn.out
 	$(TMHS) Mask       && $(EVAL) > Mask.out       && diff Mask.ref Mask.out
 	$(TMHS) EmptyData  && $(EVAL) > EmptyData.out  && diff EmptyData.ref EmptyData.out
@@ -119,27 +124,63 @@ test:
 	$(TMHS) Logarithms && $(EVAL) > Logarithms.out && diff Logarithms.ref Logarithms.out
 	$(TMHS) Builder    && $(EVAL) > Builder.out    && diff Builder.ref Builder.out
 	$(TMHS) Unboxed    && $(EVAL) > Unboxed.out    && diff Unboxed.ref Unboxed.out
+	$(TMHS) LazyST     && $(EVAL) > LazyST.out     && diff LazyST.ref LazyST.out
+	$(TMHS) Errno      && $(EVAL) > Errno.out      && diff Errno.ref Errno.out
+	$(TMHS) QualString && $(EVAL) > QualString.out && diff QualString.ref QualString.out
+	$(TMHS) MD5        && $(EVAL) > MD5.out        && diff MD5.ref MD5.out
+	$(TMHS) Interpolate && $(EVAL) > Interpolate.out && diff Interpolate.ref Interpolate.out
+	$(TMHS) DerivingBuiltin
+
+.PHONY: testpreprocessorpaths
+testpreprocessorpaths:
+	sh preprocessor-paths.sh $(TMHS)
 
 testforimp:
-	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
+	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
 
 testforimpjs:
-	MHSDIR=.. $(TMHS) -temscripten ForImpJS -of.js && node f.js > ForImpJS.out && diff ForImpJS.ref ForImpJS.out
+	$(TMHS) -temscripten ForImpJS -of.js && node f.js > ForImpJS.out && diff ForImpJS.ref ForImpJS.out
+
+# `foreign export javascript`: the exports are EMSCRIPTEN_KEEPALIVE, so only
+# mhs_init needs listing; the program is compiled as a library (no main).
+testforexpjs:
+	$(TMHS) -c ForExpJS -oForExpJS_c.c
+	emcc -O1 -I../src/runtime -I../src/runtime/unix -DUSE_SYSTEM_RAW -Wno-address-of-packed-member ForExpJS_c.c ../src/runtime/eval.c -lm -sEXPORTED_FUNCTIONS=_mhs_init -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -sMODULARIZE=1 -sEXPORT_NAME=FEJS -ofejs.mjs
+	node ForExpJS.mjs > ForExpJS.out && diff ForExpJS.ref ForExpJS.out && rm -f fejs.mjs ForExpJS_c.c
 
 testforexp:
-	MHSDIR=.. $(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out
+	$(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out
 
 testforimpexp:
-	MHSDIR=.. $(TMHS) -optc -I. Callback hsimp.c -oCallback.exe && ./Callback.exe > Callback.out && diff Callback.ref Callback.out
+	$(TMHS) -optc -I. Callback hsimp.c -oCallback.exe && ./Callback.exe > Callback.out && diff Callback.ref Callback.out
 
 testapplysp:
-	MHSDIR=.. $(TMHS) -optc -I. ApplySP hsasp.c -oApplySP.exe && ./ApplySP.exe > ApplySP.out && diff ApplySP.ref ApplySP.out
+	$(TMHS) -optc -I. ApplySP hsasp.c -oApplySP.exe && ./ApplySP.exe > ApplySP.out && diff ApplySP.ref ApplySP.out
+
+testpipenonblockio:
+	MHSDIR=.. $(TMHS) -oPipeNonBlockIO.exe PipeNonBlockIO && ./PipeNonBlockIO.exe > PipeNonBlockIO.out && diff PipeNonBlockIO.ref PipeNonBlockIO.out
+
+testpipenonblockioem:
+	$(TMHS) PipeNonBlockIO && $(EVAL) > PipeNonBlockIO.out && diff PipeNonBlockIO.ref PipeNonBlockIO.out
+
+# A FILE.js argument embeds a JavaScript file in the output (--pre-js for emscripten)
+testjsflag:
+	cp JSFlag.pre jsflag.js
+	$(TMHS) jsflag.js JSFlag && $(EVAL) > JSFlag.out && diff JSFlag.ref JSFlag.out && rm -f jsflag.js
+
+# The .js files in the jsbits directory of a package are embedded too.
+# Install JSBitsLib as package JSBits, with jsbits as MicroCabal installs js-sources.
+testjsbits:
+	rm -rf jsbitsdb
+	$(MHS) -ijsbitspkg -PJSBits-1.0 -oJSBits-1.0.pkg JSBitsLib && $(MHS) -Q JSBits-1.0.pkg jsbitsdb
+	mkdir -p jsbitsdb/packages/JSBits-1.0/jsbits && cp jsbitspkg/jsbitslib.pre jsbitsdb/packages/JSBits-1.0/jsbits/jsbitslib.js
+	$(TMHS) -ajsbitsdb JSBits && $(EVAL) > JSBits.out && diff JSBits.ref JSBits.out && rm -rf jsbitsdb JSBits-1.0.pkg
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
 
 interactivetest:
-	$(TMHS) < itest.in | sed -e '1,/^>/d' > itest.out && diff itest.ref itest.out
+	$(TMHS) --stdin < itest.in | sed -e '1,/^>/d' > itest.out && diff itest.ref itest.out
 
 nfib:
 	$(TMHS) Nfib && $(EVAL)

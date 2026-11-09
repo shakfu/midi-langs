@@ -8,15 +8,15 @@ module MicroHs.Exp(
   app2, app3,
   allVarsExp, freeVars,
   lams, apps,
-  mkForExp, getForExp,
+  mkForExp, getForExp, IsJavascript,
   ) where
-import qualified Prelude(); import MHSPrelude hiding((<>))
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import MicroHs.Ident
 import MicroHs.Expr(Lit(..), showLit, CType(..))
 import MicroHs.List
-import Text.PrettyPrint.HughesPJLite
+import Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
 
 type PrimOp = String
@@ -26,7 +26,7 @@ data Exp
   | App Exp Exp
   | Lam Ident Exp
   | Lit Lit
-  deriving (Eq)
+  deriving (Eq, Show)
 
 instance NFData Exp where
   rnf (Var a) = rnf a
@@ -40,13 +40,17 @@ app2 f a1 a2 = App (App f a1) a2
 app3 :: Exp -> Exp -> Exp -> Exp -> Exp
 app3 f a1 a2 a3 = App (app2 f a1 a2) a3
 
-instance Show Exp where
-  show = render . ppExp
+--instance Show Exp where
+--  show = render . ppExp
+
+instance Pretty Exp where
+  pPrintPrec _ _ = ppExp
 
 ppExp :: Exp -> Doc
+ppExp (App (Lam i b) e) =
+  parens $ sep [text "let" <+> ppIdent i <+> text "=" <+> ppExp e, text "in" <+> ppExp b]
 ppExp ae =
   case ae of
---    Let i e b -> sep [ text "let" <+> ppIdent i <+> text "=" <+> ppExp e, text "in" <+> ppExp b ]
     Var i -> ppIdent i
     App f a -> parens $ ppExp f <+> ppExp a
     Lam i e -> parens $ text "\\" <> ppIdent i <> text "." <+> ppExp e
@@ -97,11 +101,14 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 -- Encoding for 'foreign export' definitions.
-mkForExp :: Exp -> CType -> Exp
-mkForExp e t = app2 cfe e cty
-  where cty = Lit $ LCType t
-        cfe = Lit $ LPrim "FE"
+type IsJavascript = Bool
 
-getForExp :: Exp -> Maybe (Exp, CType)
-getForExp (App (App (Lit (LPrim "FE")) e) (Lit (LCType t))) = Just (e, t)
+mkForExp :: IsJavascript -> Exp -> CType -> Exp
+mkForExp js e t = app2 cfe e cty
+  where cty = Lit $ LCType t
+        cfe = Lit $ LPrim $ if js then "FEJS" else "FE"
+
+getForExp :: Exp -> Maybe (IsJavascript, Exp, CType)
+getForExp (App (App (Lit (LPrim "FE")) e) (Lit (LCType t))) = Just (False, e, t)
+getForExp (App (App (Lit (LPrim "FEJS")) e) (Lit (LCType t))) = Just (True, e, t)
 getForExp _ = Nothing

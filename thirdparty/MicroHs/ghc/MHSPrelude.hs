@@ -1,6 +1,16 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE CPP #-}
-module MHSPrelude(module Prelude, module Control.DeepSeq, module Control.Arrow, module MHSPrelude, Type, Int64, HasCallStack) where
+module MHSPrelude(
+  module Prelude,
+  module Control.DeepSeq,
+  module Control.Arrow,
+  module Data.Version,
+  module Text.Read,
+  module MHSPrelude,
+  Type,
+  Int64,
+  HasCallStack
+  ) where
 import Prelude
 import Control.Arrow(first, second)
 import Control.DeepSeq
@@ -9,10 +19,12 @@ import Data.Int
 import Data.Maybe
 import Data.List
 import Data.Text(Text, append, pack)
+import Data.Version
 import GHC.Stack
 import Data.Kind
 import System.Environment
 import System.IO
+import Text.Read(readMaybe)
 
 #include "MachDeps.h"
 
@@ -40,6 +52,13 @@ stripSuffix s t =
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM path m = do
   r <- (try $ openFile path m) :: IO (Either IOError Handle)
+  case r of
+    Left _ -> return Nothing
+    Right h -> return (Just h)
+
+openBinaryFileM :: FilePath -> IOMode -> IO (Maybe Handle)
+openBinaryFileM path m = do
+  r <- (try $ openBinaryFile path m) :: IO (Either IOError Handle)
   case r of
     Left _ -> return Nothing
     Right h -> return (Just h)
@@ -73,6 +92,9 @@ appendDot x y = x `append` pack "." `append` y
 
 wantGMP :: Bool
 wantGMP = False
+
+wantImath :: Bool
+wantImath = False
 
 compiledWithMhs :: Bool
 compiledWithMhs = False

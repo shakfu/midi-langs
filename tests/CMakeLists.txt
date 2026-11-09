@@ -462,6 +462,16 @@ set_tests_properties(mhs_standalone_compile PROPERTIES
     LABELS "integration"
 )
 
+# A compiled program that sends MIDI links every MIDI library
+add_test(
+    NAME mhs_standalone_compile_midi
+    COMMAND sh -c "TMPEXE=$(mktemp) && $<TARGET_FILE:mhs-midi-src> -o\$TMPEXE ${CMAKE_CURRENT_SOURCE_DIR}/mhs/TestCompileMidi.hs && MIDI_LANGS_BACKEND=null \$TMPEXE; STATUS=\$?; rm -f \$TMPEXE; exit \$STATUS"
+)
+set_tests_properties(mhs_standalone_compile_midi PROPERTIES
+    TIMEOUT 60
+    LABELS "integration"
+)
+
 endif() # NOT WIN32
 
 # Cross-platform tests (work on both Unix and Windows)
@@ -574,7 +584,7 @@ if(TARGET test_clap_units)
 endif()
 # One test per plugin, each on its own UDP port so they can run in parallel
 set(CLAP_TEST_PORT 57290)
-foreach(lang lua pktpy s7 guile joy stack pforth alda)
+foreach(lang lua pktpy s7 guile joy stack pforth alda mhs)
     if(TARGET ${lang}_midi_clap)
         math(EXPR CLAP_TEST_PORT "${CLAP_TEST_PORT} + 1")
         string(TOUPPER ${lang} LANG_UPPER)
@@ -593,7 +603,7 @@ endforeach()
 
 # VST3 plugins: the same cases through clap-wrapper, on a second range of ports
 set(VST3_TEST_PORT 57390)
-foreach(lang lua pktpy s7 guile joy stack pforth alda)
+foreach(lang lua pktpy s7 guile joy stack pforth alda mhs)
     if(TARGET ${lang}_midi_clap_vst3 AND TARGET test_vst3_host)
         math(EXPR VST3_TEST_PORT "${VST3_TEST_PORT} + 1")
         string(TOUPPER ${lang} LANG_UPPER)

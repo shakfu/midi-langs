@@ -101,6 +101,10 @@ primFloatFromInt64 :: Int64 -> Float
 primFloatFromInt64 = _primitive "Itof"
 primFloatFromInt :: Int -> Float
 primFloatFromInt = _primitive "itof"
+primFloatFromWord :: Word -> Float
+primFloatFromWord = _primitive "utof"
+primFloatToInt :: Float -> Int
+primFloatToInt = _primitive "ftoi"
 
 primDoubleAdd :: Double -> Double -> Double
 primDoubleAdd  = _primitive "d+"
@@ -129,17 +133,30 @@ primDoubleFromInt64 :: Int64 -> Double
 primDoubleFromInt64 = _primitive "Itod"
 primDoubleFromInt :: Int -> Double
 primDoubleFromInt = _primitive "itod"
+primDoubleFromWord :: Word -> Double
+primDoubleFromWord = _primitive "utod"
+primDoubleToInt :: Double -> Int
+primDoubleToInt = _primitive "dtoi"
+
+primFloatToDouble :: Float -> Double
+primFloatToDouble = _primitive "ftod"
+primDoubleToFloat :: Double -> Float
+primDoubleToFloat = _primitive "dtof"
 
 primWordAdd :: Word -> Word -> Word
-primWordAdd  = _primitive "+"
+primWordAdd  = _primitive "u+"
 primWordSub :: Word -> Word -> Word
-primWordSub  = _primitive "-"
+primWordSub  = _primitive "u-"
 primWordMul :: Word -> Word -> Word
-primWordMul  = _primitive "*"
+primWordMul  = _primitive "u*"
 primWordQuot :: Word -> Word -> Word
 primWordQuot = _primitive "uquot"
 primWordRem :: Word -> Word -> Word
 primWordRem  = _primitive "urem"
+primWordSubR :: Word -> Word -> Word
+primWordSubR = _primitive "usubtract"
+primWordNeg :: Word -> Word
+primWordNeg = _primitive "uneg"
 primWordAnd :: Word -> Word -> Word
 primWordAnd  = _primitive "and"
 primWordOr :: Word -> Word -> Word
@@ -343,6 +360,13 @@ primNewForeignPtr = _primitive "fpnew"
 primAddFinalizer :: FunPtr (Ptr a -> IO ()) -> ForeignPtr a -> IO ()
 primAddFinalizer = _primitive "fpfin"
 
+-- Run the IO action somewhat atomically.
+-- This means that it is guaranteed an uninterrupted slice.
+-- This is used for atomicModifyIORef which has a very bounded amount of work,
+-- so a slice is good enough.
+primAtomic :: IO a -> IO a
+primAtomic = _primitive "IO.atomic"
+
 primForkIO :: IO () -> IO ThreadId
 primForkIO = _primitive "IO.fork"
 
@@ -371,6 +395,12 @@ primTryPutMVar :: MVar a -> a -> IO Bool
 primTryPutMVar = _primitive "IO.tryputmvar"
 primTryReadMVar :: MVar a -> IO b {-(Maybe a)-}
 primTryReadMVar = _primitive "IO.tryreadmvar"
+
+primWaitWriteFD :: Int -> IO Int
+primWaitWriteFD = _primitive "IO.waitwrfd"
+
+primWaitReadFD :: Int -> IO Int
+primWaitReadFD = _primitive "IO.waitrdfd"
 
 primThreadDelay :: Int -> IO ()
 primThreadDelay = _primitive "IO.threaddelay"
@@ -443,15 +473,19 @@ primInt64Ctz :: Int64 -> Int
 primInt64Ctz = _primitive "Ictz"
 
 primWord64Add :: Word64 -> Word64 -> Word64
-primWord64Add  = _primitive "I+"
+primWord64Add  = _primitive "Iu+"
 primWord64Sub :: Word64 -> Word64 -> Word64
-primWord64Sub  = _primitive "I-"
+primWord64Sub  = _primitive "Iu-"
 primWord64Mul :: Word64 -> Word64 -> Word64
-primWord64Mul  = _primitive "I*"
+primWord64Mul  = _primitive "Iu*"
 primWord64Quot :: Word64 -> Word64 -> Word64
 primWord64Quot = _primitive "Iuquot"
 primWord64Rem :: Word64 -> Word64 -> Word64
 primWord64Rem  = _primitive "Iurem"
+primWord64SubR :: Word64 -> Word64 -> Word64
+primWord64SubR = _primitive "Iusubtract"
+primWord64Neg :: Word64 -> Word64
+primWord64Neg = _primitive "Iuneg"
 primWord64And :: Word64 -> Word64 -> Word64
 primWord64And  = _primitive "Iand"
 primWord64Or :: Word64 -> Word64 -> Word64

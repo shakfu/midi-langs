@@ -1,0 +1,16 @@
+[expr]
+2 + 3
+[expr_out]
+5
+[error]
+nosuch 3
+[note]
+noteWith 1 100 500 c4
+[voices]
+do { _ <- spawn "a" (noteWith 1 100 500 c4); _ <- spawn "b" (noteWith 1 100 1000 e4); return () }
+[forever]
+mapM_ (noteWith 1 100 10) (repeat c4)
+[busy]
+let spin n = if n < 0 then n else spin (n + 1) in spin (0 :: Int)
+[live_voice]
+spawn "v" (let loop = noteWith 1 100 250 c5 >> loop in loop) >> return ()

@@ -314,15 +314,33 @@ int midi_pitch_bend(int channel, int value) {
     return midi_out_send(g_midi_out, msg, 3);
 }
 
+/* Not common's midi_set_no_sleep: that would link midi_sleep.c, whose midi_sleep this file's replaces. */
+static int g_no_sleep = 0;
+
 void midi_sleep(int ms) {
     if (midi_sink_active()) {
         /* Script time (midi_clock.h); this midi_sleep shadows common's in its links */
         midi_clock_wait_until(midi_clock_ms() + (ms > 0 ? ms : 0));
         return;
     }
+    if (g_no_sleep) return; /* --no-sleep */
     if (ms > 0) {
         usleep((useconds_t)(ms * 1000));
     }
+}
+
+int midi_strip_no_sleep(int argc, char **argv) {
+    int j = 1;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--no-sleep") == 0) g_no_sleep = 1;
+        else argv[j++] = argv[i];
+    }
+    argv[j] = NULL;
+    return j;
+}
+
+int midi_script_time(void) {
+    return midi_sink_active();
 }
 
 void midi_panic(void) {

@@ -6,7 +6,8 @@ module Numeric.Show(
   showBin,
   showHex,
   showOct,
-  showIntegral,
+  showSignedInt,
+  showUnsignedInt,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -41,12 +42,7 @@ showSignedNeg isNeg showPos p n r
 showIntAtBase :: (Integral a) => a -> (Int -> Char) -> a -> ShowS
 showIntAtBase base toChr an
   | base <= 1 = error "Numeric.showIntAtBase: unsupported base"
-  | an < 0 =
-    if -an < 0 then
-      -- We are at minBound
-      showPos (- quot an base) . showPos (- rem an base)
-    else
-      error "Numeric.showIntAtBase: negative argument"
+  | an < 0 = error "Numeric.showIntAtBase: negative argument"
   | otherwise = showPos an
    where
     showPos n r =
@@ -70,5 +66,24 @@ showOct = showIntAtBase 8  intToDigit
 showBin :: (Integral a) => a -> ShowS
 showBin = showIntAtBase 2  intToDigit
 
-showIntegral :: (Integral a) => Int -> a -> ShowS
-showIntegral = showSigned showInt
+showSignedInt :: (Integral a) => Int -> a -> ShowS
+showSignedInt p n r
+  | n < 0 =
+    if p > (6::Int) then
+      '(' : '-' : showUnsignedNeg n (')' : r)
+    else
+      '-' : showUnsignedNeg n r
+  | otherwise = showUnsignedNeg (-n) r
+
+showUnsignedNeg :: (Integral a) => a -> ShowS
+showUnsignedNeg n rest =
+  case quotRem n 10 of
+    (q, r) ->
+      let c = primChr (primOrd '0' - fromIntegral r)
+      in  if n > -10 then
+            c : rest
+          else
+            showUnsignedNeg q (c : rest)
+
+showUnsignedInt :: (Integral a) => Int -> a -> ShowS
+showUnsignedInt _ = showInt

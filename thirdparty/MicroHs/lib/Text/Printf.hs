@@ -96,6 +96,8 @@ import Data.Char
 import Data.Int
 import Data.List (stripPrefix)
 import Data.Maybe
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import Data.Word
 import Numeric.Show
 import Numeric.FormatFloat(showEFloat, showFFloat, showGFloat, showFFloatAlt, showGFloatAlt)
@@ -400,6 +402,12 @@ instance PrintfArg Float where
 instance PrintfArg Double where
     formatArg = formatRealFloat
 
+instance PrintfArg T.Text where
+    formatArg txt = formatString $ T.unpack txt
+
+instance PrintfArg TL.Text where
+    formatArg txt = formatString $ TL.unpack txt
+
 -- | This class, with only the one instance, is used as
 -- a workaround for the fact that 'String', as a concrete
 -- type, is not allowable as a typeclass instance. 'IsChar'
@@ -606,9 +614,8 @@ formatIntegral m x ufmt0 =
         ufmt0 { fmtAdjust = Nothing }
       _ -> ufmt0
     alt _ 0 = Nothing
-    alt p _ = case fmtAlternate ufmt of
-      True -> Just p
-      False -> Nothing
+    alt p _ | fmtAlternate ufmt = Just p
+            | otherwise         = Nothing
     upcase (s1, s2) = (s1, map toUpper s2)
 
 -- | Formatter for 'RealFloat' values.

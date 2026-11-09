@@ -1,5 +1,6 @@
 module MicroHs.FFI(makeFFI) where
 import qualified Prelude(); import MHSPrelude
+import Data.Char
 import Data.List
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp
@@ -10,20 +11,20 @@ import MicroHs.Names
 --import Debug.Trace
 
 -- The export table has (internal-name, external-name, external-type)
-makeFFI :: Flags -> [(Ident, Ident, CType)] -> [LDef] -> (String, String)
-makeFFI _ forExps ds =
-  let ffiImports = nubBy eq [ (ie, n, t) | (_, d) <- ds, Lit (LForImp ie n (CType t)) <- [get d] ]
+makeFFI :: Flags -> [(Ident, Ident, CType, IsJavascript)] -> [IdentModule ]-> [[LDef]] -> (String, String)
+makeFFI _ forExps exclude dss =
+  let ffiImports = nubBy eq [ (ie, n, t, mn) | ds <- dss, (_, d) <- ds, Lit (LForImp mn ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
-                       eq (_, n, _) (_, n', _) = n == n'
-      wrappers = [ t | (ImpWrapper, _, t) <- ffiImports]
-      dynamics = [ t | (ImpDynamic, _, t) <- ffiImports]
-      imps     = filter ((`notElem` runtimeFFI) . impName) ffiImports
-      includes = jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _) <- imps, inc <- iincs ]
+                       eq (_, n, _, _) (_, n', _, _) = n == n'
+      wrappers = [ t | (ImpWrapper, _, t, _) <- ffiImports]
+      dynamics = [ t | (ImpDynamic, _, t, _) <- ffiImports]
+      imps     = filter ((`notElem` exclude) . impModule) $ filter ((`notElem` runtimeFFI) . impName) ffiImports
+      includes = jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _, _) <- imps, inc <- iincs ]
       jsincs   = if any isJS ffiImports then ["emscripten.h"] else []
-        where isJS (ImpJS _, _, _) = True
+        where isJS (ImpJS _, _, _, _) = True
               isJS _ = False
-      mkSig (_, i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
+      mkSig (_, i, CType t, js) = let (as, ior) = getArrows t in mkExportSig js i as ior ++ ";"
       header = unlines
         ["#include <stdint.h>",
          "#if defined(__cplusplus)",
@@ -39,6 +40,13 @@ makeFFI _ forExps ds =
     if not (null wrappers) || not (null dynamics) then mhsError "Unimplemented FFI feature" else
     (unlines $
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
+      (if any (\ (_, _, _, js) -> js) forExps then
+         ["#if defined(__EMSCRIPTEN__)",
+          "#include \"emscripten.h\"",
+          "#else",
+          "#define EMSCRIPTEN_KEEPALIVE",
+          "#endif"]
+       else []) ++
       map mkHdr imps ++
       ["static const struct ffi_entry imp_table[] = {"] ++
       map mkEntry imps ++
@@ -55,23 +63,23 @@ makeFFI _ forExps ds =
       ] ++ zipWith mkExportWrapper [0..] forExps
     , header)
 
-mkExportSig :: Ident -> [EType] -> EType -> String
-mkExportSig n as ior =
-  let outT = cTypeName $ checkIO ior
-      ins = zipWith (\ i a -> cTypeName a ++ " _x" ++ show i) [1::Int ..] as
+mkExportSig :: IsJavascript -> Ident -> [EType] -> EType -> String
+mkExportSig js n as ior =
+  let outT = expTypeName js $ checkIO ior
+      ins = zipWith (\ i a -> expTypeName js a ++ " _x" ++ show i) [1::Int ..] as
    in outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ")"
 
-mkExport :: (Ident, Ident, CType) -> String
-mkExport (i, _, _) = "  { \"" ++ unIdent i ++ "\", 0 },"
+mkExport :: (Ident, Ident, CType, IsJavascript) -> String
+mkExport (i, _, _, _) = "  { \"" ++ unIdent i ++ "\", 0 },"
 
-mkExportWrapper :: Int -> (Ident, Ident, CType) -> String
-mkExportWrapper no (_, n, CType t) = unlines $
+mkExportWrapper :: Int -> (Ident, Ident, CType, IsJavascript) -> String
+mkExportWrapper no (_, n, CType t, js) = unlines $
   let (as, ior) = getArrows t
       r = checkIO ior
-      outT = cTypeName r
-      arg k a = "  mhs_from_" ++ cTypeHsName a ++ "(ffe_alloc(), 0, _x" ++ show k ++ "); ffe_apply();"
+      outT = expTypeName js r
+      arg k a = "  mhs_from_" ++ expTypeHsName js a ++ "(ffe_alloc(), 0, _x" ++ show k ++ "); ffe_apply();"
       eval = if eqEType r ior then "ffe_eval()" else "ffe_exec()"
-  in  [mkExportSig n as ior ++ " {",
+  in  [(if js then "EMSCRIPTEN_KEEPALIVE " else "") ++ mkExportSig js n as ior ++ " {",
        "  gc_check(" ++ show (2 * length as + 4) ++ ");",
        "  ffe_push(xffe_table[" ++ show no ++ "].ffe_value);" ]
       ++ zipWith arg [1::Int ..] as ++
@@ -81,20 +89,23 @@ mkExportWrapper no (_, n, CType t) = unlines $
           "}"
         ]
        else
-        [ "  " ++ outT ++ " _res = mhs_to_" ++ cTypeHsName r ++ "(" ++ eval ++ ", -1);",
+        [ "  " ++ outT ++ " _res = mhs_to_" ++ expTypeHsName js r ++ "(" ++ eval ++ ", -1);",
           "  ffe_pop();",
           "  return _res;",
           "}"
         ]
 
-impName :: (ImpEnt, String, EType) -> String
-impName (_, s, _) = s
+impName :: (ImpEnt, String, EType, IdentModule) -> String
+impName (_, s, _, _) = s
 
-mkEntry :: (ImpEnt, String, EType) -> String
-mkEntry (ImpStatic _ IFunc  _, f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
-mkEntry (ImpStatic _ IPtr   _, f, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
-mkEntry (ImpStatic _ IValue _, f, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "},"
-mkEntry (ImpJS _,              f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
+impModule :: (ImpEnt, String, EType, IdentModule) -> IdentModule
+impModule (_, _, _, m) = m
+
+mkEntry :: (ImpEnt, String, EType, IdentModule) -> String
+mkEntry (ImpStatic _ IFunc  _, f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
+mkEntry (ImpStatic _ IPtr   _, f, _, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
+mkEntry (ImpStatic _ IValue _, f, _, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "},"
+mkEntry (ImpJS _,              f, t, _) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
 mkEntry _ = undefined
 
 mkMhsFun :: String -> String -> String
@@ -123,8 +134,8 @@ mkArg t i = "mhs_to_" ++ cTypeHsName t ++ "(s, " ++ show i ++ ")"
 mkJSArg :: EType -> Int -> String
 mkJSArg t i = "mhs_to_" ++ jsTypeName t ++ "(s, " ++ show i ++ ")"
 
-mkHdr :: (ImpEnt, String, EType) -> String
-mkHdr (ImpStatic _ IPtr fn, f, iot) =
+mkHdr :: (ImpEnt, String, EType, IdentModule) -> String
+mkHdr (ImpStatic _ IPtr fn, f, iot, _) =
   let r = checkIO iot
       (s, _) =
         case dropApp identPtr r of
@@ -135,22 +146,34 @@ mkHdr (ImpStatic _ IPtr fn, f, iot) =
               Nothing -> errorMessage (getSLoc r) "foreign & must be Ptr/FunPtr"
       body = "return " ++ mkRet r 0 (s ++ "&" ++ fn)
   in  mkMhsFun ("addr_" ++ f) body
-mkHdr (ImpStatic _ IFunc fn, f, t) =
+mkHdr (ImpStatic _ IFunc fn, f, t, _) =
   let (as, ior) = getArrows t
       r = checkIO ior
-      n = length as
+      len = length as
       call = fn ++ "(" ++ intercalate ", " (zipWith mkArg as [0..]) ++ ")"
       fcall =
         if isUnit r then
-          call ++ "; return mhs_from_Unit(s, " ++ show n ++ ")"
+          call ++ "; return mhs_from_Unit(s, " ++ show len ++ ")"
         else
-          "return " ++ mkRet r n call
+          "return " ++ mkRet r len call
   in  mkMhsFun f fcall
-mkHdr (ImpStatic _ IValue val, f, iot) =
-  let r = checkIO iot
-      body = "return " ++ mkRet r 0 val
-  in  mkMhsFun f body
-mkHdr (ImpJS s, f, ty) =
+mkHdr (ImpStatic _ IValue val, f, t, _) =
+  let (as, ior) = getArrows t
+      r = checkIO ior
+      len = length as
+      call = expand val
+      expand [] = []
+      expand ('$':c:cs) | isDigit c =
+        let n = digitToInt c - 1
+        in mkArg (as !! n) n ++ expand cs
+      expand (c:cs) = c : expand cs
+      fcall =
+        if isUnit r then
+          call ++ "; return mhs_from_Unit(s, " ++ show len ++ ")"
+        else
+          "return " ++ mkRet r len call
+  in  mkMhsFun f fcall
+mkHdr (ImpJS s, f, ty, _) =
   let (as, ior) = getArrows ty
       rt = checkIO ior
       jsr = jsTypeNameR rt
@@ -189,6 +212,15 @@ cHsTypes =
   , ("()",                "Unit")
   , ("System.IO.Handle",  "Ptr")
   ]
+
+-- Foreign export type names; a javascript export also allows Bool.
+expTypeName :: IsJavascript -> EType -> String
+expTypeName True (EVar i) | unIdent i == "Data.Bool_Type.Bool" = "int"
+expTypeName _ t = cTypeName t
+
+expTypeHsName :: IsJavascript -> EType -> String
+expTypeHsName True (EVar i) | unIdent i == "Data.Bool_Type.Bool" = "Bool"
+expTypeHsName _ t = cTypeHsName t
 
 -- Use to construct 'foreign export ccall' signature.
 cTypeName :: EType -> String
@@ -231,23 +263,24 @@ jsTypes :: [(String, String)]
 jsTypes =
   [ ("Primitives.Int",    "Int")
   , ("Primitives.Double", "Double")
-  , ("Primitives.Float",  "Double")
+  , ("Primitives.Float",  "Float")
   ]
 
 -- These are already in the runtime
 runtimeFFI :: [String]
 runtimeFFI = [
-  "GETRAW", "GETTIMEMILLI", "acos", "add_FILE", "add_fd", "open", "add_utf8", "add_buf", "add_crlf",
+  "GETRAW", "GETTIMEMICRO", "GETBOOTTIMEMICRO", "acos", "add_FILE", "add_fd", "open", "add_utf8", "add_buf", "add_crlf",
   "asin", "atan", "atan2", "calloc", "closeb",
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "islinux", "ismacos", "iswindows", "log", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "realloc", "strlen", "strcpy",
-  "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
+  "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "remove",
   "acosf", "asinf", "atanf", "atan2f", "cosf", "expf", "logf", "sinf", "sqrtf", "tanf",
-  "scalbn", "scalbnf",
+  "scalbn", "scalbnf", "pow", "powf",
   "js_debug", "js_eval_run", "js_eval_call", "js_set_haskellCallback",
   "readb", "writeb",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
   "add_lz77_compressor", "add_lz77_decompressor",
+  "add_lzma_compressor", "add_lzma_decompressor",
   "add_rle_compressor", "add_rle_decompressor",
   "add_base64_encoder", "add_base64_decoder",
   "add_bwt_compressor", "add_bwt_decompressor",
@@ -273,9 +306,60 @@ runtimeFFI = [
   "mpz_get_si64", "mpz_init_set_si64", "mpz_init_set_ui64",
   "mpz_log2",
   "want_gmp",
+  "want_imath",
   "gettimeofday",
-  "E2BIG", "EAGAIN", "EINTR", "EINVAL", "EWOULDBLOCK",
+  "EOK", "E2BIG", "EACCES", "EADDRINUSE", "EADDRNOTAVAIL", "EADV", "EAFNOSUPPORT", "EAGAIN",
+  "EALREADY", "EBADF", "EBADMSG", "EBADRPC", "EBUSY", "ECHILD", "ECOMM", "ECONNABORTED",
+  "ECONNREFUSED", "ECONNRESET", "EDEADLK", "EDESTADDRREQ", "EDIRTY", "EDOM", "EDQUOT",
+  "EEXIST", "EFAULT", "EFBIG", "EFTYPE", "EHOSTDOWN", "EHOSTUNREACH", "EIDRM", "EILSEQ",
+  "EINPROGRESS", "EINTR", "EINVAL", "EIO", "EISCONN", "EISDIR", "ELOOP", "EMFILE", "EMLINK",
+  "EMSGSIZE", "EMULTIHOP", "ENAMETOOLONG", "ENETDOWN", "ENETRESET", "ENETUNREACH",
+  "ENFILE", "ENOBUFS", "ENODATA", "ENODEV", "ENOENT", "ENOEXEC", "ENOLCK", "ENOLINK",
+  "ENOMEM", "ENOMSG", "ENONET", "ENOPROTOOPT", "ENOSPC", "ENOSR", "ENOSTR", "ENOSYS",
+  "ENOTBLK", "ENOTCONN", "ENOTDIR", "ENOTEMPTY", "ENOTSOCK", "ENOTSUP", "ENOTTY", "ENXIO",
+  "EOPNOTSUPP", "EPERM", "EPFNOSUPPORT", "EPIPE", "EPROCLIM", "EPROCUNAVAIL",
+  "EPROGMISMATCH", "EPROGUNAVAIL", "EPROTO", "EPROTONOSUPPORT", "EPROTOTYPE",
+  "ERANGE", "EREMCHG", "EREMOTE", "EROFS", "ERPCMISMATCH", "ERREMOTE", "ESHUTDOWN",
+  "ESOCKTNOSUPPORT", "ESPIPE", "ESRCH", "ESRMNT", "ESTALE", "ETIME", "ETIMEDOUT",
+  "ETOOMANYREFS", "ETXTBSY", "EUSERS", "EWOULDBLOCK", "EXDEV",
   "errno",
   "strerror_r",
-  "environ"
+  "environ",
+  "get_executable_path",
+  "setenv", "unsetenv",
+  "set_permissions", "get_permissions",
+  "F_SETFL", "O_NONBLOCK", "SOL_SOCKET", "SO_DEBUG", "SO_ERROR", "SO_REUSEADDR", "SO_TYPE",
+  "accept", "bind", "close", "connect", "fcntl", "getsockopt", "listen", "recv", "send", "setsockopt", "socket"
   ]
+
+{-
+-- lib/ modules that use foreign import
+libImports :: [String]
+libImports = [
+  "Data.Integer_Type",
+  "Data.Integer.Internal",
+  "System.Process",
+  "System.Environment",
+  "System.Compress.ByteString",
+  "System.Compress",
+  "System.IO.TimeMilli",
+  "System.IO.Open",
+  "System.IO.Transducers",
+  "System.IO.MD5",
+  "System.IO.Base",
+  "System.IO.StringHandle",
+  "System.IO.Internal",
+  "System.IO.Serialize",
+  "System.CPUTime",
+  "System.Directory",
+  "System.Cmd",
+  "Data.ByteString",
+  "Data.Double",
+  "Data.Float",
+  "Foreign.Marshal.Utils",
+  "Foreign.Marshal.Alloc",
+  "Foreign.Storable",
+  "Foreign.C.Error",
+  "Primitives"
+  ]
+-}

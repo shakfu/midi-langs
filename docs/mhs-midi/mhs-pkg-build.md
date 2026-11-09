@@ -80,7 +80,7 @@ make install
 Then it becomes possible to load packages at runtime with `-p`:
 
 ```sh
-~/.mcabal/bin/mhs -pbase-0.15.2.0
+~/.mcabal/bin/mhs -pbase-0.16.9.0
 
 # OR
 
@@ -93,7 +93,7 @@ When using `mhs` as a local dev binary with `MHSDIR` set, you can specify the pa
 
 ```sh
 MHSDIR=./thirdparty/MicroHs ./thirdparty/MicroHs/bin/mhs \
-  -a"$HOME/.mcabal/mhs-0.15.2.0" -pbase
+  -a"$HOME/.mcabal/mhs-0.16.9.0" -pbase
 ```
 
 The `-a` flag sets the package search path (looks in `<path>/packages/`), and `-p` loads named packages.
@@ -106,7 +106,7 @@ However, there's a critical limitation: **the local dev binary still recompiles 
 
 ```sh
 ~/.mcabal/bin/mhs -pbase
-Loading package /Users/sa/.mcabal/mhs-0.15.2.0/packages/base-0.15.2.0.pkg
+Loading package /Users/sa/.mcabal/mhs-0.16.9.0/packages/base-0.16.9.0.pkg
 Type ':quit' to quit, ':help' for help
 >
 ```
@@ -114,8 +114,8 @@ Type ':quit' to quit, ':help' for help
 **Local dev binary (recompiles everything despite -p flag):**
 
 ```sh
-MHSDIR=./thirdparty/MicroHs ./thirdparty/MicroHs/bin/mhs -a"$HOME/.mcabal/mhs-0.15.2.0" -pbase
-Welcome to interactive MicroHs, version 0.15.2.0
+MHSDIR=./thirdparty/MicroHs ./thirdparty/MicroHs/bin/mhs -a"$HOME/.mcabal/mhs-0.16.9.0" -pbase
+Welcome to interactive MicroHs, version 0.16.9.0
     importing done Data.Bool_Type, 3ms
     importing done Data.Ordering_Type, 2ms
     importing done Primitives, 148ms
@@ -142,7 +142,7 @@ Package not found: base
 
 Debugging revealed that MicroHs discovers packages by scanning the `packages/` directory:
 
-```haskell
+```haskell norun
 -- From MicroHs/src/MicroHs/Packages.hs
 findPkgs :: FilePath -> IO [FilePath]
 findPkgs path = do
@@ -199,10 +199,10 @@ Module not found: Prelude
 MicroHs doesn't scan package contents to find modules. Instead, it uses `.txt` mapping files:
 
 ```sh
-~/.mcabal/mhs-0.15.2.0/
-    Prelude.txt          # Contains: "base-0.15.2.0.pkg"
-    Data/List.txt        # Contains: "base-0.15.2.0.pkg"
-    Control/Monad.txt    # Contains: "base-0.15.2.0.pkg"
+~/.mcabal/mhs-0.16.9.0/
+    Prelude.txt          # Contains: "base-0.16.9.0.pkg"
+    Data/List.txt        # Contains: "base-0.16.9.0.pkg"
+    Control/Monad.txt    # Contains: "base-0.16.9.0.pkg"
     ...
 ```
 
@@ -234,8 +234,8 @@ def generate_music_txt_files(pkg_name: str, modules: list[str]):
 The VFS serves these as small strings:
 
 ```c
-static const char txt_Prelude_txt[] = "base-0.15.2.0.pkg";
-static const char txt_Data_List_txt[] = "base-0.15.2.0.pkg";
+static const char txt_Prelude_txt[] = "base-0.16.9.0.pkg";
+static const char txt_Data_List_txt[] = "base-0.16.9.0.pkg";
 // ...
 ```
 
@@ -276,9 +276,9 @@ Static libraries are also embedded for linking:
 ```sh
 # CMake handles this automatically, but the equivalent command is:
 ./mhs-embed output.h --pkg-mode \
-    --pkg packages/base-0.15.2.0.pkg=build/mcabal/mhs-0.15.2.0/packages/base-0.15.2.0.pkg \
+    --pkg packages/base-0.16.9.0.pkg=build/mcabal/mhs-0.16.9.0/packages/base-0.16.9.0.pkg \
     --pkg packages/music-0.1.0.pkg=build/music-0.1.0.pkg \
-    --txt-dir build/mcabal/mhs-0.15.2.0 \
+    --txt-dir build/mcabal/mhs-0.16.9.0 \
     --music-modules music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform \
     --lib build/libmidi_ffi.a \
     --lib build/liblibremidi.a \
@@ -388,7 +388,7 @@ make
 
 The CMake build handles everything else automatically:
 
-- Builds `base-0.15.2.0.pkg` locally in `build/mhs-base-src/dist-mcabal/`
+- Builds `base-0.16.9.0.pkg` locally in `build/mhs-base-src/dist-mcabal/`
 
 - Installs packages to `build/mcabal/` (not `~/.mcabal`)
 

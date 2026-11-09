@@ -49,11 +49,67 @@
 #define WANT_TICK 1
 
 /*
+ * Include directory manipulation
+ */
+#define WANT_DIR 1
+
+/*
  * This is Windows
  */
 #define ISWINDOWS 1
 
-#include <inttypes.h>
+#if defined(_MSC_VER) && (_MSC_VER < 1800)
+    /* Fix missing inttypes.h */
+    #if _MSC_VER >= 1600
+        #include <stdint.h>
+    #else  /* _MSC_VER >= 1600 */
+        typedef signed char        int8_t;
+        typedef short              int16_t;
+        typedef int                int32_t;
+        typedef __int64            int64_t;
+        typedef unsigned char      uint8_t;
+        typedef unsigned short     uint16_t;
+        typedef unsigned int       uint32_t;
+        typedef unsigned __int64   uint64_t;
+        #ifdef _WIN64
+            typedef __int64        intptr_t;
+            typedef unsigned __int64 uintptr_t;
+        #else  /* _WIN64 */
+            typedef int            intptr_t;
+            typedef unsigned int   uintptr_t;
+        #endif  /* _WIN64 */
+    #endif  /* _MSC_VER >= 1600 */
+
+    /* Fix missing stdbool.h */
+    typedef unsigned char bool;
+    #define true  1
+    #define false 0
+
+    /* Fix missing inttypes.h PRI macros */
+    #define PRId64 "I64d"
+    #define PRIu64 "I64u"
+    #define PRIx64 "I64x"
+
+    #ifdef _WIN64
+        #define PRIdPTR "I64d"
+        #define PRIuPTR "I64u"
+        #define PRIxPTR "I64x"
+    #else  /* _WIN64 */
+        #define PRIdPTR "d"
+        #define PRIuPTR "u"
+        #define PRIxPTR "x"
+    #endif  /* _WIN64 */
+
+#else  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
+    /* Modern Compiler (VS 2013+, GCC, Clang) */
+    #include <stdbool.h>
+    #include <inttypes.h>
+#endif  /* defined(_MSC_VER) && (_MSC_VER < 1800) */
+
+#if defined(_MSC_VER) && _MSC_VER < 1900
+    #define snprintf _snprintf
+#endif
+
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <intrin.h>
@@ -65,9 +121,15 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#include <direct.h>
+#define getcwd _getcwd
+
 /* Make these empty */
 #define NORETURN
 #define PACKED
+
+/* This is a safe way to inline */
+#define INLINE __inline
 
 /*
  * The ERR macro should report an error and exit.

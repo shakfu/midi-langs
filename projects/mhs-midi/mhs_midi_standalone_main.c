@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "vfs.h"
+#include "midi_ffi.h"
 
 /* Forward declaration of MicroHs main */
 int mhs_main(int argc, char **argv);
@@ -30,6 +31,7 @@ static void print_usage(const char *prog) {
     printf("Usage:\n");
     printf("  %s                     Start interactive REPL (default)\n", prog);
     printf("  %s [mhs-options]       Pass options directly to MicroHs\n", prog);
+    printf("  %s --no-sleep          MIDI sleeps return at once (for tests)\n", prog);
     printf("  %s --help              Show this help\n", prog);
     printf("\n");
     printf("\nExamples:\n");
@@ -78,6 +80,8 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+    argc = midi_strip_no_sleep(argc, argv);
+
     /* Initialize VFS with embedded libraries */
     vfs_init();
 
@@ -115,11 +119,13 @@ int main(int argc, char **argv) {
     char lib_midi_ffi[512] = "";
     char lib_music_theory[512] = "";
     char lib_midi_file[512] = "";
+    char lib_midi_open[512] = "";
 
     if (linking_midi) {
         snprintf(lib_midi_ffi, sizeof(lib_midi_ffi), "%s/lib/libmidi_ffi.a", temp_dir);
         snprintf(lib_music_theory, sizeof(lib_music_theory), "%s/lib/libmusic_theory.a", temp_dir);
         snprintf(lib_midi_file, sizeof(lib_midi_file), "%s/lib/libmidi_file.a", temp_dir);
+        snprintf(lib_midi_open, sizeof(lib_midi_open), "%s/lib/libmidi_open.a", temp_dir);
         snprintf(lib_libremidi, sizeof(lib_libremidi), "%s/lib/liblibremidi.a", temp_dir);
     }
 
@@ -129,6 +135,7 @@ int main(int argc, char **argv) {
         "-optl", lib_midi_ffi,
         "-optl", lib_music_theory,
         "-optl", lib_midi_file,
+        "-optl", lib_midi_open, /* midi_clock.c and midi_sleep.c, which midi_ffi.c calls */
         "-optl", lib_libremidi,
 #ifdef __APPLE__
         "-optl", "-framework", "-optl", "CoreMIDI",

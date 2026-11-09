@@ -1,0 +1,33 @@
+environment:
+  matrix:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2022
+      VCVARS_BAT: 'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build'
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build'
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build'
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC'
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
+      VCVARS_BAT: 'C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC'
+
+platform:
+  - x86
+  - x64
+
+# Disable default MSBuild behavior
+build: off
+
+test_script:
+  - cmd: >-
+      if "%PLATFORM%"=="x64" (set "TARGET_BAT=vcvars64.bat" & set "ARGS=") else (set "TARGET_BAT=vcvars32.bat" & set "ARGS=")
+      
+      if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (if "%PLATFORM%"=="x64" (set "TARGET_BAT=vcvarsall.bat" & set "ARGS=amd64") else (set "TARGET_BAT=vcvarsall.bat" & set "ARGS=x86"))
+      
+      if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2013" (if "%PLATFORM%"=="x64" (set "TARGET_BAT=vcvarsall.bat" & set "ARGS=amd64") else (set "TARGET_BAT=vcvarsall.bat" & set "ARGS=x86"))
+      
+      call "%VCVARS_BAT%\%TARGET_BAT%" %ARGS%
+            
+      nmake /f Makefile.windows
+      
+      nmake /f Makefile.windows exampletest

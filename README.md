@@ -45,7 +45,7 @@ make s7-midi      # s7 Scheme interpreter
 make mhs-midi-pkg-zstd  # MicroHs (recommended variant)
 ```
 
-Requires GCC/Clang and CMake 3.16+.
+Requires GCC/Clang and CMake 3.16+; the VST3 plugins need CMake 3.21+.
 
 Set `MIDI_LANGS_BACKEND=null` to run any interpreter without a MIDI server: ports open, and all output is discarded.
 
@@ -55,7 +55,7 @@ Set `MIDI_LANGS_BACKEND=null` to run any interpreter without a MIDI server: port
 sudo apt-get install libasound2-dev libreadline-dev
 ```
 
-**CLAP plugins:** `make clap` builds each language but mhs-midi as a CLAP note-effect plugin in `build/clap/`, whose MIDI goes to the DAW. On Linux it also needs `libx11-dev libgl-dev`. `make vst3` builds the same plugins as VST3, for Ableton Live and other hosts without CLAP. See [docs/clap](docs/clap/README.md).
+**CLAP plugins:** `make clap` builds each language as a CLAP note-effect plugin in `build/clap/`, whose MIDI goes to the DAW. On Linux it also needs `libx11-dev libgl-dev`. `make vst3` builds the same plugins as VST3, for Ableton Live and other hosts without CLAP. See [docs/clap](docs/clap/README.md).
 
 ## Quick Examples
 
@@ -372,6 +372,7 @@ Examples:
 ```sh
 make mhs-midi-pkg-zstd  # Recommended (3MB, fast startup)
 ./build/mhs-midi-pkg-zstd -r MyFile.hs
+./build/mhs-midi-pkg-zstd --no-sleep -r MyFile.hs  # MIDI sleeps return at once
 
 # Other variants:
 make mhs-midi-src       # 3.3MB, source embedding
@@ -644,7 +645,7 @@ Download a GM SoundFont like [FluidR3_GM.sf2](https://musical-artifacts.com/arti
 | pktpy-midi | [README](docs/pktpy-midi/README.md), [API](docs/pktpy-midi/api-reference.md), [Examples](docs/pktpy-midi/examples.md) |
 | s7-midi | [README](docs/s7-midi/README.md), [API](docs/s7-midi/api-reference.md), [Examples](docs/s7-midi/examples.md) |
 
-CLAP plugins, all languages but mhs-midi: [docs/clap](docs/clap/README.md).
+CLAP and VST3 plugins, all languages: [docs/clap](docs/clap/README.md).
 
 See [CHANGELOG.md](CHANGELOG.md) for recent changes.
 

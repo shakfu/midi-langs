@@ -33,6 +33,10 @@ from_t mhs_midi_is_open(int s) {
     return mhs_from_Int(s, 0, midi_is_open());
 }
 
+from_t mhs_midi_script_time(int s) {
+    return mhs_from_Int(s, 0, midi_script_time());
+}
+
 from_t mhs_midi_panic(int s) {
     midi_panic();
     return mhs_from_Unit(s, 0);
@@ -141,6 +145,23 @@ from_t mhs_midi_read_mid(int s) {
 }
 
 /* ========================================================================
+ * Random numbers
+ * ======================================================================== */
+
+from_t mhs_midi_seed_random(int s) {
+    midi_seed_random(mhs_to_Int(s, 0));
+    return mhs_from_Unit(s, 1);
+}
+
+from_t mhs_midi_random(int s) {
+    return mhs_from_Int(s, 0, midi_random());
+}
+
+from_t mhs_midi_random_range(int s) {
+    return mhs_from_Int(s, 2, midi_random_range(mhs_to_Int(s, 0), mhs_to_Int(s, 1)));
+}
+
+/* ========================================================================
  * FFI table - names must match Midi.hs foreign import declarations
  * ======================================================================== */
 
@@ -152,6 +173,7 @@ static const struct ffi_entry midi_ffi_table[] = {
     { "midi_close",      0, mhs_midi_close },
     { "midi_is_open",    0, mhs_midi_is_open },
     { "midi_panic",      0, mhs_midi_panic },
+    { "midi_script_time", 0, mhs_midi_script_time },
     /* 1-arity */
     { "midi_port_name",     1, mhs_midi_port_name },
     { "midi_open",          1, mhs_midi_open },
@@ -173,6 +195,10 @@ static const struct ffi_entry midi_ffi_table[] = {
     { "midi_save_hs", 1, mhs_midi_save_hs },
     { "midi_record_count",   0, mhs_midi_record_count },
     { "midi_record_active",  0, mhs_midi_record_active },
+    /* random numbers */
+    { "midi_seed_random",  1, mhs_midi_seed_random },
+    { "midi_random",       0, mhs_midi_random },
+    { "midi_random_range", 2, mhs_midi_random_range },
     /* MIDI file I/O */
     { "midi_read_mid",      1, mhs_midi_read_mid },
     /* sentinel */

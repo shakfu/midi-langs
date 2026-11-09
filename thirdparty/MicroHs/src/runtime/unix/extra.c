@@ -27,6 +27,92 @@
 #endif  /* if defined(...) */
 #endif  /* INTPTR_MAX == 0x7fffffff */
 
+#if defined(USE_WEB_INPUT)
+#include <emscripten.h>
+/*
+ * When using mhs interactively on the web, we need a special input routine.
+ */
+
+/* A circular buffer.  The characters can arrive quicker than getraw consumes them.
+ * This happens both for cursore keys and pasting.
+ * We don't check for buffer overflow.
+ */
+#define IN_BUF_SIZE 16384
+volatile int getraw_last_chars[IN_BUF_SIZE];
+volatile int getraw_last_char_in = 0;
+volatile int getraw_last_char_out = 0;
+volatile int getraw_waiting = 0;
+
+void handle_sigint(int);
+
+/* JavaScript pushes the input character by calling this function */
+EMSCRIPTEN_KEEPALIVE
+void set_input_char(int c) {
+  if (!getraw_waiting && c == 3) { /* CTRL-C */
+    handle_sigint(0);
+  }
+  getraw_last_chars[getraw_last_char_in] = c;
+  getraw_last_char_in = (getraw_last_char_in + 1) % IN_BUF_SIZE;
+}
+
+static int
+getraw(void)
+{
+  getraw_waiting = 1;
+  for(;;) {
+    /* Busy-wait for a character to appear */
+    if (getraw_last_char_in != getraw_last_char_out) {
+      int ch = getraw_last_chars[getraw_last_char_out];
+      getraw_last_char_out = (getraw_last_char_out + 1) % IN_BUF_SIZE;
+
+      getraw_waiting = 0;
+      return ch;
+    }
+    emscripten_sleep(10);
+  }
+}
+
+/* While we are drawing we don't want to emscripten_sleep(),
+ * because that may yield inside the renering loop and can
+ * cause a premature transfer of the drawing buffer and flickering.
+ */
+int is_drawing = 0;
+
+void c_begin_draw(void) {
+    is_drawing = 1;
+}
+
+void c_end_draw(void) {
+    is_drawing = 0;
+}
+
+/* Allow a thread switch in yield() */
+static inline void
+yield_extra(void)
+{
+  static double last;
+  double now = emscripten_get_now();
+  if (!is_drawing && (now - last) > 32) {
+    /* Only do this a few time a second.  If done too often JS will enforce a minimum 4ms delay. */
+    last = now;
+    emscripten_sleep(0);
+  }
+}
+
+#define YIELD_EXTRA yield_extra()
+
+// Create a C function called c_waitForFrame
+// that executes the JavaScript inside the block.
+EM_ASYNC_JS(void, c_waitForFrame, (), {
+    return new Promise(function(resolve) {
+        requestAnimationFrame(function() {
+            resolve();
+        });
+    });
+});
+
+#else  /* USE_WEB_INPUT */
+
 /*
  * Set the terminal in raw mode and read a single character.
  * Return this character, or -1 on any kind of failure.
@@ -35,7 +121,7 @@ static int
 getraw(void)
 {
   struct termios old, new;
-  char c;
+  unsigned char c;
   int r;
 
 #if defined(USE_SYSTEM_RAW)
@@ -85,6 +171,8 @@ getraw(void)
     return -1;
   }
 }
+#endif  /* USE_WEB_INPUT */
+
 /*
  * Get a raw input character.
  * If undefined, the default always returns -1
@@ -95,13 +183,13 @@ getraw(void)
  * Get time since some epoch in milliseconds.
  */
 uintptr_t
-gettimemilli(void)
+gettimemicro(void)
 {
   struct timeval tv;
   (void)gettimeofday(&tv, NULL);
-  return (uintptr_t)(tv.tv_sec * 1000 + tv.tv_usec / 1000);
+  return (uintptr_t)(tv.tv_sec * 1000000 + tv.tv_usec);
 }
-#define GETTIMEMILLI gettimemilli
+#define GETTIMEMICRO gettimemicro
 
 /*
  * Create a unique file name.
@@ -155,7 +243,7 @@ getcputime(long *sec, long *nsec)
 {
 #if WANT_TIME
   struct timespec ts;
-  
+
   if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
     *sec = ts.tv_sec;
     *nsec = ts.tv_nsec;
@@ -182,3 +270,118 @@ uint64_t end_kperf(void) { return 0; }
 #endif  /* apple-arm */
 
 #endif  /* WANT_KPERF */
+
+#include <stdlib.h>
+
+#if defined(__linux__)
+#include <unistd.h>
+#include <limits.h>
+#elif defined(__APPLE__) && defined(__MACH__)
+#include <mach-o/dyld.h>
+#include <limits.h>
+#endif
+
+/* Return path to executable as a null-terminated UTF-8 string. */
+char*
+get_executable_path(void)
+{
+#if defined(__linux__)
+    return realpath("/proc/self/exe", NULL);
+
+#elif defined(__APPLE__) && defined(__MACH__)
+    uint32_t size = 0;
+    _NSGetExecutablePath(NULL, &size);
+    char *buf = malloc(size);
+    if (!buf)
+      return NULL;
+
+    if (_NSGetExecutablePath(buf, &size) == 0) {
+        char *canonical = realpath(buf, NULL);
+        free(buf);
+        return canonical;
+    }
+    free(buf);
+    return NULL;
+
+#else  /* Unsupported */
+    return NULL;
+#endif
+}
+#define GET_EXECUTABLE_PATH get_executable_path
+
+#if defined(WANT_DIR)
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <dirent.h>
+
+/* Encoding shared with the Haskell side */
+#define PERM_SEARCH 8
+#define PERM_READ   4
+#define PERM_WRITE  2
+#define PERM_EXEC   1
+
+int
+get_permissions(const char *path)
+{
+  struct stat st;
+  int perms = 0;
+
+  if (stat(path, &st) == -1) {
+    return -1;
+  }
+
+  if (st.st_mode & S_IRUSR)
+    perms |= PERM_READ;
+  if (st.st_mode & S_IWUSR)
+    perms |= PERM_WRITE;
+  if (st.st_mode & S_IXUSR) {
+    if (S_ISDIR(st.st_mode)) {
+      perms |= PERM_SEARCH;
+    } else {
+      perms |= PERM_EXEC;
+    }
+  }
+
+  return perms;
+}
+
+int
+set_permissions(const char *path, int perms)
+{
+  struct stat st;
+  mode_t uperms;
+  mode_t mask;
+  int result;
+
+  int fd = open(path, O_RDONLY | O_NONBLOCK);
+  if (fd == -1) {
+    return -1;
+  }
+
+  if (fstat(fd, &st) == -1) {
+    close(fd);
+    return -1;
+  }
+
+  uperms = 0;
+  if (perms & PERM_READ)
+    uperms |= S_IRUSR;
+  if (perms & PERM_WRITE)
+    uperms |= S_IWUSR;
+  if ((perms & PERM_EXEC) || (perms & PERM_SEARCH)) {
+    uperms |= S_IXUSR;
+  }
+  uperms |= (uperms >> 3) | (uperms >> 6); /* copy user permissions to all field */
+  mask = umask(0);                         /* grab current umask */
+  umask(mask);
+  uperms &= ~mask;                         /* mask new permission according to umask */
+
+  uperms |= st.st_mode & ~0777;            /* copy other mode bits */
+  result = fchmod(fd, uperms);
+
+  close(fd);
+  return result;
+}
+#endif  /* WANT_DIR */

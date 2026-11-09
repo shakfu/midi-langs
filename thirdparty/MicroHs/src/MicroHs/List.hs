@@ -98,3 +98,14 @@ dropEnd n = reverse . drop n . reverse
 
 takeEnd :: Int -> [a] -> [a]
 takeEnd n = reverse . take n . reverse
+
+splitWhen :: (a -> Bool) -> [a] -> [[a]]
+splitWhen _ [] = []
+splitWhen p as = loop as
+  where loop xs =
+          case break p xs of
+            (ys, []) -> [ys]
+            (ys, _:zs) -> ys : loop zs
+
+splitColonPath :: String -> [String]
+splitColonPath = splitWhen (':' ==)

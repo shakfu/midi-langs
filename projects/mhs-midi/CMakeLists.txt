@@ -231,7 +231,8 @@ if(NOT WIN32)
 #   - mhs-midi-pkg:       precompiled .pkg embedding (fast startup)
 
 set(ZSTD_DIR ${CMAKE_SOURCE_DIR}/thirdparty/zstd-1.5.7)
-set(MHS_VERSION "0.15.2.0")
+file(STRINGS ${MHS_DIR}/MicroHs.cabal MHS_VERSION REGEX "^version:")
+string(REGEX REPLACE "^version:[ ]*" "" MHS_VERSION "${MHS_VERSION}")
 
 # ============================================
 # Shared generated files for all standalone variants
@@ -290,11 +291,13 @@ add_custom_command(
         ${MIDI_LIB_DIR}
         --no-compress
         --runtime ${MHS_RUNTIME}
+        --conf ${MHS_DIR}/mhs.conf
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
         --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
         --lib ${CMAKE_BINARY_DIR}/projects/mhs-midi/libmidi_ffi.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_open.a
     DEPENDS
         ${MHS_EMBED}
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
@@ -302,6 +305,7 @@ add_custom_command(
         midi_ffi
         music_theory
         midi_file
+        midi_open
     COMMENT "Generating mhs_embedded_src.h (uncompressed source)"
     VERBATIM
 )
@@ -316,11 +320,13 @@ add_custom_command(
         ${MHS_LIB}
         ${MIDI_LIB_DIR}
         --runtime ${MHS_RUNTIME}
+        --conf ${MHS_DIR}/mhs.conf
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
         --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
         --lib ${CMAKE_BINARY_DIR}/projects/mhs-midi/libmidi_ffi.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_open.a
     DEPENDS
         ${MHS_EMBED}
         ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
@@ -328,6 +334,7 @@ add_custom_command(
         midi_ffi
         music_theory
         midi_file
+        midi_open
     COMMENT "Generating mhs_embedded_src_zstd.h (compressed source)"
     VERBATIM
 )
@@ -371,7 +378,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E env "MHSDIR=${MHS_DIR}"
         ${MHS_COMPILER} -Q ${DIST_BASE_PKG} ${BASE_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${MHS_RUNTIME} ${MHS_DATA_DIR}/src/runtime
-    COMMAND ${CMAKE_COMMAND} -E copy ${MHS_DIR}/targets.conf ${MHS_DATA_DIR}/
+    COMMAND ${CMAKE_COMMAND} -E copy ${MHS_DIR}/mhs.conf ${MHS_DATA_DIR}/
     COMMAND ${CMAKE_COMMAND} -E touch ${LOCAL_MCABAL_STAMP}
     DEPENDS ${MHS_COMPILER} ${DIST_BASE_PKG}
     COMMENT "Installing MicroHs packages to build/mcabal"
@@ -388,6 +395,7 @@ add_custom_command(
         Async Midi MidiPerform Music MusicPerform
         -o ${MUSIC_PKG}
     DEPENDS
+        ${MHS_COMPILER} # a new compiler writes a new package format
         ${MIDI_LIB_DIR}/Async.hs
         ${MIDI_LIB_DIR}/Midi.hs
         ${MIDI_LIB_DIR}/MidiPerform.hs
@@ -413,10 +421,12 @@ add_custom_command(
         --txt-dir ${BASE_DIR}
         --music-modules music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform
         --runtime ${MHS_DATA_DIR}/src/runtime
+        --conf ${MHS_DIR}/mhs.conf
         --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
         --lib ${CMAKE_BINARY_DIR}/projects/mhs-midi/libmidi_ffi.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_open.a
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
     DEPENDS
         ${MHS_EMBED}
@@ -432,6 +442,7 @@ add_custom_command(
         midi_ffi
         music_theory
         midi_file
+        midi_open
     COMMENT "Generating mhs_embedded_pkg.h (uncompressed packages)"
     VERBATIM
 )
@@ -449,10 +460,12 @@ add_custom_command(
         --txt-dir ${BASE_DIR}
         --music-modules music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform
         --runtime ${MHS_DATA_DIR}/src/runtime
+        --conf ${MHS_DIR}/mhs.conf
         --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
         --lib ${CMAKE_BINARY_DIR}/projects/mhs-midi/libmidi_ffi.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmusic_theory.a
         --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_file.a
+        --lib ${CMAKE_BINARY_DIR}/projects/common/libmidi_open.a
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
     DEPENDS
         ${MHS_EMBED}
@@ -468,6 +481,7 @@ add_custom_command(
         midi_ffi
         music_theory
         midi_file
+        midi_open
     COMMENT "Generating mhs_embedded_pkgs_zstd.h (compressed packages)"
     VERBATIM
 )
@@ -570,6 +584,87 @@ install(TARGETS mhs-midi-src mhs-midi-src-zstd mhs-midi-pkg mhs-midi-pkg-zstd
     RUNTIME DESTINATION bin
     COMPONENT mhs-midi
 )
+
+# ============================================
+# CLAP and VST3 plugin (projects/clap): the REPL in the host's process
+# ============================================
+# PluginRepl.hs is a REPL driven by the plugin instead of a terminal. It is
+# compiled to C with the compiler sources, like generated/mhs.c, and runs on
+# the runtime that mhs_plugin_runtime.c builds from eval_vfs.c. Packages are
+# embedded, so it starts without files or a compile cache.
+if(COMMAND midi_langs_add_clap)
+    set(MHS_PLUGIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/plugin)
+    set(MHS_PLUGIN_BUILD ${CMAKE_CURRENT_BINARY_DIR}/plugin)
+    file(GLOB MHS_COMPILER_SOURCES ${MHS_DIR}/src/MicroHs/*.hs)
+
+    add_custom_command(
+        OUTPUT ${MHS_PLUGIN_BUILD}/mhs_plugin_repl_full.c
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${MHS_PLUGIN_BUILD}
+        COMMAND ${CMAKE_COMMAND} -E env "MHSDIR=${MHS_DIR}"
+            ${MHS_COMPILER} -z -i${MHS_PLUGIN_DIR} -i${MHS_DIR}/mhs -i${MHS_DIR}/src -i${MHS_DIR}/lib
+            PluginRepl -o${MHS_PLUGIN_BUILD}/mhs_plugin_repl_full.c
+        DEPENDS ${MHS_COMPILER} ${MHS_PLUGIN_DIR}/PluginRepl.hs ${MHS_COMPILER_SOURCES}
+        WORKING_DIRECTORY ${MHS_DIR}
+        COMMENT "Compiling the plugin REPL (PluginRepl.hs) to C"
+        VERBATIM
+    )
+    # Its FFI table goes: mhs_plugin_runtime.c merges these entries with the MIDI ones.
+    add_custom_command(
+        OUTPUT ${MHS_PLUGIN_BUILD}/mhs_plugin_repl.c
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/mhs-patch-xffi.py
+            ${MHS_PLUGIN_BUILD}/mhs_plugin_repl_full.c ${MHS_PLUGIN_BUILD}/mhs_plugin_repl.c
+        DEPENDS ${MHS_PLUGIN_BUILD}/mhs_plugin_repl_full.c ${CMAKE_SOURCE_DIR}/scripts/mhs-patch-xffi.py
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${MHS_PLUGIN_BUILD}/mhs_embedded_pkgs_zstd.h
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${MHS_PLUGIN_BUILD}
+        COMMAND ${MHS_EMBED} ${MHS_PLUGIN_BUILD}/mhs_embedded_pkgs_zstd.h
+            --pkg-mode
+            --pkg packages/base-${MHS_VERSION}.pkg=${BASE_PKG}
+            --pkg packages/music-0.1.0.pkg=${MUSIC_PKG}
+            --txt-dir ${BASE_DIR}
+            --music-modules music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform
+            --conf ${MHS_DIR}/mhs.conf
+        DEPENDS ${MHS_EMBED} mhs-local-install mhs-music-pkg ${LOCAL_MCABAL_STAMP} ${MUSIC_PKG}
+        COMMENT "Embedding packages for the plugin"
+        VERBATIM
+    )
+
+    add_library(mhs_midi_plugin_core STATIC
+        ${MHS_PLUGIN_DIR}/mhs_plugin_runtime.c
+        ${MHS_PLUGIN_DIR}/midi_ffi_table.c
+        ${MHS_PLUGIN_BUILD}/mhs_plugin_repl.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mhs_ffi_override.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/vfs.c
+        ${ZSTD_DIR}/zstddeclib.c
+        ${MHS_PLUGIN_BUILD}/mhs_embedded_pkgs_zstd.h # included by vfs.c
+    )
+    # eval_vfs.c is included, not compiled; the standalone variants compile it.
+    set_source_files_properties(${MHS_PLUGIN_DIR}/mhs_plugin_runtime.c PROPERTIES
+        OBJECT_DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/eval_vfs.c)
+    set_source_files_properties(${MHS_PLUGIN_BUILD}/mhs_plugin_repl.c PROPERTIES
+        COMPILE_OPTIONS "-include;${MHS_PLUGIN_DIR}/mhs_plugin.h")
+    # plugin/runtime first: its config.h and extra.c wrap the runtime's.
+    target_include_directories(mhs_midi_plugin_core
+        PRIVATE
+            ${MHS_PLUGIN_DIR}/runtime
+            ${MHS_PLUGIN_BUILD}
+            ${CMAKE_CURRENT_BINARY_DIR}
+            ${MHS_RUNTIME}
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${ZSTD_DIR}
+        PUBLIC ${MHS_PLUGIN_DIR})
+    target_compile_definitions(mhs_midi_plugin_core PRIVATE VFS_USE_PKG VFS_USE_ZSTD)
+    target_link_libraries(mhs_midi_plugin_core PUBLIC midi_ffi music_theory midi_file midi_open m)
+
+    midi_langs_add_clap(mhs_midi_clap
+        NAME mhs-midi
+        CLASS_PREFIX MidiLangsMhsMidi
+        SOURCES ${MHS_PLUGIN_DIR}/mhs_clap.cpp
+        LIBRARIES mhs_midi_plugin_core
+    )
+endif()
 
 endif() # NOT WIN32
 

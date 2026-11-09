@@ -28,7 +28,6 @@ module Prelude(
   module Data.Real,
   module Data.RealFloat,
   module Data.RealFrac,
-  module Data.Records,
   module Data.String,
   module Data.Traversable,
   module Data.Tuple,
@@ -58,7 +57,7 @@ import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
 import Data.Float(Float)
 import Data.Floating(Floating(..))
-import Data.Foldable(Foldable)
+import Data.Foldable(Foldable(foldMap))
 import Data.Fractional(Fractional(..), (^^), realToFrac)
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
@@ -80,9 +79,8 @@ import Data.Ratio(Rational)
 import Data.Real(Real(..))
 import Data.RealFloat(RealFloat(..))
 import Data.RealFrac(RealFrac(..))
-import Data.Records  -- XXX redo this somehow
 import Data.String(IsString(..), lines, unlines, words, unwords)
-import Data.Traversable(Traversable)
+import Data.Traversable(Traversable(traverse, sequenceA))
 import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Word.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getChar, getLine, getContents, interact,

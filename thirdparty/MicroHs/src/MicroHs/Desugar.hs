@@ -25,6 +25,7 @@ import MicroHs.List
 import MicroHs.Names
 import MicroHs.State as S
 import MicroHs.TypeCheck
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 type LDef = (Ident, Exp)
 
@@ -46,7 +47,7 @@ dsDef flags mn ffiNo adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
-    ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp ffiNo cc ie i t)]
+    ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp mn ffiNo cc ie i t)]
     -- Foreign exports don't fit very well into the desugared syntax.
     -- We represent
     --   foreign export "foo" bar :: ty
@@ -54,7 +55,7 @@ dsDef flags mn ffiNo adef =
     --   foo = FE bar' ty'
     -- where bar' is the desugared expression for bar, and ty' is the C type
     -- (currently just a newtype of an EType).
-    ForExp _ (Just s) e t ->  [(mkIdentSLoc l s, mkForExp e' (CType t))]
+    ForExp cc (Just s) e t ->  [(mkIdentSLoc l s, mkForExp (cc == Cjavascript) e' (CType t))]
       where l = getSLoc e
             e' = dsExpr e
     Class ctx (c, _) _ bs ->
@@ -122,7 +123,8 @@ dsEqns loc eqns =
           let ps' = map dsPat ps
           in  (ps', id, dsAlts alts)
         ex = dsCaseExp loc (vs ++ xs) (map Var xs) (map mkArm eqns)
-      in foldr Lam ex xs
+        ex' = optCase ex
+      in foldr Lam ex' xs
     _ -> eMatchErr loc
 
 dsAlts :: EAlts -> (Exp -> Exp)
@@ -204,9 +206,9 @@ mutualRec v ies body =
   let (is, es) = unzip ies
       n = length is
       ev = Var v
-      one m i = letE i (mkTupleSelE m n ev)
+      one m i = letE i (encTupleSel m n ev)
       bnds = foldr (.) id $ zipWith one [0..] is
-  in  letRecE v (bnds $ mkTupleE es) $
+  in  letRecE v (bnds $ encTuple es) $
       bnds body
 
 -- In case we are cross compiling for a 32 bit platform we don't want integers that are too big.
@@ -244,7 +246,7 @@ dsExpr aexpr =
     ELit _ l -> Lit l
     ECase e as -> dsCase (getSLoc aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
-    ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
+    ETuple es -> encTuple $ map dsExpr es
     EIf e1 e2 e3 -> encIf (dsExpr e1) (dsExpr e2) (dsExpr e3)
     EListish (LList es) -> encList $ map dsExpr es
     EListish (LCompr e stmts) -> dsExpr $ dsCompr e stmts (EListish (LList []))
@@ -253,11 +255,11 @@ dsExpr aexpr =
           Just n ->
             let
               xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-              body = mkTupleE $ map Var xs
+              body = encTuple $ map Var xs
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
-    _ -> impossibleShow aexpr
-  where addLoc i = EApp (EVar i) (ELit l (LStr (show l ++ ": "))) where l = getSLoc i
+    _ -> impossiblePP aexpr
+  where addLoc i = EApp (EVar i) (ELit l (LStr (prettyShow l ++ ": "))) where l = getSLoc i
         iapp = mkIdent "Data.List_Type.++"
 
 dsCompr :: Expr -> [EStmt] -> Expr -> Expr
@@ -278,17 +280,6 @@ dsCompr e xss@(SBind p g : ss) l = ELet [hdef] (EApp eh g)
     vs = EVar $ head $ newVars "$vs" allVs
     allVs = allVarsExpr (EListish (LCompr (ETuple [e,l]) xss))  -- all used identifiers
 dsCompr _ (SRec _ : _) _ = impossible
-
--- Use tuple encoding to make a tuple
-mkTupleE :: [Exp] -> Exp
-mkTupleE = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
-
--- Select component m from an n-tuple
-mkTupleSelE :: Int -> Int -> Exp -> Exp
-mkTupleSelE m n tup =
-  let
-    xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-  in App tup (foldr Lam (Var (xs !! m)) xs)
 
 -- Handle special syntax for lists and tuples.
 dsPat :: HasCallStack =>
@@ -320,7 +311,7 @@ showLDefs = unlines . map showLDef
 showLDef :: LDef -> String
 showLDef a =
   case a of
-    (i, e) -> showIdent i ++ " = " ++ show e
+    (i, e) -> showIdent i ++ " = " ++ prettyShow e
 
 ----------------
 
@@ -485,7 +476,7 @@ mkCase var pes dflt =
 eMatchErr :: SLoc -> Exp
 eMatchErr loc =
   let exn = mkIdentSLoc loc "Control.Exception.Internal.patternMatchFail"
-      msg = LStr $ show loc
+      msg = LStr $ prettyShow loc
   in  App (Var exn) (Lit msg)
 
 -- If the first expression isn't a variable/literal, then use
@@ -538,7 +529,7 @@ pConOf apat =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    _ -> impossibleShow apat
+    _ -> impossiblePP apat
 
 pArgs :: EPat -> [EPat]
 pArgs apat =
@@ -620,42 +611,83 @@ lazier def = def
 -- "wrapper"
 -- When the calling convention is ccall the 'expr' has to be a name,
 -- with capi it can be any C expression.
-parseImpEnt :: SLoc -> CallConv -> String -> ImpEnt
-parseImpEnt _ Cjavascript s = ImpJS s
-parseImpEnt loc _cc s =
+parseImpEnt :: SLoc -> CallConv -> String -> String -> ImpEnt
+parseImpEnt _ Cjavascript _ s = ImpJS s
+parseImpEnt loc _cc ui s =
   case words s of
     ["dynamic"] -> ImpDynamic
     ["wrapper"] -> ImpWrapper
-    "static" : r -> rest r
-    r            -> rest r
- where rest (inc : r) | ".h" `isSuffixOf` inc = rest' (ImpStatic [inc]) r
-       rest r                                 = rest' (ImpStatic [])    r
+    "static" : r -> rest [] r
+    r            -> rest [] r
+ where rest incs (inc : r) | ".h" `isSuffixOf` inc = rest  (incs ++ [inc])  r
+       rest incs r                                 = rest' (ImpStatic incs) r
        rest' c ("&"     : r) = rest'' (c IPtr) r
        rest' c ['&'     : r] = rest'' (c IPtr) [r]
        rest' c ("value" : r) = rest'' (c IValue) [unwords r]
        rest' c r             = rest'' (c IFunc) r
+       rest'' c [] = c ui
        rest'' c [n] = c n
        rest'' _ _ = badForImp loc
 
 badForImp :: SLoc -> a
 badForImp loc = errorMessage loc "bad foreign import"
 
-mkForImp :: Int -> CallConv -> Maybe String -> Ident -> EType -> Lit
-mkForImp _ Cjavascript Nothing i _ = badForImp (getSLoc i)
-mkForImp no cc ms i ty =
+mkForImp :: IdentModule -> Int -> CallConv -> Maybe String -> Ident -> EType -> Lit
+mkForImp _ _ Cjavascript Nothing i _ = badForImp (getSLoc i)
+mkForImp mn no cc ms i ty =
   let cty = CType ty
       loc = getSLoc i
       ui  = unIdent (unQualIdent i)
       isValidC (c:cs) = isAlpha c && all (\ d -> isAlphaNum d || d == '_') cs
       isValidC _ = False
-  in  case ms of
-        Nothing -> LForImp (ImpStatic [] IFunc ui) ui cty
-        Just s  ->
-          let impent = parseImpEnt loc cc s
-              fno = show no
-              cid =
-                case impent of
-                  ImpStatic _ _ n ->
-                    if isValidC n then n else fno
-                  _ -> fno
-          in  LForImp impent cid cty
+      impent = parseImpEnt loc cc ui $ fromMaybe "" ms
+      fno = show no
+      cid =
+        case impent of
+          ImpStatic _ _ n ->
+            if isValidC n then n else fno
+          _ -> fno
+  in  LForImp mn impent cid cty
+
+-- Pattern matching against a number of Int/Char constants, e.g.
+--  case e of 1->2; 2->3; 3->4; _->5
+-- make each match turn into view pattern  ((1 ==) -> True) -> 2; ((2 ==) -> True) -> 3 etc.
+-- This is quite slow when there are many case arms.
+-- Recognize this case and turn it into a binary search instead.
+-- Sadly, it only works for Char/Int/Word in this simple version.
+optCase :: Exp -> Exp
+optCase ae = opt [] ae
+  where opt arms e | Just (eq, texp, fexp) <- getEncIf e
+                   , Just (var, lit) <- getEqExp eq = opt ((var, (lit, texp)) : arms) fexp
+        opt arms@((var, _):_) dflt | length arms >= binLimit && all ((var ==) . fst) arms
+                                   , let kes = sortBy (compare `on` fst) (map snd arms)
+                                   , length kes == length (groupBy ((==) `on` fst) kes)  -- no duplicated labels
+                                   = tree var kes dflt
+        opt _ _ = ae
+
+        getEqExp (App (App (App (Var sel) (Var dict)) (Lit (LInt lit))) var@(Var _))
+          |  unIdent sel  == "Data.Eq.=="
+          && (unIdent dict == "inst$Data.Eq.Eq@Primitives.Char" ||
+              unIdent dict == "inst$Data.Eq.Eq@Primitives.Int" ||
+              unIdent dict == "inst$Data.Eq.Eq@Primitives.Word")
+          = Just (var, lit)
+        getEqExp _ = Nothing
+
+        tree var kes dflt | l < binLimit = linear var kes dflt
+                      | otherwise =
+                        case splitAt (l `quot` 2) kes of
+                          (lo, hi@((k,_):_)) -> encIf (gtInt k var) (tree var lo dflt) (tree var hi dflt)
+                          _ -> undefined
+                      where l = length kes
+        linear _ [] dflt = dflt
+        linear var ((k, rhs):kes) dflt = encIf (eqInt k var) rhs (linear var kes dflt)
+
+        eqInt :: Int -> Exp -> Exp
+        eqInt i x = app2 (Lit (LPrim "==")) (Lit (LInt i)) x
+        gtInt :: Int -> Exp -> Exp
+        gtInt i x = app2 (Lit (LPrim ">")) (Lit (LInt i)) x
+
+-- Switch to binary search with >= binLimit arms
+-- Experimentally, this seems to be the sweet spot.
+binLimit :: Int
+binLimit = 7

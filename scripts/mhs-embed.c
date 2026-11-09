@@ -13,6 +13,7 @@
  *   --runtime <dir>     Embed runtime C/H files from <dir>
  *   --lib <file>        Embed a library file (.a) in lib/
  *   --header <file>     Embed a header file in src/runtime/
+ *   --conf <file>       Embed the MicroHs config file as mhs.conf
  *   --dict-size <bytes> Dictionary size (default: 112KB)
  *   --level <1-22>      Compression level (default: 19)
  *
@@ -1058,6 +1059,7 @@ static void print_usage(const char* prog) {
     printf("  --no-compress       Disable zstd compression (plain C strings)\n");
     printf("  --runtime <dir>     Embed runtime C/H files from <dir>\n");
     printf("  --lib <file>        Embed a library file (.a) in lib/ (repeatable)\n");
+    printf("  --conf <file>       Embed the MicroHs config file as mhs.conf\n");
     printf("  --header <file>     Embed a header file in src/runtime/ (repeatable)\n");
 #ifndef MHS_EMBED_NO_ZSTD
     printf("  --dict-size <bytes> Dictionary size (default: %d)\n", DEFAULT_DICT_SIZE);
@@ -1077,7 +1079,7 @@ static void print_usage(const char* prog) {
     printf("  # Package mode with compression\n");
     printf("  %s out.h --pkg-mode \\\n", prog);
     printf("    --pkg packages/base.pkg=/path/base.pkg \\\n");
-    printf("    --txt-dir /path/to/mcabal/mhs-0.15.2.0\n");
+    printf("    --txt-dir /path/to/mcabal/mhs-0.16.9.0\n");
 }
 
 int main(int argc, char** argv) {
@@ -1094,6 +1096,7 @@ int main(int argc, char** argv) {
     const char* output_path = argv[1];
     const char* runtime_dir = NULL;
     const char* txt_dir = NULL;
+    const char* conf_file = NULL; /* MicroHs 0.16 needs mhs.conf to compile to C */
 
     const char* lib_files[64];
     const char* header_files[64];
@@ -1121,6 +1124,12 @@ int main(int argc, char** argv) {
                 return 1;
             }
             lib_files[lib_count++] = argv[++i];
+        } else if (strcmp(argv[i], "--conf") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --conf requires an argument\n");
+                return 1;
+            }
+            conf_file = argv[++i];
         } else if (strcmp(argv[i], "--header") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "Error: --header requires an argument\n");
@@ -1187,6 +1196,11 @@ int main(int argc, char** argv) {
             printf("Collecting .hs files from %s...\n", argv[i]);
             collect_hs_files(argv[i]);
         }
+    }
+
+    if (conf_file) {
+        printf("Embedding config: %s\n", conf_file);
+        add_file_with_type("mhs.conf", conf_file, FILE_TYPE_RUNTIME);
     }
 
     if (runtime_dir) {

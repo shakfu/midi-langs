@@ -1,9 +1,9 @@
 # LeakSanitizer suppressions for vendored code, used by `make test-asan`.
 
-# MicroHs 0.15: closeb_lz77 frees its buffer only in write mode, so each
-# compressed read leaks it. A real per-load leak, left until MicroHs is
-# upgraded; psnd patches the same bug in 0.16 (closeb_lzma).
-leak:lz77d
+# MicroHs 0.16.9: closeb_lzma frees its buffer only in write mode, so each
+# compressed read leaks the one add_lzma_decompressor allocates. Upstream
+# master's streaming LZMA decoder frees it; drop this at the next release.
+leak:add_lzma_decompressor
 
 # s7: permanent strings made by s7_init, deliberately outside all s7 GCs
 leak:make_permanent_string

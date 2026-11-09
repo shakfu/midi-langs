@@ -480,7 +480,7 @@ m:note_on(64, 100, 2)  -- E4 on channel 2
 
 **mhs-midi** uses Haskell's type system:
 
-```haskell
+```haskell norun
 -- Haskell
 melody [c4, e4, g4]  -- Sequential
 chord (major c4)     -- Simultaneous on same channel

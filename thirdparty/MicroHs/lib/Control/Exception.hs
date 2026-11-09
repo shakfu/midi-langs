@@ -34,6 +34,7 @@ module Control.Exception(
 
   --
   ArithException(..),
+  SerializeException(..),
   SomeAsyncException(..), AsyncException(..),
   asyncExceptionToException,
   asyncExceptionFromException,
@@ -102,7 +103,7 @@ mapException f v =
 evaluate :: a -> IO a
 evaluate a = seq a (return ()) >> return a
 
-try :: forall a e . Exception e => IO a -> IO (Either e a)
+try :: forall e a . Exception e => IO a -> IO (Either e a)
 try ioa = catch (fmap Right ioa) (return . Left)
 
 tryJust :: Exception e => (e -> Maybe b) -> IO a -> IO (Either b a)
@@ -144,6 +145,8 @@ deriving instance Eq   AsyncException
 deriving instance Ord  AsyncException
 deriving instance Eq   MaskingState
 deriving instance Show MaskingState
+deriving instance Eq   SerializeException
+deriving instance Ord  SerializeException
 
 blockedIndefinitelyOnMVar :: SomeException
 blockedIndefinitelyOnMVar = toException BlockedIndefinitelyOnMVar

@@ -14,7 +14,7 @@
 
 ## MidiPerform Module
 
-```haskell
+```haskell norun
 import MidiPerform
 ```
 
@@ -22,7 +22,7 @@ Immediate MIDI playback with generative functions. All functions are IO actions.
 
 ### MIDI Control
 
-```haskell
+```haskell norun
 open     :: IO ()  -- open virtual port "mhsMIDI"
 openPort :: Int -> IO ()  -- open hardware port by index
 close    :: IO ()  -- close MIDI port
@@ -32,7 +32,7 @@ ports    :: IO ()  -- list available ports
 
 ### Note Playing
 
-```haskell
+```haskell norun
 note :: Pitch -> IO ()
 -- Play note with defaults (channel 1, mf, quarter)
 
@@ -54,14 +54,14 @@ arpeggioWith :: Channel -> Velocity -> Duration -> [Pitch] -> IO ()
 
 ### Timing
 
-```haskell
+```haskell norun
 rest :: Duration -> IO ()
 wait :: Duration -> IO ()  -- alias for rest
 ```
 
 ### Sequences
 
-```haskell
+```haskell norun
 melody :: [Pitch] -> IO ()
 -- Play melody with defaults (mf, quarter)
 
@@ -74,7 +74,7 @@ times :: Int -> IO () -> IO ()
 
 ### Generative Functions
 
-```haskell
+```haskell norun
 seed :: Int -> IO ()
 -- Seed random number generator
 
@@ -111,7 +111,7 @@ euclidean :: Int -> Int -> IO () -> IO ()
 
 ### Scales (for Generative Use)
 
-```haskell
+```haskell norun
 major :: Pitch -> [Pitch]
 minor :: Pitch -> [Pitch]
 pentatonic :: Pitch -> [Pitch]
@@ -127,7 +127,7 @@ melodicMinor :: Pitch -> [Pitch]
 
 ### Low-level MIDI
 
-```haskell
+```haskell norun
 noteOn :: Channel -> Pitch -> Velocity -> IO ()
 noteOff :: Channel -> Pitch -> IO ()
 cc :: Channel -> Int -> Int -> IO ()
@@ -143,7 +143,7 @@ Pitches, durations, and velocities are the same as in Music.hs.
 
 ## MusicPerform Module
 
-```haskell
+```haskell norun
 import MusicPerform
 ```
 
@@ -151,7 +151,7 @@ Re-exports Music and Midi, adds `perform` to bridge pure Music to MIDI.
 
 ### Performance
 
-```haskell
+```haskell norun
 perform :: Music -> IO ()
 -- Perform music on channel 1
 
@@ -161,7 +161,7 @@ performOn :: Channel -> Music -> IO ()
 
 ### Microtonal
 
-```haskell
+```haskell norun
 centsToBend :: Int -> IO Int
 -- Convert cents to pitch bend value
 
@@ -173,7 +173,7 @@ pitchBendCents :: Channel -> Int -> IO ()
 
 ## Async Module
 
-```haskell
+```haskell norun
 import Async
 -- Or use via: import MusicPerform (which re-exports Async)
 ```
@@ -182,14 +182,14 @@ Concurrent voice scheduler using native Haskell threads (`forkIO`).
 
 ### Types
 
-```haskell
+```haskell norun
 type VoiceId = ThreadId
 -- Voice identifier (wrapper around Haskell ThreadId)
 ```
 
 ### Scheduler Functions
 
-```haskell
+```haskell norun
 spawn :: String -> IO () -> IO VoiceId
 -- Spawn a new voice with a name. The action runs in its own thread.
 
@@ -211,7 +211,7 @@ status :: IO (Bool, Int, [String])
 
 ### Async Music Helpers
 
-```haskell
+```haskell norun
 asyncNote :: Channel -> Pitch -> Velocity -> Duration -> IO VoiceId
 -- Play a single note asynchronously
 
@@ -254,7 +254,7 @@ main = do
 
 ## Music Module (Pure)
 
-```haskell
+```haskell norun
 import Music
 ```
 
@@ -262,7 +262,7 @@ Pure music theory with no IO. All functions are pure.
 
 ### Types
 
-```haskell
+```haskell norun
 type Pitch = Int      -- MIDI note number (0-127)
 type Duration = Int   -- milliseconds
 type Velocity = Int   -- 0-127
@@ -280,7 +280,7 @@ data Music
 
 ### Constructors
 
-```haskell
+```haskell norun
 note :: Pitch -> Velocity -> Duration -> Music
 -- Single note
 
@@ -296,7 +296,7 @@ line :: [Pitch] -> Velocity -> Duration -> Music
 
 ### Combinators
 
-```haskell
+```haskell norun
 (+:+) :: Music -> Music -> Music
 -- Sequential composition (infixr 5)
 
@@ -309,7 +309,7 @@ timesM :: Int -> Music -> Music
 
 ### Transformations
 
-```haskell
+```haskell norun
 transpose :: Int -> Music -> Music
 -- Transpose by semitones
 
@@ -331,7 +331,7 @@ mapEvents :: (Event -> Event) -> Music -> Music
 
 ### Utilities
 
-```haskell
+```haskell norun
 collectEvents :: Music -> [Event]
 -- Flatten music to event list
 
@@ -359,7 +359,7 @@ Pitch class (semitone offset): `c = 0`, `cs = 1`, ..., `b = 11`
 | `eighth` | 250 | Eighth note |
 | `sixteenth` | 125 | Sixteenth note |
 
-```haskell
+```haskell norun
 dotted :: Duration -> Duration  -- 1.5x duration
 bpm :: Int -> Duration          -- quarter note duration for tempo
 ```
@@ -398,7 +398,7 @@ bpm :: Int -> Duration          -- quarter note duration for tempo
 
 ### Scale Functions
 
-```haskell
+```haskell norun
 buildScale :: Pitch -> Scale -> [Pitch]
 -- Build scale pitches from root
 
@@ -418,7 +418,7 @@ Music.hs includes pure generative algorithms that work with explicit seeds for r
 
 #### Pure PRNG
 
-```haskell
+```haskell norun
 type Seed = Int
 
 nextRandom :: Seed -> (Int, Seed)
@@ -433,7 +433,7 @@ randomList :: Seed -> Int -> Int -> Int -> ([Int], Seed)
 
 #### Deterministic Algorithms
 
-```haskell
+```haskell norun
 euclideanRhythm :: Int -> Int -> [Bool]
 -- Bjorklund algorithm: euclideanRhythm 3 8 = [T,F,F,T,F,F,T,F]
 
@@ -455,7 +455,7 @@ invert :: Pitch -> Music -> Music
 
 #### Seed-based Random
 
-```haskell
+```haskell norun
 shuffle :: Seed -> [a] -> [a]
 -- Fisher-Yates shuffle
 
@@ -478,7 +478,7 @@ Cents-based scales for quarter-tones:
 
 `scaleMaqamBayatiCents`, `scaleMaqamRastCents`, `scaleMaqamSabaCents`, `scaleMakamUssakCents`, `scaleShrutiCents`, etc.
 
-```haskell
+```haskell norun
 centsToNote :: Pitch -> Int -> (Pitch, Int)
 -- Convert cents interval to (MIDI note, bend cents)
 ```
@@ -487,7 +487,7 @@ centsToNote :: Pitch -> Int -> (Pitch, Int)
 
 ## Midi Module (FFI)
 
-```haskell
+```haskell norun
 import Midi
 ```
 
@@ -495,7 +495,7 @@ Low-level FFI bindings. Most users should use MidiPerform or MusicPerform instea
 
 ### Port Management
 
-```haskell
+```haskell norun
 midiInit :: IO Bool
 midiCleanup :: IO ()
 midiListPorts :: IO Int
@@ -508,7 +508,7 @@ midiIsOpen :: IO Bool
 
 ### MIDI Messages
 
-```haskell
+```haskell norun
 midiNoteOn :: Int -> Int -> Int -> IO ()
 midiNoteOff :: Int -> Int -> IO ()
 midiCC :: Int -> Int -> Int -> IO ()
@@ -519,7 +519,7 @@ midiSend :: Int -> Int -> Int -> IO ()
 
 ### Utilities
 
-```haskell
+```haskell norun
 midiSleep :: Int -> IO ()
 midiPanic :: IO ()
 midiCentsToBend :: Int -> IO Int
@@ -527,7 +527,7 @@ midiCentsToBend :: Int -> IO Int
 
 ### Random
 
-```haskell
+```haskell norun
 midiSeedRandom :: Int -> IO ()
 midiRandom :: IO Int
 midiRandomRange :: Int -> Int -> IO Int
@@ -537,7 +537,7 @@ midiRandomRange :: Int -> Int -> IO Int
 
 Record MIDI events for replay or export. Records note-on, note-off, and CC events with timestamps.
 
-```haskell
+```haskell norun
 midiRecordStart :: Int -> IO Bool
 -- Start recording at given BPM
 

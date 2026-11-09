@@ -44,7 +44,7 @@ instance Show Handle where
 type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
-  deriving (Eq, Ord, Enum)
+  deriving (Eq, Ord, Enum, Show)
 
 ioModeToHMode :: IOMode -> HandleState
 ioModeToHMode ReadMode = HRead
@@ -112,7 +112,7 @@ addTransducer trans h@(Handle _ st desc) =
     p' <- trans p                 -- add transducer
     mode <- readIORef st
     killHandle h                  -- old handle should not be finalized,
-    mkHandle desc p' mode         --   because the new handle will do that
+    mkHandle ("trans-" ++ desc) p' mode         --   because the new handle will do that
 
 ----------------------------------------
 
@@ -121,13 +121,12 @@ instance Functor IO where
 
 instance Applicative IO where
   pure         = primReturn
+  (*>)         = primThen
   (<*>)        = ap
 
 instance Monad IO where
   (>>=)        = primBind
   (>>)         = primThen
-  return       = primReturn
 
 instance MonadFail IO where
   fail         = error
-

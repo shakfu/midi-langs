@@ -3,6 +3,9 @@
  */
 #include <conio.h>
 #include <io.h>
+#include <stdlib.h>
+#include <windows.h>
+#include <string.h>
 
 /*
  * Find First Set
@@ -11,9 +14,10 @@
  * Numberings starts from 1.  If no bit is set, it should return 0.
  */
 //#pragma warning(disable : 4996)
+#if defined(_M_X64) || defined(_M_ARM64)
 #pragma intrinsic(_BitScanForward64)
 #pragma intrinsic(_BitScanReverse64)
-static inline int
+static INLINE int
 ffs(int64_t arg)
 {
   unsigned long r;
@@ -30,7 +34,7 @@ ffs(int64_t arg)
 #define POPCOUNT __popcnt
 #endif
 
-static inline uint64_t clz(uint64_t x) {
+static INLINE uint64_t clz(uint64_t x) {
   unsigned long count;
   if (_BitScanReverse64(&count, x)) {
     return 63 - (uint64_t)count;
@@ -40,7 +44,7 @@ static inline uint64_t clz(uint64_t x) {
 }
 #define CLZ clz
 
-static inline uint64_t ctz(uint64_t x) {
+static INLINE uint64_t ctz(uint64_t x) {
   unsigned long count;
   if (_BitScanForward64(&count, x)) {
     return (uint64_t)count;
@@ -49,6 +53,7 @@ static inline uint64_t ctz(uint64_t x) {
   }
 }
 #define CTZ ctz
+#endif  /* #if defined(_M_X64) || defined(_M_ARM64) */
 
 /*
  * This is the character used for comma-separation in printf.
@@ -93,25 +98,18 @@ getraw(void)
  * Get time since some epoch in milliseconds.
  * If undefined, return 0.
  */
-#define GETTIMEMILLI gettimemilli
+#define GETTIMEMICRO gettimemicro
 
 uint64_t
-gettimemilli(void)
+gettimemicro(void)
 {
-    static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
-
-    SYSTEMTIME  system_time;
-    FILETIME    file_time;
-    uint64_t    time, msec;
-
-    GetSystemTime( &system_time );
-    SystemTimeToFileTime( &system_time, &file_time );
-    time =  ((uint64_t)file_time.dwLowDateTime )      ;
-    time += ((uint64_t)file_time.dwHighDateTime) << 32;
-
-    msec = (time - EPOCH) / 10000L;
-    //msec = time + system_time.wMilliseconds;
-    return msec;
+  FILETIME ft;
+  // 100-nanosecond intervals since January 1, 1601 (UTC)
+  GetSystemTimePreciseAsFileTime(&ft);
+  uint64_t intervals = ((uint64_t)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+  const uint64_t UNIX_EPOCH_OFFSET = 11644473600ULL * 10000000ULL;
+  intervals -= UNIX_EPOCH_OFFSET;
+  return intervals / 10;
 }
 
 /*
@@ -154,3 +152,188 @@ tmpname(const char* prefix, const char* suffix)
   return filename;
 }
 #define TMPNAME tmpname
+
+/* Return path to executable as a null-terminated UTF-8 string. */
+char*
+get_executable_path(void)
+{
+    DWORD size = MAX_PATH;
+    WCHAR *wbuf = malloc(size * sizeof(WCHAR));
+    if (!wbuf) return NULL;
+
+    DWORD len = GetModuleFileNameW(NULL, wbuf, size);
+    while (len == size && GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        size *= 2;
+        WCHAR *new_buf = realloc(wbuf, size * sizeof(WCHAR));
+        if (!new_buf) { free(wbuf); return NULL; }
+        wbuf = new_buf;
+        len = GetModuleFileNameW(NULL, wbuf, size);
+    }
+
+    int utf8_len = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, NULL, 0, NULL, NULL);
+    char *utf8_buf = malloc(utf8_len);
+    if (utf8_buf) {
+        WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, utf8_buf, utf8_len, NULL, NULL);
+    }
+    free(wbuf);
+    return utf8_buf;
+}
+#define GET_EXECUTABLE_PATH get_executable_path
+
+/* Emulate directory functions, partially written by Gemini */
+
+struct dirent {
+  char d_name[MAX_PATH * 3];
+};
+
+typedef struct {
+  HANDLE hFind;
+  WIN32_FIND_DATAW findData;
+  struct dirent entry;
+  int first;
+} DIR;
+
+DIR*
+opendir(const char *path)
+{
+  DIR *d = (DIR*)malloc(sizeof(DIR));
+  if (!d)
+    return NULL;
+
+  WCHAR wpath[MAX_PATH];
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH);
+  wcscat_s(wpath, MAX_PATH, L"\\*");
+
+  d->hFind = FindFirstFileW(wpath, &d->findData);
+  if (d->hFind == INVALID_HANDLE_VALUE) {
+    free(d);
+    return NULL;
+  }
+  d->first = 1;
+  return d;
+}
+
+struct dirent*
+readdir(DIR *d)
+{
+  if (d->hFind == INVALID_HANDLE_VALUE)
+    return NULL;
+
+  if (d->first) {
+    d->first = 0;
+  } else {
+    if (!FindNextFileW(d->hFind, &d->findData))
+      return NULL;
+  }
+
+  WideCharToMultiByte(CP_UTF8, 0, d->findData.cFileName, -1, 
+                      d->entry.d_name, sizeof(d->entry.d_name), NULL, NULL);
+  return &d->entry;
+}
+
+int
+closedir(DIR *d)
+{
+  if (!d)
+    return -1;
+  if (d->hFind != INVALID_HANDLE_VALUE)
+    FindClose(d->hFind);
+  free(d);
+  return 0;
+}
+
+#define MKDIR(s, m) mkdir(s)
+
+int
+setenv(const char *name, const char *value, int overwrite)
+{
+  // POSIX specifies that if name is NULL, points to an empty string, 
+  // or contains an '=', the function should fail with EINVAL.
+  if (name == NULL || name[0] == '\0' || strchr(name, '=') != NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  // If overwrite is 0, we must check if the variable already exists.
+  // If it does, we successfully do nothing.
+  if (overwrite == 0 && getenv(name) != NULL) {
+    return 0; 
+  }
+
+  // _putenv_s returns 0 on success, and an error code on failure.
+  if (_putenv_s(name, value) != 0) {
+    // _putenv_s sets its own error codes, but we return -1 to match POSIX
+    return -1; 
+  }
+
+  return 0;
+}
+
+int
+unsetenv(const char *name)
+{
+  // Standard POSIX validation for the name
+  if (name == NULL || name[0] == '\0' || strchr(name, '=') != NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  // In the Windows C Runtime, setting a variable to an empty string ("") 
+  // effectively deletes it from the environment.
+  if (_putenv_s(name, "") != 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+
+#if defined(WANT_DIR)
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <io.h>
+
+#define PERM_SEARCH 8
+#define PERM_READ   4
+#define PERM_WRITE  2
+#define PERM_EXEC   1
+
+int
+get_permissions(const char *path)
+{
+  struct _stat st;
+  int perms = 0;
+    
+  if (_stat(path, &st) == -1) {
+    return -1;
+  }
+
+  if (st.st_mode & _S_IREAD)
+    perms |= PERM_READ;
+  if (st.st_mode & _S_IWRITE)
+    perms |= PERM_WRITE;
+  if (st.st_mode & _S_IFDIR) {
+    perms |= PERM_SEARCH; 
+  } else {
+    if (st.st_mode & _S_IEXEC) {
+      perms |= PERM_EXEC; 
+    }
+  }
+  return perms;
+}
+
+int
+set_permissions(const char *path, int perms)
+{
+  int wperms = 0;
+    
+  if (perms & PERM_READ)
+    wperms |= _S_IREAD;
+  if (perms & PERM_WRITE)
+    wperms |= _S_IWRITE;
+  if ((perms & PERM_EXEC) || (perms & PERM_SEARCH))
+    wperms |= _S_IEXEC;
+
+  return _chmod(path, wperms);
+}
+#endif  /* defined(WANT_DIR) */

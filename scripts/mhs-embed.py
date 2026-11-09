@@ -22,9 +22,9 @@ Examples:
 
     # Package mode
     mhs-embed.py build/mhs_embedded_pkgs.h --pkg-mode \\
-        --base-pkg ~/.mcabal/mhs-0.15.2.0/packages/base.pkg \\
+        --base-pkg ~/.mcabal/mhs-0.16.9.0/packages/base.pkg \\
         --music-pkg build/music.pkg \\
-        --base-dir ~/.mcabal/mhs-0.15.2.0
+        --base-dir ~/.mcabal/mhs-0.16.9.0
 """
 
 import argparse

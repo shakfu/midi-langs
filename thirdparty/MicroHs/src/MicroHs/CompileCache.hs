@@ -3,7 +3,7 @@ module MicroHs.CompileCache(
   Cache, addWorking, getWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
   cachedModules, cachedModuleNames, cachedNonPkgModuleNames,
   lookupCache, lookupCacheChksum, getImportDeps,
-  addPackage, getCompMdls, getPathPkgs, getPkgs,
+  addPackage, getCompMdls, getPathPkgs, getPkgs, getEmbedPkgs,
   getCacheTables, setCacheTables,
   saveCache, loadCached,
   ) where
@@ -45,8 +45,8 @@ data Cache = Cache {
   working :: [IdentModule],             -- modules currently being processed (used to detected circular imports)
   boots   :: [IdentModule],             -- modules where only the boot version has been compiled
   cache   :: M.Map CacheEntry,          -- cached compiled modules
-  pkgs    :: [(FilePath, Package)],     -- loaded packages
-  tables  :: GlobTables
+  pkgs    :: [(Maybe FilePath, Package)], -- loaded packages, no filename for embedded
+  tables  :: GlobTables                 -- glbals, e.g., instances
   }
 --  deriving (Show)
 
@@ -87,8 +87,11 @@ addWorking mn c =
         c{ working = mn : ws }
 
 workToDone :: CModule -> Cache -> Cache
-workToDone (t, i, k) c@(Cache{ working = mn:ws, boots = bs, cache = m }) =
+workToDone (t, i, k) c@(Cache{ working = _mn:ws, boots = bs, cache = m }) =
   c{ working = ws, boots = filter (/= mn) bs, cache = M.insert mn (CompMdl t i k) m }
+  -- The identifier in _mn is from the place of use (=import), but we want the cache
+  -- to contain the identifier from the place of definition.
+  where mn = tModuleName t
 workToDone _ _ = undefined
 
 cachedModules :: Cache -> [TModule [LDef]]
@@ -113,14 +116,17 @@ getCompMdls :: Cache -> [TModule [LDef]]
 getCompMdls cash = [ tm | CompMdl tm _ _ <- M.elems (cache cash) ]
 
 getPathPkgs :: Cache -> [(FilePath, Package)]
-getPathPkgs = pkgs
+getPathPkgs ch = [ (fp, p) | (Just fp, p) <- pkgs ch ]
 
 getPkgs :: Cache -> [Package]
 getPkgs = map snd . pkgs
 
-addPackage :: FilePath -> Package -> Cache -> Cache
-addPackage f p c = c{
-  pkgs = (f, p) : pkgs c,
+getEmbedPkgs :: Cache -> [Package]
+getEmbedPkgs ch = [ p | (Nothing, p) <- pkgs ch ]
+
+addPackage :: Maybe FilePath -> Package -> Cache -> Cache
+addPackage mf p c = c{
+  pkgs = (mf, p) : pkgs c,
   cache = foldr ins (cache c) (pkgExported p ++ pkgOther p),
   tables = mergeGlobTables (pkgTables p) (tables c)
   }
@@ -131,7 +137,7 @@ saveCache fn cash = writeSerializedCompressed fn (forceCache cash)
 
 loadCached :: FilePath -> IO (Maybe Cache)
 loadCached fn = do
-  mhin <- openFileM fn ReadMode
+  mhin <- openBinaryFileM fn ReadMode
   case mhin of
     Nothing ->
       return Nothing

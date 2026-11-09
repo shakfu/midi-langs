@@ -223,7 +223,10 @@ private:
 			// New code starts where the host will be when its first events can still play on time.
 			midi_clock_set_ms(tl_.horizon * kScriptMsPerBeat);
 			tl_.frontier = midi_clock_ms() / kScriptMsPerBeat;
+			liveStartMs_ = midi_clock_ms();
+			liveAnchorPending_ = true;
 			lang_->eval(job.code, out);
+			liveAnchorPending_ = false;
 		} else {
 			lang_->stopVoices();
 			clipEvents_.clear();
@@ -275,6 +278,7 @@ private:
 	{
 		auto* self = static_cast<Evaluator*>(user);
 		if (Cancelled(user) || len < 1 || len > 3) return; // sysex is not supported
+		if (self->tl_.live) self->anchorLive(ms);
 		MidiEvent e{ms / kScriptMsPerBeat, {0, 0, 0}, (uint8_t)len};
 		memcpy(e.data, msg, len);
 		if (!self->tl_.live) {
@@ -291,15 +295,31 @@ private:
 	static void Wait(void* user, double ms)
 	{
 		auto* self = static_cast<Evaluator*>(user);
-		const double beat = ms / kScriptMsPerBeat;
+		double beat = ms / kScriptMsPerBeat;
 		if (!self->tl_.live) {
 			if (beat > kMaxClipBeats) self->capped_ = true;
 			return;
 		}
+		self->anchorLive(ms);
+		beat = ms / kScriptMsPerBeat;
 		self->tl_.frontier = beat;
 		while (beat > self->tl_.horizon && !Cancelled(user)) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
+	}
+
+	// A Live job's script time starts at the horizon when the job began. Code that runs
+	// longer than the lookahead before its first event (mhs-midi compiles first) would
+	// start in the past, its first notes clamped late; instead, its first send or wait
+	// moves the whole job to the current horizon.
+	void anchorLive(double& ms)
+	{
+		if (!liveAnchorPending_) return;
+		liveAnchorPending_ = false;
+		const double shift = tl_.horizon * kScriptMsPerBeat - liveStartMs_;
+		if (shift <= 0.) return;
+		ms += shift;
+		midi_clock_set_ms(midi_clock_ms() + shift);
 	}
 
 	static int Cancelled(void* user)
@@ -313,6 +333,8 @@ private:
 	std::unique_ptr<Language> lang_;
 	std::vector<MidiEvent> clipEvents_;
 	uint32_t jobGen_ = 0;
+	double liveStartMs_ = 0.;       // live: script time the current job began at
+	bool liveAnchorPending_ = false; // live: the job has not sent or waited yet
 	std::atomic<bool> capped_{false}; // read by language watchers (guile) on their own threads
 	bool ok_ = false;
 	std::mutex mutex_;

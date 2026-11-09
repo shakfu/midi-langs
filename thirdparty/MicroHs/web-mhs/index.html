@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Web MicroHs</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-unicode11@0.6.0/lib/xterm-addon-unicode11.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ace.js"></script>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+  <style>
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      background-color: #1a1a1a;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Slimmed down header for desktop */
+    #header {
+      background: #252526;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #333;
+      flex-shrink: 0;
+    }
+
+    #header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: #ccc;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .button-row button {
+      cursor: pointer;
+      padding: 4px 10px;
+    }
+
+    /* The Workspace: Splits the screen horizontally */
+    #workspace {
+      display: flex;
+      flex-grow: 1;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* Left side: Ace Editor */
+    #left-panel {
+      flex: 0 0 50%;
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #000;
+      background: #1e1e1e;
+    }
+
+    #editor-toolbar {
+      background: #333;
+      padding: 5px 10px;
+      display: flex;
+      gap: 10px;
+    }
+
+    #file-picker {
+      background: #3c3c3c;
+      color: white;
+      border: 1px solid #555;
+      padding: 2px 5px;
+      flex-grow: 1;
+      cursor: pointer;
+    }
+
+    #save-run-btn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 4px 12px;
+      cursor: pointer;
+    }
+
+    #stop-btn {
+      background-color: #d32f2f;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 4px 12px;
+      cursor: pointer;
+    }
+
+    #editor-container {
+      flex-grow: 1;
+      width: 100%;
+    }
+
+    /* Right side: Output (Canvas top, Terminal bottom) */
+    #right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #000;
+    }
+
+    #canvas-container {
+      flex: 1.5;
+      /* Canvas gets slightly more space than the terminal */
+      position: relative;
+      border-bottom: 2px solid #333;
+      overflow: hidden;
+    }
+
+    #terminal-container {
+      flex: 1;
+      position: relative;
+      background: #000;
+    }
+
+    #terminal {
+      position: absolute;
+      top: 5px;
+      bottom: 5px;
+      left: 5px;
+      right: 5px;
+    }
+
+    /* Canvas must fill container */
+    #drawing-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* The "Close" button for the drawing overlay */
+    #close-canvas-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+      background-color: rgba(60, 60, 60, 0.8);
+      color: white;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+
+    #close-canvas-btn:hover {
+      background-color: rgba(90, 90, 90, 0.9);
+    }
+
+    /* Responsive fallback for when you resize the window or use a tablet/phone */
+    @media (max-width: 800px) {
+      #workspace {
+        flex-direction: column;
+      }
+
+      #left-panel {
+        flex: 0 0 40%;
+        border-right: none;
+        border-bottom: 2px solid #000;
+      }
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <div id="header">
+    <h1>MicroHs Web IDE</h1>
+    <div class="button-row">
+      <input type="file" id="fallback-picker" webkitdirectory directory multiple style="display:none;">
+      <button id="mount-btn">📁 Mount Folder</button>
+      <button id="download-url-btn">🌐 GitHub</button>
+    </div>
+  </div>
+
+  <div id="workspace">
+    <div id="left-panel">
+      <div id="editor-toolbar">
+        <select id="file-picker">
+          <option value="">-- Select File --</option>
+        </select>
+        <button id="new-file-btn">➕ New</button>
+        <button id="save-btn">▼ Save</button>
+        <button id="save-run-btn">▶ Run</button>
+        <button id="stop-btn">⏹ Stop</button>
+      </div>
+      <div id="editor-container"></div>
+    </div>
+
+    <div id="right-panel">
+      <div id="canvas-container" style="display: none;">
+        <button id="close-canvas-btn" onclick="hideCanvas()">✕</button>
+        <canvas id="drawing-canvas"></canvas>
+      </div>
+      <div id="terminal-container">
+        <div id="terminal"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const replutils_text = `
+module ReplUtils where
+import System.Directory
+cat :: FilePath -> IO ()
+cat f = readFile f >>= putStrLn
+ls :: FilePath -> IO ()
+ls d = listDirectory d >>= putStrLn . unlines
+cd :: FilePath -> IO ()
+cd d = setCurrentDirectory d
+startUpMessage :: IO ()
+startUpMessage = do
+  putStrLn ""
+  putStrLn "*** MicroHs Web Playground ***"
+  putStrLn "Do 'cat \\"line_edit\\"' to see editing commands."
+  putStrLn "Try 'import Graphics.CanvHs.Demo' and then run demo1 through demo7."
+  putStrLn "To access (read and write) local files, use the 'Mount Folder' button"
+  putStrLn "above to select a directory."
+  putStrLn ""
+`;
+    const mhsi_rc_text = `
+import ReplUtils
+startUpMessage
+:set +color
+:set prompt=λ 
+`;    
+    const line_edit_text = `
+Line editing keys (Emacs inspired):
+CTL-B         move backards
+CTL-F         move forwards
+CTL-A         move to beginning of line
+CTL-E         move to end of line
+CTL-H         backspace
+DEL           backspace
+ENTER         send line
+CTL-N         next in history
+CTL-P         previous in history
+CTL-U         erase line
+CTL-K         kill to end of line
+TAB           complete word
+Arrow key     like CTL-B, CTL-F, CTL-P, CTL-N
+`;
+    const demo_code = `
+module Demo where
+import Graphics.CanvHs
+
+main :: IO ()
+main = display $ Color red $ SolidCircle 50
+`;
+
+    const home = `/home/web_user`;
+
+    const system_prefix = `\r\n\x1b[32m[System]\x1b[0m `;
+
+    const canvas = document.getElementById('drawing-canvas');
+    const ctx = canvas.getContext('2d', {
+      alpha: false
+    });
+
+    window.cvs = canvas;
+    window.ctx = ctx;
+    window.mouseState = {
+      x: 0.0,
+      y: 0.0,
+      down: false
+    };
+
+    window.onload = function() {
+      const term = new Terminal({
+        allowProposedApi: true,
+        cursorBlink: true,
+        rightClickSelectsWord: true,
+        fontFamily: 'monospace',
+        fontSize: 16,
+        theme: {
+          background: '#000000',
+          red: '#ff5555',
+          green: '#50fa7b',
+          yellow: '#f1fa8c',
+          blue: '#bd93f9',
+          cyan: '#8be9fd',
+          foreground: '#ffffff'
+        }
+      });
+
+      const unicode11Addon = new Unicode11Addon.Unicode11Addon();
+      term.loadAddon(unicode11Addon);
+      term.unicode.activeVersion = '11';
+
+      const fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(document.getElementById('terminal'));
+      fitAddon.fit();
+
+      const editor = ace.edit("editor-container");
+
+      editor.setTheme("ace/theme/monokai"); // A nice dark theme matching the UI
+      editor.session.setMode("ace/mode/haskell");
+
+      editor.setOptions({
+        fontSize: "14px",
+        fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+        wrap: true, // Wraps long lines
+        showPrintMargin: false, // Hides the annoying vertical line in the middle
+        behavioursEnabled: true // Auto-closes brackets and quotes
+      });
+
+      function getUrlArgs() {
+        const params = new URLSearchParams(window.location.search);
+        const argsString = params.get('args');
+
+        if (!argsString) return [];
+
+        return argsString.trim().split(/\s+/);
+      }
+
+      function startHistorySync() {
+        setInterval(() => {
+          try {
+            const historyData = Module.FS.readFile(home + '/.mhsi', {
+              encoding: 'utf8'
+            });
+            if (historyData) {
+              const lines = historyData.split('\n');
+              const last100 = lines.slice(-100).join('\n');
+              localStorage.setItem('mhs_history', last100);
+            }
+          } catch (e) {
+            // silently ignore if the file doesn't exists
+          }
+        }, 5000);
+      }
+
+      window.Module = {
+        arguments: getUrlArgs(),
+        preRun: [function() {
+          // Initialize Standard I/O
+          Module.FS.init(
+            () => null,
+            (asciiCode) => {
+              if (asciiCode !== null) {
+                if (asciiCode === 10) {
+                  term.write('\r\n');
+                } else {
+                  term.write(new Uint8Array([asciiCode]));
+                }
+              }
+            },
+            (asciiCode) => {
+              if (asciiCode !== null) term.write(String.fromCharCode(asciiCode));
+            }
+          );
+
+          Module.FS.chdir(home);
+
+          Module.FS.writeFile(".mhsi_rc", mhsi_rc_text);
+          Module.FS.writeFile("line_edit", line_edit_text);
+          Module.FS.writeFile("ReplUtils.hs", replutils_text);
+          const demo_path = home + '/Demo.hs';
+          Module.FS.writeFile(demo_path, demo_code);
+
+          // Get a possibly saved command history
+          const saved = localStorage.getItem('mhs_history');
+          if (saved) {
+            try {
+              Module.FS.writeFile('.mhsi', saved);
+            } catch (e) {}
+          }
+          startHistorySync();
+
+          editor.setValue(demo_code, -1);
+
+          if (window.refreshFileList) {
+            window.refreshFileList();
+            document.getElementById('file-picker').value = demo_path;
+          }
+
+        }],
+        print: () => {},
+        printErr: (text) => term.writeln("Fatal error: " + text)
+      };
+
+      // Track our linked files for the auto-sync loop
+      const fileRegistry = {};
+
+      // Helper to safely create directories in Wasm without crashing if they exist
+      function safeMkdir(path) {
+        try {
+          Module.FS.mkdirTree(path); // mkdirTree creates parent folders automatically
+        } catch (e) {
+          // Ignore errors (usually means the directory already exists)
+        }
+      }
+
+      // Recursive function to walk the local folder and mirror it into Wasm
+      async function mountDirectory(dirHandle, currentWasmPath) {
+        safeMkdir(currentWasmPath);
+
+        // Loop through every file and folder inside this directory handle
+        for await (const entry of dirHandle.values()) {
+          const fullWasmPath = `${currentWasmPath}/${entry.name}`;
+
+          if (entry.kind === 'file') {
+            // It's a file: read it and write to Wasm memory
+            const fileHandle = await dirHandle.getFileHandle(entry.name);
+            const file = await fileHandle.getFile();
+            const data = new Uint8Array(await file.arrayBuffer());
+
+            Module.FS.writeFile(fullWasmPath, data);
+
+            // Add to registry so the background loop keeps it updated
+            fileRegistry[fullWasmPath] = {
+              handle: fileHandle,
+              lastModified: file.lastModified
+            };
+            console.log(`Mounted: ${fullWasmPath}`);
+
+          } else if (entry.kind === 'directory') {
+            // It's a folder: recursively process it
+            const subDirHandle = await dirHandle.getDirectoryHandle(entry.name);
+            await mountDirectory(subDirHandle, fullWasmPath);
+          }
+        }
+      }
+
+      document.getElementById('file-picker').addEventListener('change', (e) => {
+        const fileName = e.target.value;
+        if (!fileName) return;
+
+        try {
+          // Read file from RAM disk
+          const content = Module.FS.readFile(fileName, {
+            encoding: 'utf8'
+          });
+
+          // Push it into Ace and move cursor to the top (-1)
+          editor.setValue(content, -1);
+        } catch (err) {
+          term.writeln(`\r\n\x1b[31mError reading ${fileName}\x1b[0m`);
+        }
+      });
+
+      // The Button Click Event
+      document.getElementById('mount-btn').addEventListener('click', async () => {
+        if (window.showDirectoryPicker) {
+          try {
+            const rootDirHandle = await window.showDirectoryPicker();
+
+            const targetPath = home + `/${rootDirHandle.name}`;
+
+            term.writeln(system_prefix + `Mounting directory into ${targetPath}...`);
+
+            await mountDirectory(rootDirHandle, targetPath);
+
+            term.writeln(system_prefix + `Workspace mounted successfully.`);
+
+            // Sync logic and UI refresh
+            if (!window.syncInterval) window.syncInterval = setInterval(pollFiles, 500);
+            if (window.refreshFileList) window.refreshFileList();
+
+          } catch (err) {
+            term.writeln(system_prefix + `Mount failed or cancelled.`);
+          }
+        } else {
+          document.getElementById('fallback-picker').click();
+        }
+      });
+
+      // Listener for the Fallback Input
+      document.getElementById('fallback-picker').addEventListener('change', async (e) => {
+        const files = e.target.files;
+        if (files.length === 0) return;
+
+        term.writeln(system_prefix + `Uploading ${files.length} files to virtual RAM disk...`);
+
+        for (const file of files) {
+          // webkitRelativePath gives us "folder/sub/file.hs"
+          const path = file.webkitRelativePath;
+          const buffer = await file.arrayBuffer();
+          const data = new Uint8Array(buffer);
+
+          // Ensure subdirectories exist in Emscripten FS
+          const parts = path.split('/');
+          let currentPath = home;
+          for (let i = 0; i < parts.length - 1; i++) {
+            currentPath += '/' + parts[i];
+            try {
+              Module.FS.mkdir(currentPath);
+            } catch (e) {}
+          }
+
+          Module.FS.writeFile(home + '/' + path, data);
+        }
+
+        term.writeln(system_prefix + `Workspace loaded (RAM only, no Live Sync).`);
+        if (window.refreshFileList) window.refreshFileList();
+      });
+
+      document.getElementById('download-url-btn').addEventListener('click', async () => {
+        // Prefill with your repo URL
+        const defaultUrl = "https://github.com/augustss/canvhs/tree/main/";
+        const rawUrl = prompt("Enter GitHub Folder URL:", defaultUrl);
+        if (!rawUrl) return;
+
+        try {
+          // Regex to extract user, repo, branch, and path
+          const urlMatch = rawUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/?(.*)/);
+          if (!urlMatch) throw new Error("Invalid format. Use: github.com/user/repo/tree/branch/path");
+
+          const [_, user, repo, branch, targetPath] = urlMatch;
+
+          // Use the Recursive Trees API
+          const apiUrl = `https://api.github.com/repos/${user}/${repo}/git/trees/${branch}?recursive=1`;
+
+          term.writeln(system_prefix + `\x1b[36mScanning ${user}/${repo} (${branch})...\x1b[0m`);
+          const response = await fetch(apiUrl);
+          const data = await response.json();
+
+          if (!data.tree) throw new Error("Could not find repository tree. Check branch name.");
+
+          // Filter: if targetPath is empty, get everything. Otherwise, filter by path.
+          const itemsToDownload = data.tree.filter(item =>
+            targetPath === "" || item.path.startsWith(targetPath)
+          );
+
+          const baseDir = repo; 
+          try {
+              Module.FS.mkdirTree(baseDir);
+          } catch (e) {}
+
+          for (const item of itemsToDownload) {
+            // Clean up the path so it saves correctly
+            let relativePath = item.path;
+            if (targetPath !== "") {
+              relativePath = item.path.replace(targetPath, "").replace(/^\//, "");
+            }
+            if (!relativePath) continue;
+
+            // Prepend the base directory to the path
+            const fullWasmPath = `${baseDir}/${relativePath}`;
+
+            if (item.type === 'tree') {
+              try {
+                Module.FS.mkdirTree(fullWasmPath); // mkdirTree handles nested parents!
+//                term.writeln(system_prefix + `  Created dir: ${fullWasmPath}`);
+              } catch (e) {}
+            } else if (item.type === 'blob') {
+//              term.writeln(system_prefix + `  Fetching: ${fullWasmPath}`);
+              const downloadUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${item.path}`;
+              const fileRes = await fetch(downloadUrl);
+
+              if (fileRes.ok) {
+                const blob = await fileRes.arrayBuffer();
+                // Ensure the parent directory exists before writing
+                const dirPath = fullWasmPath.substring(0, fullWasmPath.lastIndexOf('/'));
+                if (dirPath) {
+                  try {
+                    Module.FS.mkdirTree(dirPath);
+                  } catch (e) {}
+                }
+
+                Module.FS.writeFile(fullWasmPath, new Uint8Array(blob));
+              }
+            }
+          }
+          term.writeln(system_prefix + `\x1b[32mDownload Complete!\x1b[0m`);
+          if (window.refreshFileList) window.refreshFileList();
+
+        } catch (error) {
+          term.writeln(system_prefix + `\x1b[31mError: ${error.message}\x1b[0m`);
+        }
+      });
+
+// Quick helper to compare two Uint8Arrays
+function arrayEqual(a, b) {
+  if (a.byteLength !== b.byteLength) return false;
+  for (let i = 0; i < a.byteLength; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+async function pollFiles() {
+  for (const [path, entry] of Object.entries(fileRegistry)) {
+    try {
+      // 1. Get stats from the Emscripten virtual filesystem
+      const stats = Module.FS.stat(path);
+      const vfsModified = stats.mtime.getTime();
+
+      // We'll need the local file handle for both checks now
+      const file = await entry.handle.getFile();
+
+      // 2. CHECK: Did the user change the file inside the IDE?
+      if (vfsModified > entry.lastModified) {
+        const memData = Module.FS.readFile(path); // Grab data from MEMFS
+        const localData = new Uint8Array(await file.arrayBuffer()); // Grab local data
+
+        // Only write if the contents are actually different
+        if (!arrayEqual(memData, localData)) {
+          const writable = await entry.handle.createWritable();
+          await writable.write(memData);
+          await writable.close();
+          console.log(`Saved to local disk: ${path}`);
+        }
+
+        // Update registry so we don't loop forever
+        entry.lastModified = vfsModified;
+        continue; // Skip the rest of this iteration
+      }
+
+      // 3. CHECK: Did the file change on the external disk?
+      if (file.lastModified > entry.lastModified) {
+        const localData = new Uint8Array(await file.arrayBuffer());
+        const memData = Module.FS.readFile(path); // Re-read MEMFS to compare
+
+        // Only write if the contents are actually different
+        if (!arrayEqual(localData, memData)) {
+            Module.FS.writeFile(path, localData);
+            console.log(`Auto-synced from local disk: ${path}`);
+
+            const currentFilePath = document.getElementById('file-picker').value; 
+          
+            if (path === currentFilePath) {
+                const newText = new TextDecoder().decode(localData);
+                const currentEditorText = editor.getValue();
+                const oldMemfsText = new TextDecoder().decode(memData);
+
+                // Check if the user has unsaved changes in the editor
+                if (currentEditorText === oldMemfsText) {
+                    // SAFE: No unsaved changes. Swap the text out smoothly.
+                    const cursorPos = editor.getCursorPosition(); 
+                    editor.session.setValue(newText);
+                    editor.moveCursorToPosition(cursorPos); 
+                } else {
+                    // BRUTAL AVOIDED: The user is currently typing!
+                    // We do NOT overwrite the editor. 
+                    term.writeFile(system_prefix + `Conflict on ${path}: File changed on disk, but you have unsaved changes in the editor!`);
+              
+                    // Optional: You could turn the Save button red here to warn them
+                    // document.getElementById('save-btn').style.backgroundColor = '#d32f2f';
+                }
+            }
+        }
+
+        // Important: sync the tracked mtime with the real file mtime
+        entry.lastModified = file.lastModified;
+      }
+    } catch (e) {
+      // Likely a "read-only" or "permission" error
+      // console.warn(`Sync failed for ${path}:`, e);
+    }
+  }
+}
+
+
+      function sendToMicroHs(data) {
+        if (window.Module && window.Module._set_input_char) {
+          const encoder = new TextEncoder();
+          const utf8Bytes = encoder.encode(data);
+          
+          for (let i = 0; i < utf8Bytes.length; i++) {
+            window.Module._set_input_char(utf8Bytes[i]);
+          }
+        }
+      }
+
+      term.onData(data => {
+        sendToMicroHs(data)
+      });
+
+      term.onSelectionChange(() => {
+        if (term.hasSelection()) {
+          const selectedText = term.getSelection();
+          navigator.clipboard.writeText(selectedText);
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        fitAddon.fit();
+      });
+
+      const script = document.createElement('script');
+      script.src = 'mhs-embed.js';
+      document.body.appendChild(script);
+
+      // Function to make sure the canvas internal resolution matches the screen size
+      function resizeCanvas() {
+        const canvas = document.getElementById('drawing-canvas');
+        const container = document.getElementById('canvas-container');
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+      }
+
+      // Call it once on startup
+      resizeCanvas();
+
+      // Update both the terminal and the canvas when the window resizes
+      window.addEventListener('resize', () => {
+        fitAddon.fit();
+        resizeCanvas();
+      });
+
+      // Function to unhide the canvas and fix the layout
+      window.showCanvas = function() {
+        const container = document.getElementById('canvas-container');
+        if (container.style.display !== 'block') {
+          container.style.display = 'block'; // Unhide it
+
+          // Force the canvas to figure out its new pixel dimensions
+          resizeCanvas();
+
+          // Tell the terminal to recalculate its rows/cols so text doesn't overflow
+          if (typeof fitAddon !== 'undefined') {
+            fitAddon.fit();
+          }
+        }
+      };
+
+      window.hideCanvas = function() {
+        const container = document.getElementById('canvas-container');
+        container.style.display = 'none';
+
+        // Tell the terminal to expand and fill the newly freed space
+        if (typeof fitAddon !== 'undefined') {
+          fitAddon.fit();
+        }
+      };
+
+      window.refreshFileList = function() {
+        const filePicker = document.getElementById('file-picker');
+        const currentSelection = filePicker.value;
+
+        // Reset the dropdown
+        filePicker.innerHTML = '<option value="">-- Select File --</option>';
+
+        try {
+          function gatherFiles(dir) {
+            Module.FS.readdir(dir).forEach(name => {
+              // Skip current/parent directory pointers
+              if (name === '.' || name === '..') return;
+
+              const fullPath = dir + '/' + name;
+              if (Module.FS.isDir(Module.FS.stat(fullPath).mode)) {
+                gatherFiles(fullPath); // Recursively search folders
+              } else {
+                const opt = document.createElement('option');
+                opt.value = fullPath;
+                // Clean up the display name
+                opt.textContent = fullPath.replace(home + '/', '');
+                filePicker.appendChild(opt);
+              }
+            });
+          }
+
+          // Only scan if the home directory exists
+          try {
+            Module.FS.stat(home);
+            gatherFiles(home);
+          } catch (e) {}
+
+          // Safely restore previous selection if it exists in the new list
+          const optionExists = Array.from(filePicker.options).some(opt => opt.value === currentSelection);
+          if (optionExists) {
+            filePicker.value = currentSelection;
+          }
+
+        } catch (e) {
+          console.error("File list refresh failed:", e);
+        }
+      };
+
+      // 2. The New File Button
+      document.getElementById('new-file-btn').addEventListener('click', () => {
+        let fileName = prompt("Enter new file name (e.g., Main.hs):");
+        if (!fileName) return;
+
+        // Clean up any accidental spaces
+        fileName = fileName.trim();
+
+        // Ensure the root workspace directory exists
+        try {
+          Module.FS.mkdir(home);
+        } catch (e) {}
+
+        const fullPath = home + '/' + fileName;
+        const filePicker = document.getElementById('file-picker');
+
+        try {
+          // Create an empty file in Wasm RAM
+          Module.FS.writeFile(fullPath, "");
+
+          // Refresh the dropdown
+          window.refreshFileList();
+
+          // FORCED FALLBACK: If refresh failed to add it, manually inject the option
+          const exists = Array.from(filePicker.options).some(opt => opt.value === fullPath);
+          if (!exists) {
+            const opt = document.createElement('option');
+            opt.value = fullPath;
+            opt.textContent = fileName;
+            filePicker.appendChild(opt);
+          }
+
+          // Force the dropdown to select the new file
+          filePicker.value = fullPath;
+
+          // Clear the editor, ready for typing
+          if (window.editor) {
+            window.editor.setValue("", -1);
+          }
+        } catch (err) {
+          console.error("Failed to create file:", err);
+          alert("Failed to create the file. Check the browser console.");
+        }
+      });
+
+      document.getElementById('save-btn').addEventListener('click', () => {
+        const filePicker = document.getElementById('file-picker');
+        const currentFile = filePicker.value;
+
+        // Strict check to ensure a valid file is selected
+        if (!currentFile || currentFile === "") {
+          alert("Please select a file from the dropdown first!");
+          return;
+        }
+
+        try {
+          // Grab code and save to Emscripten FS
+          const code = window.editor ? window.editor.getValue() : editor.getValue();
+          Module.FS.writeFile(currentFile, code);
+
+        } catch (err) {
+          term.writeln(system_prefix + `\r\n\x1b[31mFailed to save ${currentFile}\x1b[0m`);
+        }
+      });
+
+      document.getElementById('save-run-btn').addEventListener('click', () => {
+        const filePicker = document.getElementById('file-picker');
+        const currentFile = filePicker.value;
+
+        // Strict check to ensure a valid file is selected
+        if (!currentFile || currentFile === "") {
+          alert("Please select a file from the dropdown first!");
+          return;
+        }
+
+        try {
+          // Grab code and save to Emscripten FS
+          const code = window.editor ? window.editor.getValue() : editor.getValue();
+          Module.FS.writeFile(currentFile, code);
+
+          let moduleName = currentFile;
+
+          if (moduleName.startsWith(home)) {
+            moduleName = moduleName.slice(home.length + 1);
+          }
+          moduleName = moduleName.replace(/\.hs$/, '');
+          moduleName = moduleName.replace(/\//g, '.');
+
+          sendToMicroHs("import " + moduleName + '\n');
+          sendToMicroHs(":main" + '\n')
+
+        } catch (err) {
+          term.writeln(system_prefix + `\r\n\x1b[31mFailed to save or run ${currentFile}\x1b[0m`);
+        }
+      });
+
+      document.getElementById('stop-btn').addEventListener('click', () => {
+        sendToMicroHs("\x03");
+
+      });
+
+      function updateMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const rawX = e.clientX - rect.left;
+        const rawY = e.clientY - rect.top;
+
+        // Translate to center-origin and flip Y axis
+        window.mouseState.x = rawX - (rect.width / 2);
+        window.mouseState.y = (rect.height / 2) - rawY;
+      }
+
+      canvas.addEventListener('mousemove', updateMousePos);
+
+      canvas.addEventListener('mousedown', (e) => {
+        updateMousePos(e);
+        window.mouseState.down = true;
+      });
+
+      canvas.addEventListener('mouseup', (e) => {
+        updateMousePos(e);
+        window.mouseState.down = false;
+      });
+
+      window.drawHaskellText = function(textPtr) {
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d');
+        const str = UTF8ToString(textPtr);
+
+        // 1. Read the absolute screen coordinates calculated by Haskell's 'Translate'
+        const matrix = ctx.getTransform();
+
+        ctx.save();
+
+        // 2. Erase all scaling, flipping, and rotating to jump back to perfect Screen Space
+        ctx.resetTransform();
+
+        // 3. Only set the font if it's different (Prevents Glyph Cache Trashing)
+        if (ctx.font !== '24px monospace') {
+          ctx.font = '24px monospace';
+        }
+        ctx.textBaseline = 'middle';
+
+        // 4. Snap the absolute screen coordinates to exact integers
+        const screenX = Math.round(matrix.e);
+        const screenY = Math.round(matrix.f);
+
+        // 5. Draw the text right-side up, perfectly pixel-aligned
+        ctx.fillText(str, screenX, screenY);
+
+        ctx.restore();
+      };
+
+    };
+
+    // Initialize the global registry
+    window.audioCtx = null;
+    window.audioNodes = [];
+
+    window.js_initAudio = function() {
+        if (!window.audioCtx) {
+            window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            // Index 0 is always the master speakers
+            window.audioNodes = [window.audioCtx.destination];
+        }
+        if (window.audioCtx.state === 'suspended') {
+            window.audioCtx.resume();
+        }
+    };
+
+    window.js_currentTime = function() {
+        return window.audioCtx.currentTime;
+    };
+
+    window.js_createOscillator = function(waveType) {
+        let osc = window.audioCtx.createOscillator();
+        osc.type = ["sine", "square", "sawtooth", "triangle"][waveType];
+        let id = window.audioNodes.length;
+        window.audioNodes.push(osc);
+        return id;
+    };
+
+    window.js_createGain = function() {
+        let gain = window.audioCtx.createGain();
+        let id = window.audioNodes.length;
+        window.audioNodes.push(gain);
+        return id;
+    };
+
+    window.js_connect = function(sourceId, targetId) {
+        window.audioNodes[sourceId].connect(window.audioNodes[targetId]);
+    };
+
+    window.js_setFrequency = function(id, freq, time) {
+        window.audioNodes[id].frequency.setValueAtTime(freq, time);
+    };
+
+    window.js_setGain = function(id, vol, time) {
+        window.audioNodes[id].gain.setValueAtTime(vol, time);
+    };
+
+    window.js_rampGain = function(id, vol, time) {
+        window.audioNodes[id].gain.exponentialRampToValueAtTime(vol, time);
+    };
+
+    window.js_startNode = function(id, time) {
+        window.audioNodes[id].start(time);
+    };
+
+    window.js_stopNode = function(id, time) {
+        window.audioNodes[id].stop(time);
+    };
+
+
+  </script>
+</body>
+
+</html>

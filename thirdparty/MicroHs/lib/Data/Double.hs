@@ -1,6 +1,6 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Double(Double) where
+module Data.Double(Double, doubleToInt, castWord64ToDouble, castDoubleToWord64) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -58,10 +58,10 @@ instance Fractional Double where
           in  scaleFloat64 (ne - de) (fromInteger nm / fromInteger dm)
 
 -- XXX Very inefficient scaling
--- If we get here the number has > 1023 bits, so shifting by 256 is fine.
+-- If we get here the number has > 1023 bits, so shifting by 512 is fine.
 scaleToMax :: Integer -> Integer -> (Int, Integer)
 scaleToMax m = f 0
-  where f e x = if abs x < m then (e, x) else f (e+256) (x `shiftR` 256)
+  where f e x = if abs x < m then (e, x) else f (e+512) (x `shiftR` 512)
 
 instance Eq Double where
   (==) = primDoubleEQ
@@ -118,6 +118,7 @@ instance Floating Double where
   asin x = casin x
   acos x = cacos x
   atan x = catan x
+  (**) x y = cpow x y
 
 foreign import ccall "log"  clog  :: Double -> Double
 foreign import ccall "exp"  cexp  :: Double -> Double
@@ -130,6 +131,7 @@ foreign import ccall "acos" cacos :: Double -> Double
 foreign import ccall "atan" catan :: Double -> Double
 foreign import ccall "atan2" catan2 :: Double -> Double -> Double
 foreign import ccall "scalbn" cscalbn :: Double -> Int -> Double
+foreign import ccall "pow"  cpow  :: Double -> Double -> Double
 
 -- Assumes 32/64 bit floats
 instance RealFloat Double where
@@ -202,3 +204,12 @@ scaleFloat64 n x = cscalbn x n
 
 encodeFloat64 :: Integer -> Int -> Double
 encodeFloat64 mant expn = scaleFloat64 expn (fromInteger mant)
+
+doubleToInt :: Double -> Int
+doubleToInt = primDoubleToInt
+
+castWord64ToDouble :: Word64 -> Double
+castWord64ToDouble = primWord64ToDoubleRaw
+
+castDoubleToWord64 :: Double -> Word64
+castDoubleToWord64 = primWord64FromDoubleRaw

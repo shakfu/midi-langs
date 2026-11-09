@@ -8,7 +8,26 @@
 #define WANT_GMP 0
 #endif /* defined(WANT_GMP) */
 
-#include <stdbool.h>
+#if !defined(WANT_IMATH) && !WANT_GMP
+#define WANT_IMATH 1
+#endif /* defined(WANT_MATH) */
+
+#if !defined(WANT_OVERFLOW)
+#define WANT_OVERFLOW 0
+#endif /* defined(WANT_OVERFLOW) */
+
+#if !defined(WANT_IO_POLL)
+#define WANT_IO_POLL 0
+#endif /* defined(WANT_IO_POLL) */
+
+#if !defined(WANT_SOCKET)
+#define WANT_SOCKET 0
+#endif /* defined(WANT_SOCKET) */
+
+#if WANT_STDIO
+#include <stdio.h>
+#include <locale.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -18,10 +37,11 @@
 #endif  /* WANT_MATH */
 #if defined(__EMSCRIPTEN__)
 #include "emscripten.h"
+#ifndef EM_ASM_PTR
+#define EM_ASM_PTR(...) (void*)(uintptr_t)EM_ASM_INT(__VA_ARGS__)
+#endif
 #endif /* __EMSCRIPTEN__ */
 #if WANT_DIR
-#include <dirent.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif  /* WANT_DIR */
@@ -30,9 +50,15 @@
 #endif
 #if WANT_GMP
 #include <gmp.h>
-#endif
+#endif  /* WANT_GMP */
+#if WANT_IMATH
+#include "imgmp.h"
+#endif  /* WANT_IMATH */
 #if WANT_SIGINT
 #include <signal.h>
+#endif
+#if WANT_IO_POLL
+#include <poll.h>
 #endif
 
 extern char **environ;          /* should probably be behind some WANT_ */
@@ -61,6 +87,10 @@ extern char **environ;          /* should probably be behind some WANT_ */
 #define WANT_LZ77 1
 #endif
 
+#if !defined(WANT_LZMA)
+#define WANT_LZMA 1
+#endif
+
 #if !defined(WANT_RLE)
 #define WANT_RLE 1
 #endif
@@ -69,13 +99,27 @@ extern char **environ;          /* should probably be behind some WANT_ */
 #define WANT_BWT 1
 #endif
 
+#if !defined(WANT_ENV)
+#define WANT_ENV 1
+#endif
+
 #if !defined(WANT_ERRNO)
 #define WANT_ERRNO 0
 #else
-#include <errno.h>
+#include "ffi_errno.c"
 #endif
 
-#define NEED_INT64 (WANT_INT64 && WORD_SIZE == 32)
+#if !defined(GET_EXECUTABLE_PATH)
+char *get_executable_path(void) { return NULL; }
+#endif
+
+#if !defined(YIELD_EXTRA)
+#define YIELD_EXTRA do {} while(0)
+#endif
+
+#if !defined(MKDIR)
+#define MKDIR mkdir
+#endif
 
 #if WANT_LZ77
 size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
@@ -99,7 +143,8 @@ int num_ffi;
 #define THREAD_DEBUG 0
 #endif
 
-#define VERSION "v8.3\n"
+
+#define VERSION "v8.4\n"
 
 #define PRIvalue PRIdPTR
 #define PRIuvalue PRIuPTR
@@ -147,12 +192,13 @@ typedef uintptr_t bits_t;       /* One word of bits */
 int GETRAW(void) { return -1; }
 #endif  /* !defined(GETRAW) */
 
-#if !defined(GETTIMEMILLI)
-value_t GETTIMEMILLI(void) { return 0; }
-#endif  /* !define(GETTIMEMILLI) */
+#if !defined(GETTIMEMICRO)
+value_t GETTIMEMICRO(void) { return 0; }
+#endif  /* !define(GETTIMEMICRO) */
+#define GETTIMEMILLI() (GETTIMEMICRO() / 1000)
 
 #if !defined(GETCPUTIME)
-void GETCPUTIME(long *sec, long *nsec) { sec = 0; nsec = 0; }
+void GETCPUTIME(long *sec, long *nsec) { *sec = 0; *nsec = 0; }
 #endif  /* !define(GETCPUTIME) */
 
 #if !defined(INLINE)
@@ -181,6 +227,7 @@ NORETURN void memerr(void);
 void *
 mmalloc(size_t s)
 {
+  if (s == 0) s = 1;            /* avoid malloc() returning NULL */
   void *p = MALLOC(s);
   if (!p)
     memerr();
@@ -190,6 +237,7 @@ mmalloc(size_t s)
 void *
 mrealloc(void *q, size_t s)
 {
+  if (s == 0) s = 1;            /* avoid realloc() returning NULL */
   void *p = REALLOC(q, s);
   if (!p)
     memerr();
@@ -199,6 +247,7 @@ mrealloc(void *q, size_t s)
 void *
 mcalloc(size_t n, size_t s)
 {
+  if (n * s == 0) n = s = 1;    /* avoid calloc() returning NULL */
   void *p = CALLOC(n, s);
   if (!p)
     memerr();
@@ -247,6 +296,28 @@ FFS(bits_t x)
 #define BUILTIN_POPCOUNT64 __builtin_popcountll
 #endif
 
+/* If there are compiler intrinsics to detect over flow, do so */
+#if __has_builtin(__builtin_add_overflow) && WANT_OVERFLOW
+#define ADD_OVERFLOW(T, r, a, b) do { T vr; if (__builtin_add_overflow((T)(a), (T)(b), &(vr))) raise_rts(exn_overflow); (r) = vr; } while(0)
+#endif
+#if __has_builtin(__builtin_sub_overflow) && WANT_OVERFLOW
+#define SUB_OVERFLOW(T, r, a, b) do { T vr; if (__builtin_sub_overflow((T)(a), (T)(b), &(vr))) raise_rts(exn_overflow); (r) = vr; } while(0)
+#endif
+#if __has_builtin(__builtin_mul_overflow) && WANT_OVERFLOW
+#define MUL_OVERFLOW(T, r, a, b) do { T vr; if (__builtin_mul_overflow((T)(a), (T)(b), &(vr))) raise_rts(exn_overflow); (r) = vr; } while(0)
+#endif
+
+#endif
+
+/* If we can't detect overflow, just ignore it. */
+#if !defined(ADD_OVERFLOW)
+#define ADD_OVERFLOW(T, r, a, b) ((r) = (a) + (b))
+#endif
+#if !defined(SUB_OVERFLOW)
+#define SUB_OVERFLOW(T, r, a, b) ((r) = (a) - (b))
+#endif
+#if !defined(MUL_OVERFLOW)
+#define MUL_OVERFLOW(T, r, a, b) ((r) = (a) * (b))
 #endif
 
 
@@ -335,7 +406,7 @@ uvalue_t CLZ64(uint64_t x) {
 #define BUILTIN_CTZ __builtin_ctzl
 #endif
 
-#if __has_builtin(__builtin_ctzl)
+#if __has_builtin(__builtin_ctzll)
 #define BUILTIN_CTZ64 __builtin_ctzll
 #endif
 
@@ -431,15 +502,23 @@ islinux(void)
 #define NOTREACHED
 #endif
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
-                T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
+                T_L, T_KK, T_KA,
+                T_T3, T_T4, T_T5, T_T6, T_T7, T_T8, T_T9, T_T10, T_T11, T_T12, T_T13, T_T14, T_T15, T_T16,
+                T_TAG0, T_TAG1, T_TAG2, T_TAG3, T_TAG4, T_TAG5,  T_TAG6,  T_TAG7,  T_TAG8,  T_TAG9,
+                T_TAG10, T_TAG11, T_TAG12, T_TAG13, T_TAG14, T_TAG15,  T_TAG16,  T_TAG17,  T_TAG18,  T_TAG19,
+                T_TAG20, T_TAG21, T_TAG22, T_TAG23, T_TAG24, T_TAG25,  T_TAG26,  T_TAG27,  T_TAG28,  T_TAG29,
+                T_TAG30, T_TAG31, T_TAG32,
+                T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_NEG,
+                T_UADD, T_USUB, T_UMUL, T_UQUOT, T_UREM, T_USUBR, T_UNEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_POPCOUNT, T_CLZ, T_CTZ,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
-                T_ADD64, T_SUB64, T_MUL64, T_QUOT64, T_REM64, T_SUBR64, T_UQUOT64, T_UREM64, T_NEG64,
+                T_ADD64, T_SUB64, T_MUL64, T_QUOT64, T_REM64, T_SUBR64, T_NEG64,
+                T_UADD64, T_USUB64, T_UMUL64, T_UQUOT64, T_UREM64, T_USUBR64, T_UNEG64,
                 T_AND64, T_OR64, T_XOR64, T_INV64, T_SHL64, T_SHR64, T_ASHR64,
                 T_POPCOUNT64, T_CLZ64, T_CTZ64,
                 T_EQ64, T_NE64, T_LT64, T_LE64, T_GT64, T_GE64, T_ULT64, T_ULE64, T_UGT64, T_UGE64, T_ICMP64, T_UCMP64,
@@ -454,19 +533,21 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
                 T_BINBS2, T_BINBS1,
                 T_ISINT,
-                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF, T_I64TOF,
+                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF, T_I64TOF, T_FTOI, T_UTOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE,
-                T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD, T_I64TOD,
+                T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD, T_I64TOD, T_DTOI, T_UTOD,
                 T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
+                T_FTOD, T_DTOF,
                 T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_TRUNC, T_ARR_EQ,
                 T_RAISE, T_SEQ, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
-                T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
+                T_IO_PERFORMIO, T_IO_ATOMIC, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL,
                 T_IO_GC, T_IO_STATS,
+                T_IO_LAZYBIND, T_IO_STRICT,
                 T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
@@ -474,34 +555,25 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
                 T_IO_THREADDELAY, T_IO_THREADSTATUS,
                 T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
-                T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
+                T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
-                T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX, T_BSWRITE,
-                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
-                T_BSAPPENDDOT, T_BSGRAB,
+                T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
+                T_BSNEW, T_BSREAD, T_BSWRITE, T_BSFREEZE, T_BSAPPBYTE, T_BSAPPCHAR, 
+                T_BSFROMUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
+                T_BSAPPENDDOT, T_BSGRAB, T_BSGRABLEN,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
+                T_IO_WAITRDFD, T_IO_WAITWRFD,
                 T_LAST_TAG,
 };
 
-#if WANT_TAGNAMES
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
   { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "PTR",
     "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK" };
 #define TAGNAME(t) tag_names[t]
-#else
-#define TAGNAME(t) "?"
-#endif
-
-/* On 64 bit platforms there is no special type for Int64 */
-#if NEED_INT64
-#define T_INT64 T_INT64X
-#else
-#define T_INT64 T_INT
-#endif  /* WORD_SIZE == 64 */
 
 struct ioarray;
 struct bytestring;
@@ -539,15 +611,48 @@ typedef struct PACKED node {
     struct weak_ptr *uuweak;
   } uarg;
 } node;
-#define BIT_TAG   1
-#define BIT_IND   2
-#define BIT_NOTAP (BIT_TAG | BIT_IND)
+/*
+ * Low bits encode the node type
+ *  00 - T_AP  application
+ *  01 - tag   upper bits are T_XXX
+ *  10 - T_IND indirection
+ *  11 - unused
+ * Only the lower 2 bits are free on 32 bit platforms with 3 word nodes
+ * (i.e. with WANT_DOUBLE or WANT_INT64).
+ */
 #define TAG_SHIFT 2
+#define BIT_MASK  ((1 << TAG_SHIFT) - 1)
+#define BIT_AP    0
+#define BIT_TG    1
+#define BIT_IN    2
+
+static INLINE tag_t GETTAG(NODEPTR p)
+{
+  tag_t t = p->ufun.uutag;
+  switch(t & BIT_MASK) {
+  case BIT_AP: return T_AP;
+  case BIT_IN: return T_IND;
+  default:     return t >> TAG_SHIFT;
+  }
+}
+static INLINE void SETTAG(NODEPTR p, tag_t t)
+{
+  switch(t) {
+  case T_AP:
+    break;           /* do nothing, bits are already 0 */
+  case T_IND:
+    p->ufun.uutag |= BIT_IN;
+    break;
+  default:
+    p->ufun.uutag = (t << TAG_SHIFT) | BIT_TG;
+    break;
+  }
+}
 
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
-#define GETTAG(p) ((p)->ufun.uutag & BIT_NOTAP ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
-#define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
+// #define GETTAG(p) ( ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
+// #define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
 #define GETINT64VALUE(p) (p)->uarg.uuint64value
 #define GETINT32VALUE(p) (p)->uarg.uuint32value
@@ -568,22 +673,45 @@ typedef struct PACKED node {
 #define ARR(p) (p)->uarg.uuarray
 #define THR(p) (p)->uarg.uuthread
 #define MVAR(p) (p)->uarg.uumvar
-#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
+//#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
+#define ISINDIR(p) (GETTAG((p)) == T_IND)
 #define WEAK(p) (p)->uarg.uuweak
-#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
-#define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
+//#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
+#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_MASK))
+#define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IN; } while(0)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = mmalloc(n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
+/* Prefetch a node we know we'll need soon but haven't dereferenced yet. */
+#if defined(__GNUC__) || defined(__clang__)
+#define PREFETCH_READ(addr) __builtin_prefetch((addr), 0, 2)
+#else
+#define PREFETCH_READ(addr) do { } while(0)
+#endif
+
 /*
- * byte arrays
+ * Byte arrays.
+ * This is used for both immutable and mutable arrays.
+ * This struct is often passed by value.
  */
 struct bytestring {
-  size_t size;
-  void *string;
+  size_t   bs_size;                  /* current size of string */
+  size_t   bs_capacity;              /* size allocated for string, 0 if immutable */
+  void    *bs_array;                 /* bytes */
 };
+
+/* Create a new immutable bytestring, if buf is NULL also allocates the array */
+struct bytestring
+mk_ro_bytestring(size_t size, void *buf)
+{
+  struct bytestring bs;
+  bs.bs_capacity = 0;
+  bs.bs_size = size;
+  bs.bs_array = buf ? buf : mmalloc(size);
+  return bs;
+}
 
 /*
  * Arrays are allocated with malloc()/free().
@@ -661,6 +789,7 @@ counter_t num_gc_weak = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
+uintptr_t boot_time = 0;
 
 #define MAIN_THREAD 1
 uvalue_t num_thread_create = MAIN_THREAD;
@@ -798,7 +927,7 @@ add_tick_table(struct bytestring name)
 }
 
 /* Called with the tick index. */
-static inline void
+static INLINE void
 dotick(value_t i)
 {
   tick_table[i].tick_count++;
@@ -814,14 +943,21 @@ dump_tick_table(FILE *f)
   for (size_t i = 0; i < tick_index; i++) {
     counter_t n = tick_table[i].tick_count;
     if (n)
-      fprintf(f, "%-60s %10"PRIcounter"\n", (char *)tick_table[i].tick_name.string, n);
+      fprintf(f, "%-60s %10"PRIcounter"\n", (char *)tick_table[i].tick_name.bs_array, n);
   }
 }
 #endif
 
 enum th_sched { mt_main, mt_resched, mt_raise };
 /* The two enums below are known by the Haskell code.  Do not change order */
-enum th_state { ts_runnable, ts_wait_mvar, ts_wait_time, ts_finished, ts_died };
+enum th_state {
+  ts_runnable,
+  ts_wait_mvar,
+  ts_wait_time,
+  ts_finished,
+  ts_died,
+  ts_wait_io,   /* not visible to Haskell; must stay after ts_died */
+};
 enum mask_state { mask_unmasked, mask_interruptible, mask_uninterruptible };
 
 /***************** HANDLER *****************/
@@ -843,9 +979,22 @@ struct mthread {
   counter_t       mt_num_slices; /* number of slices so far */
   NODEPTR         mt_root;       /* root of the graph to reduce */
   struct mvar    *mt_exn;        /* possible thrown exception */
-  NODEPTR         mt_mval;       /* filled after waiting for take/read */
+  struct mthread *mt_throwto;    /* When set, we are in throwTo to this thread and have
+                                  * already handed over the exception; we are waiting for
+                                  * the target to take it.  See throwto(). */
+  bool            mt_throwdone;  /* The target has taken the exception (or is gone). */
+  NODEPTR         mt_mval;       /* Filled when put_mvar wakes a thread waiting in read_mvar.
+                                  * The value cannot be taken from the mvar by the read, because
+                                  * we need to guarantee that all reads get the same value. */
   bool            mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
+#if WANT_IO_POLL
+  int             mt_fd;         /* The file descriptor that we are waiting on,
+                                  * IO_POLL_WAITING_FOR_NONE, or IO_POLL_EVENT_HAS_HAPPENED */
+#define             IO_POLL_WAITING_FOR_NONE (-1)
+#define             IO_POLL_EVENT_HAS_HAPPENED (-2)
+  int             mt_events;     /* POLLIN or POLLOUT */
+#endif /* WANT_IO_POLL */
 #if defined(CLOCK_INIT)
   CLOCK_T         mt_at;         /* time to wake up when in threadDelay */
 #endif
@@ -856,8 +1005,9 @@ struct mqueue {
   struct mthread *mq_head;
   struct mthread *mq_tail;
 };
-struct mqueue runq = { 0, 0 };;
-struct mqueue timeq = { 0, 0 };
+struct mqueue runq  = { 0, 0 }; /* runnable threads */
+struct mqueue timeq = { 0, 0 }; /* waiting for a timer to expire, sorted in time order */
+struct mqueue pollq = { 0, 0 }; /* waiting for I/O on a file descriptor */
 
 struct mvar {
   struct mvar    *mv_next;      /* all mvars linked together */
@@ -878,7 +1028,7 @@ NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(s
 
 /****** StablePtr ******/
 
-size_t sp_capacity = 4;         /* size of stable pointer table */
+size_t sp_capacity = 4;         /* initial size of stable pointer table */
 NODEPTR *sp_table;              /* stable pointer table */
 
 static void
@@ -887,7 +1037,7 @@ init_stableptr(void)
   sp_table = mmalloc(sp_capacity * sizeof(NODEPTR)); /* stable pointer table, all free */
   for (size_t i = 0; i < sp_capacity; i++)
     sp_table[i] = NIL;
-}  
+}
 
 static uvalue_t
 new_stableptr(NODEPTR n)
@@ -915,7 +1065,7 @@ new_stableptr(NODEPTR n)
 static NODEPTR
 deref_stableptr(uvalue_t sp)
 {
-  if (sp_table[sp] == NIL || sp >= sp_capacity)
+  if (sp >= sp_capacity || sp_table[sp] == NIL)
     ERR("deref_stableptr");
   return sp_table[sp];
 }
@@ -923,14 +1073,16 @@ deref_stableptr(uvalue_t sp)
 static void
 free_stableptr(uvalue_t sp)
 {
-  if (sp_table[sp] == NIL || sp >= sp_capacity)
+  if (sp >= sp_capacity || sp_table[sp] == NIL)
     ERR("free_stableptr");
   COUNT(num_stable_free);
   sp_table[sp] = NIL;
 }
 
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
-enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero, exn_blockedmvar, exn_blockedstm };
+enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt,
+               exn_dividebyzero, exn_blockedmvar, exn_blockedstm, exn_overflow,
+               exn_serialize, exn_deserialize, exn_last };
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
@@ -953,10 +1105,10 @@ void pp(FILE*, NODEPTR);
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combK, combTrue, combI, combCons, combPair;
+NODEPTR combK, combA, combI, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
+NODEPTR combKK, combKA;
 NODEPTR combSETMASKINGSTATE;
-NODEPTR combLT, combEQ, combGT;
 NODEPTR combPERFORMIO;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
@@ -970,9 +1122,16 @@ NODEPTR combTHROWTO;
 NODEPTR combPairUnit;
 NODEPTR combWorld;
 NODEPTR combCATCHR;
+NODEPTR combFst, combSnd;
+NODEPTR combFP2P;
+NODEPTR spare_node;             /* an unused node in the heap, used in printrec */
 #define combFalse combK
+#define combTrue combA
 #define combNothing combK
 #define combUnit combI
+#define combLT combK2
+#define combEQ combKK
+#define combGT combKA
 
 /*******************************/
 
@@ -1029,6 +1188,28 @@ add_runq_tail(struct mthread *mt)
   add_q_tail(&runq, mt);
 }
 
+/* Add the thread to the head of runq */
+void
+add_runq_head(struct mthread *mt)
+{
+  mt->mt_state = ts_runnable;
+  mt->mt_queue = runq.mq_head;
+  runq.mq_head = mt;
+  if (!runq.mq_tail)
+    runq.mq_tail = mt;           /* runq was empty */
+}
+
+/* Add the thread k to runq right after mt, which is in runq */
+void
+add_runq_after(struct mthread *mt, struct mthread *k)
+{
+  k->mt_state = ts_runnable;
+  k->mt_queue = mt->mt_queue;
+  mt->mt_queue = k;
+  if (runq.mq_tail == mt)
+    runq.mq_tail = k;            /* mt was last */
+}
+
 struct mthread*
 remove_q_head(struct mqueue *q)
 {
@@ -1045,7 +1226,7 @@ int
 find_and_unlink(struct mqueue *mq, struct mthread *mt)
 {
   struct mthread **mtp;
-  
+
   for(mtp = &mq->mq_head; *mtp && *mtp != mt; mtp = &(*mtp)->mt_queue)
     ;
   if (!*mtp)
@@ -1140,6 +1321,92 @@ check_timeq(void)
 }
 
 void
+check_pollq(int timeout)
+{
+#if WANT_IO_POLL
+#define MAX_POLL_FDS 100
+  struct pollfd fds[MAX_POLL_FDS];
+  int nfds = 0;
+  for(struct mthread *mt = pollq.mq_head; mt; mt = mt->mt_queue) {
+    if (nfds >= MAX_POLL_FDS)
+      ERR("check_pollq: too many FDs");
+    fds[nfds].fd = mt->mt_fd;
+    fds[nfds].events = mt->mt_events;
+    nfds++;
+  }
+#if THREAD_DEBUG
+  if (thread_trace)
+    printf("check_pollq: enter poll(_, %d, %d)\n", nfds, timeout);
+#endif  /* THREAD_DEBUG */
+  int r = poll(fds, nfds, timeout);
+  if (r < 0)
+    return;                     /* silently ignore errors */
+  nfds = 0;
+  struct mthread *next;
+  for(struct mthread *mt = pollq.mq_head; mt; mt = next) {
+    next = mt->mt_queue;
+    if (fds[nfds].revents & (mt->mt_events | POLLHUP)) {
+      /* Some event has happened, move the thread back to the runq. */
+      find_and_unlink(&pollq, mt); /* remove from I/O queue */
+      add_runq_tail(mt);
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("check_pollq: FD=%d thread=%d done\n", mt->mt_fd, (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+      mt->mt_fd = IO_POLL_EVENT_HAS_HAPPENED;
+    }
+    nfds++;
+  }
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("check_pollq: exit\n");
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
+#endif  /* WANT_IO_POLL */
+}
+
+/* Wake every thread that is blocked in throwTo waiting for mt to take its
+ * exception.  Called when mt takes one, and when mt finishes or dies. */
+void
+wake_throwto(struct mthread *mt)
+{
+  for (struct mthread *k; (k = remove_q_head(&mt->mt_exn->mv_read)); ) {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("wake_throwto: wake %d, which threw to %d\n", (int)k->mt_id, (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+    /* The exception has been delivered, so the thrower continues next: at
+     * the tail of the run queue it would first wait for a slice of every
+     * other runnable thread, which made a loop of killThread quadratic. */
+    k->mt_throwdone = true;
+    if (runq.mq_head == mt)
+      add_runq_after(mt, k);    /* mt is the running thread (check_thrown): k goes right after it */
+    else
+      add_runq_head(k);
+  }
+}
+
+/* mt has finished or died, so it takes no more exceptions.  Release everyone
+ * blocked in throwTo to it: the thrower whose exception is in mt's exception
+ * MVar waits on its read queue, and further throwers wait in its put queue
+ * because the MVar is full.  Each of them runs throwTo again, finds mt gone,
+ * and returns. */
+void
+release_throwto(struct mthread *mt)
+{
+  wake_throwto(mt);
+  mt->mt_exn->mv_data = NIL;    /* an exception that was never taken */
+  for (struct mthread *k; (k = remove_q_head(&mt->mt_exn->mv_takeput)); ) {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("release_throwto: wake %d, which threw to %d\n", (int)k->mt_id, (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+    add_runq_tail(k);
+  }
+}
+
+void
 throwto(struct mthread *mt, NODEPTR exn)
 {
 #if THREAD_DEBUG
@@ -1147,32 +1414,93 @@ throwto(struct mthread *mt, NODEPTR exn)
     printf("throwto: id=%d\n", (int)mt->mt_id);
   }
 #endif  /* THREAD_DEBUG */
-  thread_intr(mt);
-  if (mt->mt_state != ts_died && mt->mt_state != ts_finished) {
-#if THREAD_DEBUG
-    if (thread_trace) {
-      printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
-    }
-#endif  /* THREAD_DEBUG */
+  struct mthread *me = runq.mq_head;
+
+  if (mt == me) {
+    /* Throwing to ourselves: just hand the exception over.  It is raised at the
+     * next interruption point, so there is nothing to wait for. */
     (void)put_mvar(false, mt->mt_exn, exn); /* never returns if it blocks */
+    return;
   }
+  if (me->mt_throwto == mt) {
+    /* We handed the exception over in an earlier execution of this throwTo and
+     * blocked; being back here means the target has taken it, or has died. */
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("throwto: id=%d delivered\n", (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+    me->mt_throwto = 0;
+    return;
+  }
+  thread_intr(mt);
+  if (mt->mt_state == ts_died || mt->mt_state == ts_finished)
+    return;                     /* there is nothing left to interrupt */
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
+  }
+#endif  /* THREAD_DEBUG */
+  (void)put_mvar(false, mt->mt_exn, exn); /* never returns if it blocks */
+  /* GHC's throwTo does not return until the exception has been raised in the
+   * target thread, so wait for the target to take it.  Without this the target
+   * stays runnable with an exception pending, and can still run a stretch of
+   * code -- and consume shared state -- before it is interrupted.
+   * We wait on the read queue of the target's exception MVar: check_thrown and
+   * a finishing thread wake it, and thread_intr searches it, so the wait is
+   * itself interruptible. */
+  me = remove_q_head(&runq);
+  me->mt_throwto = mt;
+  me->mt_throwdone = false;
+  add_q_tail(&mt->mt_exn->mv_read, me);
+  /* Let the target run next.  If it is somewhere down the run queue (it was
+   * runnable, or thread_intr has just put it at the tail) it would otherwise
+   * take the exception only after every thread ahead of it has had a slice,
+   * so killing n runnable threads cost n passes over the run queue. */
+  if (mt->mt_state == ts_runnable && find_and_unlink(&runq, mt))
+    add_runq_head(mt);
+  resched(me, ts_wait_mvar);     /* never returns */
+}
+
+/* mt is interrupted while it waits in throwTo.  As in GHC, an interrupted throwTo
+ * has no effect: if the target has not taken mt's exception yet, take it back.
+ * (It is the one in the target's exception MVar, since mt waits on its read queue
+ * until the target takes it.)  The next thrower waiting to put one may then go on. */
+void
+revoke_throwto(struct mthread *mt)
+{
+  struct mthread *target = mt->mt_throwto;
+  if (target && !mt->mt_throwdone) {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("revoke_throwto: %d revokes its exception to %d\n", (int)mt->mt_id, (int)target->mt_id);
+#endif  /* THREAD_DEBUG */
+    /* Take our exception back; a thread waiting to throw to target may then put its own.
+     * The MVar holds our exception, so this does not block. */
+    (void)take_mvar(true, target->mt_exn);
+  }
+  mt->mt_throwto = 0;
+  mt->mt_throwdone = false;
 }
 
 void
 check_thrown(bool intr)
 {
-  if (runq.mq_head->mt_exn->mv_data == NIL)
-    return;            /* no thrown exception */
   if (runq.mq_head->mt_mask == mask_uninterruptible ||
       (!intr && runq.mq_head->mt_mask == mask_interruptible)) {
-    return;            /* interrupts are masked, so don't throw */
+    /* interrupts are masked, so don't throw */
+    return;
   }
+  NODEPTR exn = take_mvar(true, runq.mq_head->mt_exn); /* get the exception */
+  if (exn == NIL)
+    return;            /* no thrown exception */
   /* the current thread has an async exception */
+  wake_throwto(runq.mq_head);    /* the throwTo that sent it may now return */
+  revoke_throwto(runq.mq_head);  /* we are unwinding; drop any throwTo of our own */
 #if THREAD_DEBUG
   if (thread_trace)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
 #endif  /* THREAD_DEBUG */
-  NODEPTR exn = take_mvar(false, runq.mq_head->mt_exn); /* get the exception */
+
   raise_exn(exn);
 }
 
@@ -1181,9 +1509,9 @@ check_sigint(void)
 {
 #if WANT_SIGINT
   if (has_sigint) {
-    /* We have a signal, so send an async exception  to the main thread */
+    /* We have a signal, so send an async exception to the main thread */
     has_sigint = false;
-    for(struct mthread *mt= all_threads; mt; mt = mt->mt_next) {
+    for(struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
       if (mt->mt_id == MAIN_THREAD) {
 #if THREAD_DEBUG
         if (thread_trace)
@@ -1209,12 +1537,21 @@ yield(void)
   COUNT(num_yield);
   runq.mq_head->mt_num_slices++;
   // XXX should check mt_thrown here
-  
+
+  YIELD_EXTRA;                  /* platform specific extra stuff */
+
   if (timeq.mq_head)
     check_timeq();
   check_thrown(false);
   check_sigint();
-  // printf("yield %p %d\n", runq, (int)stack_ptr);
+
+  if (pollq.mq_head) {
+    /* Check if any threads blocked on IO can be scheduled. Since we pass in a delay of 0, checking
+     * for the events will not block. */
+    check_pollq(0);
+  }
+
+// printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
 #if THREAD_DEBUG
@@ -1254,11 +1591,17 @@ new_thread(NODEPTR root)
   mt->mt_mask = mask_unmasked;
   mt->mt_root = root;
   mt->mt_exn = new_mvar();
+  mt->mt_throwto = 0;
+  mt->mt_throwdone = false;
   mt->mt_mval = NIL;
   mt->mt_slice = 0;
   mt->mt_mark = false;
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
+#if WANT_IO_POLL
+  mt->mt_fd = IO_POLL_WAITING_FOR_NONE;
+  mt->mt_events = 0;
+#endif
 #if defined(CLOCK_INIT)
   mt->mt_at = 0;                /* delay has not expired */
 #endif
@@ -1294,7 +1637,7 @@ new_mvar(void)
   mv->mv_next = all_mvars;
   mv->mv_mark = false;
   all_mvars = mv;
-  
+
 #if THREAD_DEBUG
   if (thread_trace)
     printf("new_mvar: mvar=%p\n", mv);
@@ -1312,27 +1655,17 @@ take_mvar(bool try, struct mvar *mv)
   }
 #endif  /* THREAD_DEBUG */
   NODEPTR n;
-  if ((n = runq.mq_head->mt_mval) != NIL) {
-#if THREAD_DEBUG
-    if (thread_trace)
-      printf("take_mvar: end mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
-#endif  /* THREAD_DEBUG */
-    /* We have no data after waking up */
-    runq.mq_head->mt_mval = NIL;
-    return n;                   /* returned the stashed data */
-  }
   if ((n = mv->mv_data) != NIL) {
+    /* The mvar is full. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p full\n", mv);
 #endif  /* THREAD_DEBUG */
-    /* mvar is full */
     mv->mv_data = NIL;           /* now empty */
-    /* move all threads waiting to put to the runq */
-    for(;;) {
-      struct mthread *mt = remove_q_head(&mv->mv_takeput);
-      if (!mt)
-        break;
+
+    /* move one thread waiting to put to the runq */
+    struct mthread *mt;
+    if((mt = remove_q_head(&mv->mv_takeput))) {
 #if THREAD_DEBUG
       if (thread_trace) {
         printf("take_mvar: mvar=%p wake %d\n", mv, (int)mt->mt_id);
@@ -1352,6 +1685,7 @@ take_mvar(bool try, struct mvar *mv)
 #endif  /* THREAD_DEBUG */
     return n;                   /* return the data */
   } else {
+    /* The mvar is empty. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p empty\n", mv);
@@ -1379,9 +1713,10 @@ read_mvar(bool try, struct mvar *mv)
 {
   NODEPTR n;
   if ((n = runq.mq_head->mt_mval) != NIL) {
-    /* We have no data after waking up */
-    runq.mq_head->mt_mval = NIL;
-    return n;                   /* returned the stashed data */
+    /* The putMVar delivers the data in mt_mval and wakes the thread.
+     * So first first check if we already have data in mt_mval. */
+    runq.mq_head->mt_mval = NIL; /* empty again */
+    return n;                    /* returned the stashed data */
   }
   if ((n = mv->mv_data) != NIL) {
     /* mvar is full */
@@ -1414,11 +1749,11 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
   }
 #endif  /* THREAD_DEBUG */
   if (mv->mv_data != NIL) {
+    /* The mvar is full. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("put_mvar: mvar=%p full\n", mv);
 #endif  /* THREAD_DEBUG */
-    /* mvar is full */
     if (try)
       return 0;
     struct mthread *mt = remove_q_head(&runq);
@@ -1432,11 +1767,13 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
 #endif  /* THREAD_DEBUG */
     resched(mt, ts_wait_mvar);                  /* never returns */
   } else {
+    /* The mvar is empty. */
 #if THREAD_DEBUG
     if (thread_trace)
       printf("put_mvar: mvar=%p empty\n", mv);
 #endif  /* THREAD_DEBUG */
     /* mvar is empty */
+    mv->mv_data = v;              /* put the data in the mvar */
     if (mv->mv_takeput.mq_head || mv->mv_read.mq_head) {
       /* one or more threads are waiting */
       struct mthread *mt;
@@ -1447,16 +1784,18 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
           printf("put_mvar: wake-1 %d\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
         add_runq_tail(mt);             /* and schedule for execution later */
-        mt->mt_mval = v;
       }
       for(;;) {
-        mt = remove_q_head(&mv->mv_takeput);
+        /* wake up all 'read' */
+        mt = remove_q_head(&mv->mv_read);
         if (!mt)
           break;
 #if THREAD_DEBUG
         if (thread_trace)
           printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
+        if (mt->mt_mval != NIL)
+          ERR("put_mvar: mt_mval != NIL");
         mt->mt_mval = v;               /* value for restarted read */
         add_runq_tail(mt);             /* and schedule for execution later */
       }
@@ -1505,13 +1844,51 @@ thread_delay(uvalue_t usecs)
   if (!mt->mt_queue)            /* no forward link */
     timeq.mq_tail = mt;
   resched(mt, ts_wait_time);
-#endif  
+#endif
 }
 
 /* Pause execution if something might still happen */
 void
 pause_exec(void)
 {
+/*
+ * We end up here if the run queue is empty. If there is no thread waiting for
+ * a delay to expire, we will never resume operation and we are deadlocked. However, if
+ * we compile with WANT_IO_POLL there might be threads waiting for IO events, so in
+ * that case we check for them as well. If there is no thread waiting for a delay or an
+ * IO event, we are deadlocked.
+ */
+#if WANT_IO_POLL
+  /* Check for deadlock situation */
+  if (!pollq.mq_head
+#if defined(CLOCK_INIT)
+     && !timeq.mq_head
+#endif
+    ) ERR("deadlock");
+
+  /* Loop until at least one thread is runnable.*/
+  while (!runq.mq_head) {
+    int timeout_ms = -1; /* block indefinitely if only io_waiters */
+#if defined(CLOCK_INIT)
+    /* If there are threads blocked on delays, compute the timeout_ms to account for that. */
+    if (timeq.mq_head) {
+      CLOCK_T dly = timeq.mq_head->mt_at - CLOCK_GET();
+      if (dly > 0) {
+        /* poll() can be unreliable, so sleep shorter than the delay */
+        dly /= 1100;            /* 1.1=sleep shorter, 1000=convert us to ms */
+        timeout_ms = dly == 0 ? 1 : dly; /* sleep at least 1ms to avoid busy wait */
+      } else {
+        timeout_ms = 0;         /* delay has already expired */
+      }
+    }
+    check_timeq();
+#endif  /* defined(CLOCK_INIT) */
+    check_pollq(timeout_ms);
+    check_sigint();		/* if there is a SIGINT, this will put a thread on the runq */
+  }
+
+#else /* !WANT_IO_POLL */
+
 #if defined(CLOCK_INIT)
   if (timeq.mq_head) {
     struct mthread *mt;
@@ -1549,6 +1926,7 @@ pause_exec(void)
 #else  /* CLOCK_INIT */
   ERR("no clock");
 #endif  /* CLOCK_INIT */
+#endif /* !WANT_IO_POLL */
 }
 
 /* Interrupt a sleeping thread in a throwTo/threadDelay */
@@ -1578,6 +1956,7 @@ thread_intr(struct mthread *mt)
 #if defined(CLOCK_INIT)
     mt->mt_at = -1;             /* don't wait again */
 #endif
+    mt->mt_mval = NIL;          /* no longer waiting on the mvar */
     add_runq_tail(mt);
     break;
   case ts_wait_time:
@@ -1591,6 +1970,20 @@ thread_intr(struct mthread *mt)
     /* find thread in timeq */
     if (!find_and_unlink(&timeq, mt))
       ERR("thread_intr: timeq");
+    /* XXX should adjust mq_tail */
+    add_runq_tail(mt);
+    break;
+  case ts_wait_io:
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("thread_intr: ts_wait_io mask=%d\n", (int)mt->mt_mask);
+    }
+#endif  /* THREAD_DEBUG */
+    if (mt->mt_mask == mask_uninterruptible) /* uninterruptible */
+      break;
+    /* find thread in timeq */
+    if (!find_and_unlink(&pollq, mt))
+      ERR("thread_intr: pollq");
     /* XXX should adjust mq_tail */
     add_runq_tail(mt);
     break;
@@ -1634,6 +2027,7 @@ raise_exn(NODEPTR exn)
   }
 }
 
+/* Raise a RTS exception identified by a number rather than an exception value */
 NORETURN void
 raise_rts(enum rts_exn exn) {
   raise_exn(mkInt(exn));
@@ -1774,6 +2168,7 @@ start_exec(NODEPTR root)
 #endif  /* THREAD_DEBUG */
       mt->mt_state = ts_died;
       mt->mt_root = NIL;
+      release_throwto(mt);      /* release anyone blocked in throwTo to it */
     }
   }
 #if THREAD_DEBUG
@@ -1807,6 +2202,7 @@ start_exec(NODEPTR root)
 #endif  /* THREAD_DEBUG */
     mt->mt_state = ts_finished;
     mt->mt_root = NIL;
+    release_throwto(mt);        /* release anyone blocked in throwTo to it */
     /* XXX mt_mval, mt_thrown */
 
     if (mt->mt_id == MAIN_THREAD) {
@@ -1849,21 +2245,76 @@ struct {
   { "Y", T_Y },
   { "B'", T_BB },
   { "Z", T_Z },
-  /*  { "J", T_J },*/
+  { "J", T_J },
   { "K2", T_K2 },
   { "K3", T_K3 },
   { "K4", T_K4 },
   { "C'B", T_CCB },
+  { "L", T_L },
+  { "KK", T_KK },
+  { "KA", T_KA },
+  { "T3", T_T3 },
+  { "T4", T_T4 },
+  { "T5", T_T5 },
+  { "T6", T_T6 },
+  { "T7", T_T7 },
+  { "T8", T_T8 },
+  { "T9", T_T9 },
+  { "T10", T_T10 },
+  { "T11", T_T11 },
+  { "T12", T_T12 },
+  { "T13", T_T13 },
+  { "T14", T_T14 },
+  { "T15", T_T15 },
+  { "T16", T_T16 },
+  { "TAG0", T_TAG0 },
+  { "TAG1", T_TAG1 },
+  { "TAG2", T_TAG2 },
+  { "TAG3", T_TAG3 },
+  { "TAG4", T_TAG4 },
+  { "TAG5", T_TAG5 },
+  { "TAG6", T_TAG6 },
+  { "TAG7", T_TAG7 },
+  { "TAG8", T_TAG8 },
+  { "TAG9", T_TAG9 },
+  { "TAG10", T_TAG10 },
+  { "TAG11", T_TAG11 },
+  { "TAG12", T_TAG12 },
+  { "TAG13", T_TAG13 },
+  { "TAG14", T_TAG14 },
+  { "TAG15", T_TAG15 },
+  { "TAG16", T_TAG16 },
+  { "TAG17", T_TAG17 },
+  { "TAG18", T_TAG18 },
+  { "TAG19", T_TAG19 },
+  { "TAG20", T_TAG20 },
+  { "TAG21", T_TAG21 },
+  { "TAG22", T_TAG22 },
+  { "TAG23", T_TAG23 },
+  { "TAG24", T_TAG24 },
+  { "TAG25", T_TAG25 },
+  { "TAG26", T_TAG26 },
+  { "TAG27", T_TAG27 },
+  { "TAG28", T_TAG28 },
+  { "TAG29", T_TAG29 },
+  { "TAG30", T_TAG30 },
+  { "TAG31", T_TAG31 },
+  { "TAG32", T_TAG32 },
 /* primops */
   { "+", T_ADD, T_ADD },
   { "-", T_SUB, T_SUBR },
   { "*", T_MUL, T_MUL },
   { "quot", T_QUOT },
   { "rem", T_REM },
+  { "u+", T_UADD, T_UADD },
+  { "u-", T_USUB, T_USUBR },
+  { "u*", T_UMUL, T_UMUL },
   { "uquot", T_UQUOT },
   { "urem", T_UREM },
   { "subtract", T_SUBR, T_SUB },
+  { "usubtract", T_USUBR, T_USUB },
   { "neg", T_NEG },
+  { "uneg", T_UNEG },
   { "and", T_AND, T_AND },
   { "or", T_OR, T_OR },
   { "xor", T_XOR, T_XOR },
@@ -1882,6 +2333,8 @@ struct {
   { "dneg", T_DNEG},
   { "itod", T_ITOD},
   { "Itod", T_I64TOD},
+  { "utod", T_UTOD},
+  { "dtoi", T_DTOI},
   { "d==", T_DEQ, T_DEQ},
   { "d/=", T_DNE, T_DNE},
   { "d<", T_DLT, T_DGT},
@@ -1889,6 +2342,10 @@ struct {
   { "d>", T_DGT, T_DLT},
   { "d>=", T_DGE, T_DLE},
 #endif  /* WANT_FLOAT64 */
+#if WANT_FLOAT64 && WANT_FLOAT32
+  { "dtof", T_DTOF },
+  { "ftod", T_FTOD },
+#endif  /* WANT_FLOAT64 && WANT_FLOAT32 */
 #if WANT_FLOAT32
   { "f+" , T_FADD, T_FADD},
   { "f-" , T_FSUB },
@@ -1897,6 +2354,8 @@ struct {
   { "fneg", T_FNEG},
   { "Itof", T_I64TOF},
   { "itof", T_ITOF},
+  { "utof", T_UTOF},
+  { "ftoi", T_FTOI},
   { "f==", T_FEQ, T_FEQ},
   { "f/=", T_FNE, T_FNE},
   { "f<", T_FLT, T_FGT},
@@ -1914,13 +2373,17 @@ struct {
   { "bs>", T_BSGT, T_BSLT },
   { "bs>=", T_BSGE, T_BSLE  },
   { "bscmp", T_BSCMP },
-  { "bspack", T_BSPACK },
   { "bsunpack", T_BSUNPACK },
   { "bsreplicate", T_BSREPLICATE },
   { "bslength", T_BSLENGTH },
   { "bssubstr", T_BSSUBSTR },
   { "bsindex", T_BSINDEX },
+  { "bsnew", T_BSNEW },
+  { "bsread", T_BSREAD },
   { "bswrite", T_BSWRITE },
+  { "bsfreeze", T_BSFREEZE },
+  { "bsappbyte", T_BSAPPBYTE },
+  { "bsappchar", T_BSAPPCHAR },
 
   { "ord", T_I },
   { "chr", T_I },
@@ -1946,7 +2409,6 @@ struct {
   { "ucmp", T_UCMP },
   { "rnf", T_RNF },
   { "fromUTF8", T_BSFROMUTF8 },
-  { "toUTF8", T_BSTOUTF8 },
   { "headUTF8", T_BSHEADUTF8 },
   { "tailUTF8", T_BSTAILUTF8 },
   /* IO primops */
@@ -1961,9 +2423,12 @@ struct {
   { "IO.stderr", T_IO_STDERR },
   { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.performIO", T_IO_PERFORMIO },
+  { "IO.atomic", T_IO_ATOMIC },
   { "IO.gc", T_IO_GC },
   { "IO.stats", T_IO_STATS },
   { "IO.pp", T_IO_PP },
+  { "IO.lazyBind", T_IO_LAZYBIND },
+  { "IO.strict", T_IO_STRICT },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
   { "catchr", T_CATCHR },
@@ -1991,10 +2456,10 @@ struct {
   { "IO.threadstatus", T_IO_THREADSTATUS },
   { "IO.getmaskingstate", T_IO_GETMASKINGSTATE },
   { "IO.setmaskingstate", T_IO_SETMASKINGSTATE },
-  { "newCAStringLen", T_NEWCASTRINGLEN },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
   { "bsgrab", T_BSGRAB },
+  { "bsgrablen", T_BSGRABLEN },
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
@@ -2019,54 +2484,23 @@ struct {
   { "binbs1", T_BINBS1 },
   { "unint1", T_UNINT1 },
   { "undbl1", T_UNDBL1 },
+  { "IO.waitrdfd", T_IO_WAITRDFD},
+  { "IO.waitwrfd", T_IO_WAITWRFD},
 #if WANT_INT64
-#if !NEED_INT64
-  { "I+", T_ADD, T_ADD },
-  { "I-", T_SUB, T_SUBR },
-  { "I*", T_MUL, T_MUL },
-  { "Iquot", T_QUOT },
-  { "Irem", T_REM },
-  { "Iuquot", T_UQUOT },
-  { "Iurem", T_UREM },
-  { "Isubtract", T_SUBR, T_SUB },
-  { "Ineg", T_NEG },
-  { "Iand", T_AND, T_AND },
-  { "Ior", T_OR, T_OR },
-  { "Ixor", T_XOR, T_XOR },
-  { "Iinv", T_INV },
-  { "Ishl", T_SHL },
-  { "Ishr", T_SHR },
-  { "Iashr", T_ASHR },
-  { "Ipopcount", T_POPCOUNT },
-  { "Iclz", T_CLZ },
-  { "Ictz", T_CTZ },
-  { "I==", T_EQ, T_EQ },
-  { "I/=", T_NE, T_NE },
-  { "I<", T_LT, T_GT },
-  { "Iu<", T_ULT, T_UGT },
-  { "Iu<=", T_ULE, T_UGE },
-  { "Iu>", T_UGT, T_ULT },
-  { "Iu>=", T_UGE, T_ULE },
-  { "I<=", T_LE, T_GE },
-  { "I>", T_GT, T_LT },
-  { "I>=", T_GE, T_LE },
-  { "Iicmp", T_ICMP },
-  { "Iucmp", T_UCMP },
-  { "Itoi", T_I },
-  { "itoI", T_I },
-  { "Utou", T_I },
-  { "utoU", T_I },
-#else  /* WORD_SIZE == 64 */
-  /* WORD_SIZE == 32 */
   { "I+", T_ADD64, T_ADD64 },
   { "I-", T_SUB64, T_SUBR64 },
   { "I*", T_MUL64, T_MUL64 },
   { "Iquot", T_QUOT64 },
   { "Irem", T_REM64 },
+  { "Iu+", T_UADD64, T_UADD64 },
+  { "Iu-", T_USUB64, T_USUBR64 },
+  { "Iu*", T_UMUL64, T_UMUL64 },
   { "Iuquot", T_UQUOT64 },
   { "Iurem", T_UREM64 },
   { "Isubtract", T_SUBR64, T_SUB64 },
+  { "Iusubtract", T_USUBR64, T_USUB64 },
   { "Ineg", T_NEG64 },
+  { "Iuneg", T_UNEG64 },
   { "Iand", T_AND64, T_AND64 },
   { "Ior", T_OR64, T_OR64 },
   { "Ixor", T_XOR64, T_XOR64 },
@@ -2093,13 +2527,73 @@ struct {
   { "Itoi", T_I64TOI },
   { "utoU", T_UTOU64 },
   { "Utou", T_U64TOU },
-#endif /* WORD_SIZE == 64 */
 #endif  /* WANT_INT64 */
+  { "tick", T_TICK },           /* fake op */
 };
 
 #if GCRED
 enum node_tag flip_ops[T_LAST_TAG+1];
 #endif
+
+/*
+ * Use a hash table with open linear probing for the lookup of primpo names.
+ * Make the hash table twice the size of the number of primops so we get a load factor of 0.5.
+ */
+#define PRIMOP_HASH_SIZE (2 * sizeof primops / sizeof primops[0])
+static struct {
+  const char   *name;           /* NULL marks an empty slot */
+  enum node_tag tag;
+} primop_hash[PRIMOP_HASH_SIZE];
+
+/* FNV-1a hashing. It's simple and fast. */
+static uint32_t
+primop_hash_str(const char *s)
+{
+  uint32_t h = 2166136261;
+  while (*s) {
+    h ^= (uint8_t)*s++;
+    h *= 16777619;
+  }
+  return h % PRIMOP_HASH_SIZE;
+}
+
+/* Build the initial table that maps a hash to a pair of a name and tag */
+static void
+init_primop_hash(void)
+{
+  size_t i;
+
+  for (i = 0; i < sizeof primops / sizeof primops[0]; i++) {
+    uint32_t k = primop_hash_str(primops[i].name);
+
+    /* This slot is already occupied, so we progress to the next slot. */
+    /* This must terminate, size the hash table is twice the size of the primops. */
+    while (primop_hash[k].name) {
+      k = (k + 1) % PRIMOP_HASH_SIZE;
+    }
+    /* Found the first empty slot for this hash.
+     * Insert the (name,tag) pair.
+     */
+    if (primop_hash[k].name == NULL) {
+      primop_hash[k].name = primops[i].name;
+      primop_hash[k].tag  = primops[i].tag;
+    }
+  }
+}
+
+/* Return the tag for a primop name, or -1 if there is no such primop. */
+static int
+lookup_primop(const char *name)
+{
+  uint32_t k = primop_hash_str(name);
+
+  while (primop_hash[k].name) {
+    if (strcmp(primop_hash[k].name, name) == 0)
+      return (int)primop_hash[k].tag;
+    k = (k + 1) % PRIMOP_HASH_SIZE;
+  }
+  return -1;
+}
 
 #if WANT_STDIO
 /* Create a dummy foreign pointer for the standard stdio handles. */
@@ -2114,7 +2608,7 @@ mk_std(NODEPTR n, FILE *f)
   FORPTR(n) = fp;
   fin->arg = bf;
   fin->back = fp;
-  fp->payload.string = bf;
+  fp->payload.bs_array = bf;
   fp->finalizer = fin;
 }
 #endif
@@ -2149,6 +2643,8 @@ init_nodes(void)
     case T_U: combU = n; break;
     case T_K2: combK2 = n; break;
     case T_K3: combK3 = n; break;
+    case T_KK: combKK = n; break;
+    case T_KA: combKA = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_THEN: combIOTHEN = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
@@ -2170,6 +2666,7 @@ init_nodes(void)
     case T_BINBS2: combBINBS2 = n; break;
     case T_IO_THROWTO: combTHROWTO = n; break;
     case T_CATCHR: combCATCHR = n; break;
+    case T_FP2P: combFP2P = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
     case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
@@ -2182,9 +2679,7 @@ init_nodes(void)
       //      if (primops[j].tag == t) {
       //        primops[j].node = n;
       //      }
-#if WANT_TAGNAMES
       tag_names[primops[j].tag] = primops[j].name;
-#endif
     }
   }
 
@@ -2194,6 +2689,8 @@ init_nodes(void)
   }
 #endif
 
+  init_primop_hash();
+
   /* The representation of the constructors of
    *  data Ordering = LT | EQ | GT
    * do not have single constructors.
@@ -2201,9 +2698,6 @@ init_nodes(void)
    */
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
 #define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
-  NEWAP(combLT, combZ,     combFalse);  /* Z K */
-  NEWAP(combEQ, combFalse, combFalse);  /* K K */
-  NEWAP(combGT, combFalse, combTrue);   /* K A */
   {
     /* The displaySomeException compiles to (U (U (K2 A))) */
     NODEPTR x;
@@ -2214,6 +2708,8 @@ init_nodes(void)
   NEWAP(combJust, combZ, combU);       /* (Z U) */
   MKINT(combWorld, 99999);
   NEWAP(combPairUnit, combPair, combUnit);
+  NEWAP(combFst, combU, combK);
+  NEWAP(combSnd, combU, combA);
 #undef NEWAP
 
 #if INTTABLE
@@ -2225,6 +2721,7 @@ init_nodes(void)
     SETVALUE(n, i);
   }
 #endif
+  spare_node = HEAPREF(heap_start++);
 
   /* Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
   heap_start = (heap_start + BITS_PER_WORD - 1) / BITS_PER_WORD * BITS_PER_WORD;
@@ -2306,7 +2803,7 @@ sweep_weaks(void)
     }
   }
 
-  /* If a weak pointer object is unreferenced and it has been finalized, 
+  /* If a weak pointer object is unreferenced and it has been finalized,
    * then it can be garbage collected. */
   for (struct weak_ptr **wpp = &allweaks; *wpp; ) {
     struct weak_ptr *wp = *wpp;
@@ -2374,9 +2871,9 @@ async_throwto(struct mthread *mt, NODEPTR exn)
 {
   GCCHECK(4);
   NODEPTR thid = alloc_node(T_THID);
-  THR(thid) = mt;
-  NODEPTR root = new_ap(new_ap(new_ap(combTHROWTO, thid), exn), combWorld);
-  (void)new_thread(root);       /* spawn and put on runq */
+  THR(thid) = mt;		/* thread ID for mt */
+  NODEPTR root = new_ap(new_ap(new_ap(combTHROWTO, thid), exn), combWorld); /* root = throwTo thid exn */
+  (void)new_thread(root);       /* spawn and put on runq, i.e., forkIO root */
 }
 
 void
@@ -2387,7 +2884,9 @@ mark_thread(struct mthread *mt)
   mt->mt_mark = true;
   if (mt->mt_root != NIL)
     mark(&mt->mt_root);
-  mark_mvar(mt->mt_exn);         
+  mark_mvar(mt->mt_exn);
+  if (mt->mt_throwto)
+    mark_thread(mt->mt_throwto);
   if (mt->mt_mval != NIL)
     mark(&mt->mt_mval);
 }
@@ -2400,12 +2899,12 @@ mark_mvar(struct mvar *mv)
   mv->mv_mark = true;
   if (mv->mv_data != NIL)
     mark(&mv->mv_data);
-  for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_next)
+  for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_queue)
     mark_thread(mt);
-  for (struct mthread *mt = mv->mv_read.mq_head; mt; mt = mt->mt_next)
+  for (struct mthread *mt = mv->mv_read.mq_head; mt; mt = mt->mt_queue)
     mark_thread(mt);
 }
-  
+
 /*
  * Only allow GC reductions when the node is not near the top of the stack.
  * The reason is that when GC is triggered we are just starting a reduction
@@ -2446,7 +2945,7 @@ mark(NODEPTR *np)
     while ((tag = GETTAG(n)) == T_IND) {
       //      PRINT("*"); fflush(stdout);
       n = GETINDIR(n);
-      if (loop++ > 10000000) {
+      if (loop++ > 1000000000) {
         //PRINT("%p %p %p\n", n, GETINDIR(n), GETINDIR(GETINDIR(n)));
         ERR("IND loop");
       }
@@ -2510,7 +3009,7 @@ mark(NODEPTR *np)
           GCREDIND(x);
         }
 
-        if(funt == T_CC && argt == T_I && gc_red_ok(n)) { 
+        if(funt == T_CC && argt == T_I && gc_red_ok(n)) {
           /* C' I --> C */
           SETTAG(n, T_C);
           COUNT(red_cci);
@@ -2521,7 +3020,7 @@ mark(NODEPTR *np)
           NODEPTR funarg = indir(&FUN(arg));
           NODEPTR argarg = indir(&ARG(arg));
           if (GETTAG(argarg) == T_P && GETTAG(funarg) == T_AP) {
-            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C && gc_red_ok(n)) { 
+            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C && gc_red_ok(n)) {
               /* C'B ((B C) P) --> C */
               SETTAG(n, T_C);
               COUNT(red_ccbbcp);
@@ -2530,28 +3029,28 @@ mark(NODEPTR *np)
           }
         }
 
-        if(funt == T_B && argt == T_I && gc_red_ok(n)) { 
+        if(funt == T_B && argt == T_I && gc_red_ok(n)) {
           /* B I --> I */
           SETTAG(n, T_I);
           COUNT(red_bi);
           goto top;
         }
 
-        if(funfunt == T_B && argt == T_I && gc_red_ok(n)) { 
+        if(funfunt == T_B && argt == T_I && gc_red_ok(n)) {
           /* B x I --> x */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_bxi);
           GCREDIND(x);
         }
 
-        if(funfunt == T_CCB && argt == T_I && gc_red_ok(n)) { 
+        if(funfunt == T_CCB && argt == T_I && gc_red_ok(n)) {
           /* C'B x I --> x */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_ccbi);
           GCREDIND(x);
         }
 
-        if(funt == T_C && funargt == T_C && gc_red_ok(n)) { 
+        if(funt == T_C && funargt == T_C && gc_red_ok(n)) {
           /* C (C x) --> x */
           NODEPTR x = ARG(ARG(n));
           COUNT(red_cc);
@@ -2630,8 +3129,15 @@ mark(NODEPTR *np)
      goto fin;
   }
 
-  if (!is_marked_used(*to_push)) {
+  /* Mark integer leaves immediately instead of deferring them while walking
+   * the other branch.  In particular, a string can contain a distinct integer
+   * node (behind an indirection) for every character read from a handle.
+   */
+  if (GETTAG(indir(to_push)) == T_INT) {
+    mark(to_push);
+  } else if (!is_marked_used(*to_push)) {
     //  mark_depth++;
+    PREFETCH_READ(*to_push);   /* won't be popped and dereferenced until later */
     PUSH((NODEPTR)to_push);
   }
   goto top;
@@ -2784,7 +3290,7 @@ gc(void)
       mtp = &mt->mt_next;
     }
   }
-  
+
   /* Remove unreferences mvars */
   for (struct mvar **mvp = &all_mvars; *mvp; ) {
     struct mvar *mv = *mvp;
@@ -2886,7 +3392,6 @@ poke_uint16(uint16_t *p, value_t w)
   *p = (uint16_t)w;
 }
 
-#if WORD_SIZE >= 32
 static INLINE
 uvalue_t
 peek_uint32(uint32_t *p)
@@ -2900,11 +3405,10 @@ poke_uint32(uint32_t *p, value_t w)
 {
   *p = (uint32_t)w;
 }
-#endif  /* WORD_SIZE >= 32 */
 
-#if WORD_SIZE >= 64
+#if WANT_INT64
 static INLINE
-uvalue_t
+uint64_t
 peek_uint64(uint64_t *p)
 {
   return *p;
@@ -2912,11 +3416,11 @@ peek_uint64(uint64_t *p)
 
 static INLINE
 void
-poke_uint64(uint64_t *p, value_t w)
+poke_uint64(uint64_t *p, uint64_t w)
 {
-  *p = (uint64_t)w;
+  *p = w;
 }
-#endif  /* WORD_SIZE >= 64 */
+#endif  /* WANT_INT64 */
 
 static INLINE
 value_t
@@ -2946,7 +3450,6 @@ poke_int16(int16_t *p, value_t w)
   *p = (int16_t)w;
 }
 
-#if WORD_SIZE >= 32
 static INLINE
 value_t
 peek_int32(int32_t *p)
@@ -2960,11 +3463,10 @@ poke_int32(int32_t *p, value_t w)
 {
   *p = (int32_t)w;
 }
-#endif  /* WORD_SIZE >= 32 */
 
-#if WORD_SIZE >= 64
+#if WANT_INT64
 static INLINE
-value_t
+int64_t
 peek_int64(int64_t *p)
 {
   return *p;
@@ -2972,11 +3474,11 @@ peek_int64(int64_t *p)
 
 static INLINE
 void
-poke_int64(int64_t *p, value_t w)
+poke_int64(int64_t *p, int64_t w)
 {
-  *p = (int64_t)w;
+  *p = w;
 }
-#endif  /* WORD_SIZE >= 64 */
+#endif  /* WANT_INT64 */
 
 static INLINE
 value_t
@@ -3265,7 +3767,7 @@ parse_int(BFILE *f)
   return (value_t)(neg * i);
 }
 
-#if NEED_INT64
+#if WANT_INT64
 int64_t
 parse_int64(BFILE *f)
 {
@@ -3288,7 +3790,7 @@ parse_int64(BFILE *f)
   // Multiply by neg without triggering undefined behavior.
   return (int64_t)(neg * i);
 }
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 
 struct forptr *mkForPtr(struct bytestring bs);
 NODEPTR mkFunPtr(HsFunPtr p);
@@ -3302,6 +3804,7 @@ mkForPtrFree(struct bytestring str)
   return fp;
 }
 
+/* Create a ByteString node.  It's a foreign pointer tagged with FP_BSTR. */
 NODEPTR
 mkStrNode(struct bytestring str)
 {
@@ -3317,31 +3820,7 @@ mkStrNode(struct bytestring str)
 struct shared_entry {
   heapoffs_t label;
   NODEPTR node;                 /* NIL indicates unused */
-} *shared_table;
-heapoffs_t shared_table_size;
-
-/* Look for the label in the table.
- * If it's found, return the node.
- * If not found, return the first empty entry.
-*/
-NODEPTR *
-find_label(heapoffs_t label)
-{
-  int i;
-
-  for(i = (int)label; ; i++) {
-    i %= shared_table_size;
-    if (shared_table[i].node == NIL) {
-      /* The slot is empty, so claim and return it */
-      shared_table[i].label = label;
-      return &shared_table[i].node;
-    } else if (shared_table[i].label == label) {
-      /* Found the label, so return it. */
-      return &shared_table[i].node;
-    }
-    /* Not empty and not found, try next. */
-  }
-}
+};
 
 /* The memory allocated here is never freed.
  * This could be fixed by using a forptr and a
@@ -3351,7 +3830,6 @@ find_label(heapoffs_t label)
 struct bytestring
 parse_string(BFILE *f)
 {
-  struct bytestring bs;
   size_t sz = 20;
   uint8_t *buffer = mmalloc(sz);
   size_t i;
@@ -3359,6 +3837,8 @@ parse_string(BFILE *f)
 
   for(i = 0;;) {
     c = getb(f);
+    if (c < 0)
+      ERR("parse string EOF");
     if (c == '"')
       break;
     if (i >= sz - 1) {
@@ -3401,19 +3881,48 @@ parse_string(BFILE *f)
     buffer[i++] = c;
 #endif
   }
-  buffer[i] = 0;                /* add a trailing 0 in case we need a C string */
+  buffer[i] = 0;    /* add a trailing 0 in case we need a C string, not counted in size */
   buffer = mrealloc(buffer, i + 1);
-
-  bs.size = i;
-  bs.string = buffer;
   //printf("parse_string %d %s\n", (int)bs.size, (char*)bs.string);
-  return bs;
+  return mk_ro_bytestring(i, buffer);
 }
 
 struct forptr *new_mpz(void);
 
+struct parse_ctx {
+  struct shared_entry *shared_table;
+  heapoffs_t shared_table_size;
+  jmp_buf deser_err;
+  const char *message;
+};
+
+/* Look for the label in the table.
+ * If it's found, return the node.
+ * If not found, return the first empty entry.
+*/
+NODEPTR *
+find_label(struct parse_ctx *pc, heapoffs_t label)
+{
+  int i;
+
+  for(i = (int)label; ; i++) {
+    i %= pc->shared_table_size;
+    if (pc->shared_table[i].node == NIL) {
+      /* The slot is empty, so claim and return it */
+      pc->shared_table[i].label = label;
+      return &pc->shared_table[i].node;
+    } else if (pc->shared_table[i].label == label) {
+      /* Found the label, so return it. */
+      return &pc->shared_table[i].node;
+    }
+    /* Not empty and not found, try next. */
+  }
+}
+
+#define DESER_ERR(s) do { pc->message = (s); longjmp(pc->deser_err, 1); } while(0);
+
 NODEPTR
-parse(BFILE *f)
+parse(struct parse_ctx *pc, BFILE *f)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR r, x, y;
@@ -3425,14 +3934,14 @@ parse(BFILE *f)
 
   for(;;) {
     c = getb(f);
-    if (c < 0) ERR("parse EOF");
+    if (c < 0) DESER_ERR("parse EOF");
     switch (c) {
     case ' ':
     case '\n':
       continue;
     }
     if (num_free < 3)
-      ERR("out of heap reading code");
+      DESER_ERR("out of heap reading code");
     GCCHECK(1);
     switch(c) {
     case '@':
@@ -3445,16 +3954,16 @@ parse(BFILE *f)
       x = TOP(0);
       POP(1);
       if (stack_ptr != stk)
-        ERR("parse: stack");
+        DESER_ERR("parse: stack");
       return x;
-#if WANT_GMP
+#if WANT_GMP || WANT_IMATH
     case '%':
       {
         struct bytestring bs = parse_string(f); /* get all the digits, terminated by " */
         struct forptr *fp = new_mpz();          /* a new mpz */
-        mpz_ptr op = fp->payload.string;        /* get actual pointer */
-        mpz_set_str(op, bs.string, 10);         /* convert to an mpz */
-        free(bs.string);
+        mpz_ptr op = fp->payload.bs_array;      /* get actual pointer */
+        mpz_set_str(op, bs.bs_array, 10);       /* convert to an mpz */
+        free(bs.bs_array);
         r = alloc_node(T_FORPTR);
         FORPTR(r) = fp;
         PUSH(r);
@@ -3485,16 +3994,15 @@ parse(BFILE *f)
         break;
       }
     case '#':
-#if NEED_INT64
       if (gobble(f, '#')) {
+#if WANT_INT64
         r = mkInt64(parse_int64(f));
+#else
+        DESER_ERR("no Int64");
+#endif /* WANT_INT64 */
       } else {
         r = mkInt(parse_int(f));
       }
-#else  /* NEED_INT64 */
-      gobble(f, '#');
-      r = mkInt(parse_int(f));
-#endif /* NEED_INT64 */
       PUSH(r);
       break;
     case '[':
@@ -3503,7 +4011,8 @@ parse(BFILE *f)
         struct ioarray *arr;
         size_t i;
         sz = (size_t)parse_int(f);
-        if (!gobble(f, ']')) ERR("parse arr 1");
+        if (!gobble(f, ']'))
+          DESER_ERR("parse arr 1");
         arr = arr_alloc(sz, NIL);
         for (i = 0; i < sz; i++) {
           arr->array[i] = TOP(sz - i - 1);
@@ -3517,7 +4026,7 @@ parse(BFILE *f)
     case '_':
       /* Reference to a shared value: _label */
       l = parse_int(f);  /* The label */
-      nodep = find_label(l);
+      nodep = find_label(pc, l);
       if (*nodep == NIL) {
         /* Not yet defined, so make it an indirection */
         *nodep = alloc_node(T_FREE);
@@ -3528,15 +4037,17 @@ parse(BFILE *f)
     case ':':
       /* Define a shared expression: :label e */
       l = parse_int(f);  /* The label */
-      if (!gobble(f, ' ')) ERR("parse ' '");
-      nodep = find_label(l);
+      if (!gobble(f, ' '))
+        DESER_ERR("parse ' '");
+      nodep = find_label(pc, l);
       x = TOP(0);
       if (*nodep == NIL) {
         /* not referenced yet, so add a direct reference */
         *nodep = x;
       } else {
         /* Sanity check */
-        if (GETTAG(*nodep) != T_IND || GETINDIR(*nodep) != NIL) ERR("shared != NIL");
+        if (GETTAG(*nodep) != T_IND || GETINDIR(*nodep) != NIL)
+          DESER_ERR("shared != NIL");
         SETINDIR(*nodep, x);
       }
       break;
@@ -3546,12 +4057,24 @@ parse(BFILE *f)
        * where NNN is the decimal value of the character */
       PUSH(mkStrNode(parse_string(f)));
       break;
+    case '$':
+      {
+        struct bytestring bs = mk_ro_bytestring(parse_int(f), NULL);
+        if (!gobble(f, ' '))
+          DESER_ERR("bytestring parse error");
+        for(size_t i = 0; i < bs.bs_size; i++) {
+          ((uint8_t*)bs.bs_array)[i] = getb(f);
+        }
+        PUSH(mkStrNode(bs));
+        break;
+      }
+
 #if WANT_TICK
     case '!':
       if (!gobble(f, '"'))
-        ERR("parse !");
+        DESER_ERR("parse !");
       r = alloc_node(T_TICK);
-      SETVALUE(r, (value_t)add_tick_table(parse_string(f)););
+      SETVALUE(r, (value_t)add_tick_table(parse_string(f)));
       PUSH(r);
       break;
 #endif
@@ -3571,7 +4094,7 @@ parse(BFILE *f)
       } else if (strcmp(buf, "closeb") == 0) {
         PUSH(mkFunPtr((HsFunPtr)closeb));
       } else {
-        ERR1("unknown funptr '%s'", buf);
+        DESER_ERR("unknown funptr");
       }
       break;
     default:
@@ -3579,21 +4102,14 @@ parse(BFILE *f)
       /* A primitive, keep getting char's until end */
       for (j = 1; (buf[j] = getNT(f)); j++)
         ;
-      /* Look up the primop and use the preallocated node. */
-      for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
-        if (strcmp(primops[j].name, buf) == 0) {
-#if 0
-          r = primops[j].node;
-          if (r != HEAPREF(primops[j].tag))
-            printf("bad %s\n", buf);
-#else
-          r = HEAPREF(primops[j].tag);
-#endif
-          goto found;
-        }
+
+        // Look up the primop (O(1) hash lookup) and use the preallocated node.
+      {
+        int t = lookup_primop(buf);
+        if (t < 0)
+          DESER_ERR("unknown primop");
+        r = HEAPREF((enum node_tag)t);
       }
-      ERR1("no primop %s", buf);
-    found:
       PUSH(r);
       break;
     }
@@ -3601,45 +4117,54 @@ parse(BFILE *f)
 }
 
 void
-checkversion(BFILE *f)
+checkversion(struct parse_ctx *pc, BFILE *f)
 {
   char *p = VERSION;
   int c;
 
   while ((c = *p++)) {
     if (c != getb(f))
-      ERR("version mismatch");
+      DESER_ERR("version mismatch");
   }
   (void)gobble(f, '\r');                 /* allow extra CR */
 }
 
 /* Parse a file */
+/* XXX We should not be using the ordinary stack here. */
 NODEPTR
 parse_top(BFILE *f, struct ffe_entry *ffe)
 {
   heapoffs_t numLabels, i;
   NODEPTR n;
-  checkversion(f);
-  numLabels = parse_int(f);
-  if (!gobble(f, '\n'))
-    ERR("size parse");
-  gobble(f, '\r');                 /* allow extra CR */
-  shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
-  shared_table = mmalloc(shared_table_size * sizeof(struct shared_entry));
-  for(i = 0; i < shared_table_size; i++)
-    shared_table[i].node = NIL;
-  n = parse(f);
-  if (ffe) {
-    for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
-      heapoffs_t l = atoi(f->ffe_name+1); /* the name must be numerical */
-      f->ffe_value = *find_label(l);
-    }
-  }
-  FREE(shared_table);
-  return n;
-}
+  struct parse_ctx spc, *pc = &spc;
 
-counter_t num_shared;
+  pc->shared_table = 0;
+  if (setjmp(pc->deser_err)) {
+    /* exception */
+    if (pc->shared_table)
+      FREE(pc->shared_table);
+    raise_rts(exn_deserialize);
+  } else {
+    checkversion(pc, f);
+    numLabels = parse_int(f);
+    if (!gobble(f, '\n'))
+      DESER_ERR("size parse");
+    gobble(f, '\r');                 /* allow extra CR */
+    pc->shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
+    pc->shared_table = mmalloc(pc->shared_table_size * sizeof(struct shared_entry));
+    for(i = 0; i < pc->shared_table_size; i++)
+      pc->shared_table[i].node = NIL;
+    n = parse(pc, f);
+    if (ffe) {
+      for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
+        heapoffs_t l = atoi(f->ffe_name+1); /* the name must be numerical */
+        f->ffe_value = *find_label(pc, l);
+      }
+    }
+    FREE(pc->shared_table);
+    return n;
+  }
+}
 
 /* Two bits per node: marked, shared
  * 0, 0   -- not visited
@@ -3650,6 +4175,8 @@ counter_t num_shared;
 struct print_bits {
   bits_t *marked_bits;
   bits_t *shared_bits;
+  jmp_buf ser_err;
+  const char *message;
 };
 static INLINE void set_bit(bits_t *bits, NODEPTR n)
 {
@@ -3700,7 +4227,7 @@ void printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix);
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
-find_sharing(struct print_bits *pb, NODEPTR n)
+find_sharing(counter_t *num_sharedp, struct print_bits *pb, NODEPTR n)
 {
  top:
   while (GETTAG(n) == T_IND) {
@@ -3718,19 +4245,19 @@ find_sharing(struct print_bits *pb, NODEPTR n)
       /* Already marked, so now mark as shared */
       //PRINT("marked\n");
       set_bit(pb->shared_bits, n);
-      num_shared++;
+      (*num_sharedp)++;
     } else {
       /* Mark as visited, and recurse */
       //PRINT("unmarked\n");
       set_bit(pb->marked_bits, n);
       switch(tag) {
       case T_AP:
-        find_sharing(pb, FUN(n));
+        find_sharing(num_sharedp, pb, FUN(n));
         n = ARG(n);
         goto top;
       case T_ARR:
         for(size_t i = 0; i < ARR(n)->size; i++) {
-          find_sharing(pb, ARR(n)->array[i]);
+          find_sharing(num_sharedp, pb, ARR(n)->array[i]);
         }
         break;
       default:
@@ -3747,9 +4274,9 @@ find_sharing(struct print_bits *pb, NODEPTR n)
 void
 print_string(BFILE *f, struct bytestring bs)
 {
-  uint8_t *str = bs.string;
+  uint8_t *str = bs.bs_array;
   putb('"', f);
-  for (size_t i = 0; i < bs.size; i++) {
+  for (size_t i = 0; i < bs.bs_size; i++) {
     int c = str[i];
 #if 0
     if (c == '"' || c == '\\' || c < ' ' || c > '~') {
@@ -3782,6 +4309,7 @@ print_string(BFILE *f, struct bytestring bs)
   putb('"', f);
 }
 
+#define SER_ERR(s) do { pb->message = (s); longjmp(pb->ser_err, 1); } while(0)
 /*
  * Recursively print an expression.
  * This assumes that the shared nodes has been marked as such.
@@ -3838,12 +4366,16 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     }
     break;
   case T_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
-#if NEED_INT64
+#if WANT_INT64
   case T_INT64: putb('#', f); putb('#', f); putdecb64(GETINT64VALUE(n), f); break;
-#endif  /* NEED_INT64 */
-  case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
+#endif  /* WANT_INT64 */
+#if WANT_FLOAT64
+case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
+#endif
+#if WANT_FLOAT32
   case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
-  case T_WEAK: ERR("serialize WEAK unimplemented");
+#endif
+  case T_WEAK: SER_ERR("serialize WEAK unimplemented");
   case T_ARR:
     if (prefix) {
       /* Arrays serialize as '[sz] e_1 ... e_sz' */
@@ -3864,12 +4396,41 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       putb(']', f);
     }
     break;
+  case T_MVAR:
+    SER_ERR("cannot serialize MVAR");
+    break;
   case T_PTR:
+    if(PTR(n) == NULL) {
+      if (prefix) {
+        putsb("(toPtr #0)", f);
+      } else {
+        putsb("toPtr #0 @", f);
+      }
+    } else
+#if WANT_STDIO
+    /* The pointer can be a forptr comb_std* that has been dereferenced */
+    if (PTR(n) == FORPTR(comb_stdin)->payload.bs_array) {
+      SETTAG(spare_node, T_AP);
+      FUN(spare_node) = combFP2P;
+      ARG(spare_node) = comb_stdin;
+      printrec(f, pb, spare_node, prefix);
+    } else if (PTR(n) == FORPTR(comb_stdout)->payload.bs_array) {
+      SETTAG(spare_node, T_AP);
+      FUN(spare_node) = combFP2P;
+      ARG(spare_node) = comb_stdout;
+      printrec(f, pb, spare_node, prefix);
+    } else if (PTR(n) == FORPTR(comb_stderr)->payload.bs_array) {
+      SETTAG(spare_node, T_AP);
+      FUN(spare_node) = combFP2P;
+      ARG(spare_node) = comb_stderr;
+      printrec(f, pb, spare_node, prefix);
+    } else
+#endif  /* WANT_STDIO */
     if (prefix) {
       snprintf(prbuf, sizeof prbuf, "PTR<%p>",PTR(n));
       putsb(prbuf, f);
     } else {
-      ERR("Cannot serialize pointers");
+      SER_ERR("Cannot serialize pointers");
     }
     break;
   case T_FUNPTR:
@@ -3885,26 +4446,30 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       snprintf(prbuf, sizeof prbuf, "FUNPTR<%p>", FUNPTR(n));
       putsb(prbuf, f);
     } else {
-      ERR("Cannot serialize function pointers");
+      SER_ERR("Cannot serialize function pointers");
     }
     break;
   case T_THID:
     if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FUNPTR<%d>",(int)THR(n)->mt_id);
     } else {
-      ERR("cannot serialize ThreadId yet");
+      SER_ERR("cannot serialize ThreadId yet");
     }
+    break;
   case T_FORPTR:
+#if WANT_STDIO
     if (n == comb_stdin)
       putsb("IO.stdin", f);
     else if (n == comb_stdout)
       putsb("IO.stdout", f);
     else if (n == comb_stderr)
       putsb("IO.stderr", f);
-#if WANT_GMP
-    else if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
+    else
+#endif  /* WANT_STDIO */
+#if WANT_GMP || WANT_IMATH
+    if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
       /* Serialize as %99999" */
-      mpz_ptr op = FORPTR(n)->payload.string; /* get the mpz */
+      mpz_ptr op = FORPTR(n)->payload.bs_array; /* get the mpz */
       int sz = mpz_sizeinbase(op, 10);        /* maximum length */
       char *s = mmalloc(sz + 2);
       (void)mpz_get_str(s, 10, op);           /* convert to a string */
@@ -3912,37 +4477,43 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
       putsb(s, f);
       putsb("\"", f);                         /* so we can use parse_string */
       free(s);
-    }
-#endif  /* WANT_GMP */
-    else if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
-      print_string(f, FORPTR(n)->payload);
+    } else
+#endif  /* WANT_GMP || WANT_IMATH */
+    if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
+      struct bytestring bs = FORPTR(n)->payload;
+      if (bs.bs_size > 100) {
+        /* Encode large bytestrings with $len data */
+        putb('$', f);
+        putdecb(bs.bs_size, f);
+        putb(' ', f);
+        writeb(bs.bs_array, bs.bs_size, f);
+      } else {
+        print_string(f, bs);
+      }
     } else if (prefix) {
       snprintf(prbuf, sizeof prbuf, "FORPTR<%p>",FORPTR(n));
       putsb(prbuf, f);
     } else {
-      ERR("Cannot serialize foreign pointers");
+      SER_ERR("Cannot serialize foreign pointers");
     }
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
+#if WANT_TICK
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
-  default:
-    if (0 <= tag && tag <= T_LAST_TAG)
-#if WANT_TICK && WANT_TAGNAMES
-      if (tag_names[tag])
-        putsb(tag_names[tag], f);
-      else
 #endif
-        {
-        snprintf(prbuf, sizeof prbuf, "TAG=%d", (int)tag);
-        putsb(prbuf, f);
+  default:
+    if (0 <= tag && tag <= T_LAST_TAG) {
+      if (tag_names[tag]) {
+        putsb(tag_names[tag], f);
+      } else {
+        SER_ERR("TAG1");
       }
-    else {
-      snprintf(prbuf, sizeof prbuf, "BADTAG(%d)", (int)tag);
-      putsb(prbuf, f);
+    } else {
+      SER_ERR("TAG2");
     }
     break;
   }
@@ -3962,21 +4533,29 @@ void
 printb(BFILE *f, NODEPTR n, bool header)
 {
   struct print_bits pb;
-  num_shared = 0;
+  counter_t num_shared = 0;
+
   pb.marked_bits = mcalloc(free_map_nwords, sizeof(bits_t));
   pb.shared_bits = mcalloc(free_map_nwords, sizeof(bits_t));
-  find_sharing(&pb, n);
+  find_sharing(&num_shared, &pb, n);
   if (header) {
     putsb(VERSION, f);
     putdecb(num_shared, f);
     putb('\n', f);
   }
-  printrec(f, &pb, n, !header);
-  if (header) {
-    putb('}', f);
+  if (setjmp(pb.ser_err)) {
+    /* exception */
+    FREE(pb.marked_bits);
+    FREE(pb.shared_bits);
+    raise_rts(exn_serialize);
+  } else {
+    printrec(f, &pb, n, !header);
+    if (header) {
+      putb('}', f);
+    }
+    FREE(pb.marked_bits);
+    FREE(pb.shared_bits);
   }
-  FREE(pb.marked_bits);
-  FREE(pb.shared_bits);
 }
 
 /* Show a graph. */
@@ -4032,7 +4611,7 @@ mkInt(value_t i)
   return n;
 }
 
-#if NEED_INT64
+#if WANT_INT64
 NODEPTR
 mkInt64(int64_t i)
 {
@@ -4041,7 +4620,7 @@ mkInt64(int64_t i)
   SETINT64VALUE(n, i);
   return n;
 }
-#endif
+#endif  /* WANT_INT64 */
 
 #if WANT_FLOAT32
 NODEPTR
@@ -4088,12 +4667,12 @@ mkForPtr(struct bytestring bs)
 {
   struct final *fin = mcalloc(1, sizeof(struct final));
   struct forptr *fp = mcalloc(1, sizeof(struct forptr));
-  if (bs.size == NOSIZE) {
+  if (bs.bs_size == NOSIZE) {
     num_fin_alloc++;
   } else {
     num_bs_alloc++;
-    num_bs_inuse += bs.size;
-    num_bs_bytes += bs.size;
+    num_bs_inuse += bs.bs_size;
+    num_bs_bytes += bs.bs_size;
     if (num_bs_inuse > num_bs_inuse_max)
       num_bs_inuse_max = num_bs_inuse;
   }
@@ -4101,8 +4680,8 @@ mkForPtr(struct bytestring bs)
   fin->next = final_root;
   final_root = fin;
   fin->final = 0;
-  fin->arg = bs.string;
-  fin->size = bs.size;          /* The size is not really needed */
+  fin->arg = bs.bs_array;
+  fin->size = bs.bs_size;          /* The size is not really needed */
   fin->back = fp;
   fin->marked = 0;
   fp->next = 0;
@@ -4115,21 +4694,29 @@ mkForPtr(struct bytestring bs)
 struct forptr*
 mkForPtrP(void *p)
 {
-  struct bytestring bs = { NOSIZE, p };
+  struct bytestring bs;
+  bs.bs_size = NOSIZE;
+  bs.bs_capacity = 0;
+  bs.bs_array = p;
   return mkForPtr(bs);
 }
 
 struct forptr*
 addForPtr(struct forptr *ofp, int s)
 {
-  struct forptr *fp = mmalloc(sizeof(struct forptr));
+  struct forptr *fp = mcalloc(1, sizeof(struct forptr));
   struct final *fin = ofp->finalizer;
+
+  /* Only allowed for immutable bytestrings */
+  if (ofp->payload.bs_capacity != 0) {
+    ERR("addForPtr");
+  }
 
   fp->next = ofp;
   fin->back = fp;
-  if (ofp->payload.size != NOSIZE)
-    fp->payload.size = ofp->payload.size - s;
-  fp->payload.string = (uint8_t*)ofp->payload.string + s;
+  if (ofp->payload.bs_size != NOSIZE)
+    fp->payload.bs_size = ofp->payload.bs_size - s;
+  fp->payload.bs_array = (uint8_t*)ofp->payload.bs_array + s;
   fp->finalizer = fin;
   return fp;
 }
@@ -4138,8 +4725,34 @@ struct forptr*
 bssubstr(struct forptr *fp, value_t offs, value_t len)
 {
   struct forptr *res = addForPtr(fp, offs);
-  res->payload.size = len;
+  res->payload.bs_size = len;
   return res;
+}
+
+/* The array might have moved, so update base pointer in the finalizer. */
+void
+adjforptr(struct forptr *fp)
+{
+  struct final *fin = fp->finalizer;
+  if (fp->next || fin->back != fp) {
+    /* We can only do this if fp is the only pointer to the allocated array.
+       Sharing can only happen by adding to a forptr, and we don't do that
+       to mutable BSTR pointers. */
+    ERR("adjforptr");
+  }
+  fin->arg = fp->payload.bs_array;
+}
+    
+void
+bsappbyte(struct forptr *fp, uint8_t b)
+{
+  struct bytestring *bsp = &fp->payload;
+  if (bsp->bs_size >= bsp->bs_capacity) {
+    bsp->bs_capacity += bsp->bs_capacity / 2 + 2;
+    bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_capacity);
+    adjforptr(fp);
+  }
+  ((uint8_t*)bsp->bs_array)[bsp->bs_size++] = b;
 }
 
 static INLINE NODEPTR
@@ -4172,10 +4785,10 @@ mkString(struct bytestring bs)
 {
   NODEPTR n, nc;
   size_t i;
-  const unsigned char *str = bs.string; /* no sign bits, please */
+  const unsigned char *str = bs.bs_array; /* no sign bits, please */
 
   n = mkNil();
-  for(i = bs.size; i > 0; i--) {
+  for(i = bs.bs_size; i > 0; i--) {
     nc = mkInt(str[i-1]);
     n = mkCons(nc, n);
   }
@@ -4185,14 +4798,13 @@ mkString(struct bytestring bs)
 NODEPTR
 mkStringC(char *str)
 {
-  struct bytestring bs = { strlen(str), str };
-  return mkString(bs);
+  return mkString(mk_ro_bytestring(strlen(str), str));
 }
 
 NODEPTR
 mkStringU(struct bytestring bs)
 {
-  BFILE *ubuf = add_utf8(openb_rd_mem(bs.string, bs.size));
+  BFILE *ubuf = add_utf8(openb_rd_mem(bs.bs_array, bs.bs_size));
   NODEPTR n, *np, nc;
 
   //printf("mkStringU %d %s\n", (int)bs.size, (char*)bs.string);
@@ -4219,8 +4831,8 @@ bsunpack(struct bytestring bs)
 
   n = mkNil();
   np = &n;
-  for(i = 0; i < bs.size; i++) {
-    nc = mkInt(((uint8_t *)bs.string)[i]);
+  for(i = 0; i < bs.bs_size; i++) {
+    nc = mkInt(((uint8_t *)bs.bs_array)[i]);
     *np = mkCons(nc, *np);
     np = &ARG(*np);
   }
@@ -4233,16 +4845,21 @@ bsunpack(struct bytestring bs)
 value_t
 headutf8(struct bytestring bs, void **ret)
 {
-  uint8_t *p = bs.string;
-  if (bs.size == 0)
+  uint8_t *p = bs.bs_array;
+  if (bs.bs_size == 0)
     ERR("headUTF8 0");
+#if !WANT_UTF8
+  if (ret)
+    *ret = p + 1;
+  return *p;
+#else
   int c1 = *p++;
   if ((c1 & 0x80) == 0) {
     if (ret)
       *ret = p;
     return c1;
   }
-  if (bs.size == 1)
+  if (bs.bs_size == 1)
     ERR("headUTF8 1");
   int c2 = *p++;
   if ((c1 & 0xe0) == 0xc0) {
@@ -4250,7 +4867,7 @@ headutf8(struct bytestring bs, void **ret)
       *ret = p;
     return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
   }
-  if (bs.size == 2)
+  if (bs.bs_size == 2)
     ERR("headUTF8 2");
   int c3 = *p++;
   if ((c1 & 0xf0) == 0xe0) {
@@ -4258,7 +4875,7 @@ headutf8(struct bytestring bs, void **ret)
       *ret = p;
     return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
   }
-  if (bs.size == 3)
+  if (bs.bs_size == 3)
     ERR("headUTF8 3");
   int c4 = *p++;
   if ((c1 & 0xf8) == 0xf0) {
@@ -4268,6 +4885,14 @@ headutf8(struct bytestring bs, void **ret)
   }
   ERR("headUTF8 4");
   NOTREACHED;
+#endif  /* WANT_UTF8 */
+}
+
+/* Evaluate to a Bool */
+static INLINE value_t
+evalbool(NODEPTR n)
+{
+  return GETTAG(evali(n)) == T_A;
 }
 
 /* Evaluate to an INT */
@@ -4282,6 +4907,21 @@ evalint(NODEPTR n)
 #endif
   return GETVALUE(n);
 }
+
+#if WANT_INT64
+/* Evaluate to an INT */
+static INLINE uint64_t
+evalint64(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_INT64) {
+    ERR1("evalint64, bad tag %s", TAGNAME(GETTAG(n)));
+  }
+#endif
+  return GETINT64VALUE(n);
+}
+#endif  /* WANT_INT64 */
 
 #if WANT_FLOAT64
 /* Evaluate to a flt64_t */
@@ -4409,6 +5049,8 @@ evalweak(NODEPTR n)
  * XXX the malloc()ed string is leaked if we yield in here.
  * Caller is responsible to free().
  * Does modified UTF-8 encoding.
+ * Only used to display an uncaught exception.
+ * XXX Should remove from DYNSYM
  */
 struct bytestring
 evalstring(NODEPTR n)
@@ -4418,7 +5060,6 @@ evalstring(NODEPTR n)
   size_t offs;
   uvalue_t c;
   NODEPTR x;
-  struct bytestring bs;
 
   for (offs = 0;;) {
     if (offs >= sz - 4) {
@@ -4462,110 +5103,55 @@ evalstring(NODEPTR n)
     }
   }
   buf[offs] = 0;                /* in case we use it as a C string */
-  bs.size = offs;
-  bs.string = buf;
-  return bs;
-}
-
-/* Does not do UTF-8 encoding */
-struct bytestring
-evalbytestring(NODEPTR n)
-{
-  size_t sz = 100;
-  uint8_t *buf = mmalloc(sz);
-  size_t offs;
-  uvalue_t c;
-  NODEPTR x;
-  struct bytestring bs;
-
-  for (offs = 0;;) {
-    if (offs >= sz - 1) {
-      sz *= 2;
-      buf = mrealloc(buf, sz);
-    }
-    PUSH(n);                    /* protect list from GC */
-    n = evali(n);
-    POP(1);
-    if (GETTAG(n) == T_K)       /* Nil */
-      break;
-    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
-      PUSH(n);                  /* protect from GC */
-      c = evalint(ARG(x));
-      n = POPTOP();
-      buf[offs++] = c;
-      n = ARG(n);
-    } else {
-      //pp(stdout, n);
-      ERR("evalbytestring not Nil/Cons");
-    }
-  }
-  buf[offs] = 0;                /* in case we use it as a C string */
-  bs.size = offs;
-  bs.string = buf;
-  return bs;
+  return mk_ro_bytestring(offs, buf);
 }
 
 struct bytestring
 bsreplicate(size_t size, uint8_t value)
 {
-  struct bytestring bs;
-  bs.size = size;
-  bs.string = mmalloc(size);
-  memset(bs.string, value, size);
+  struct bytestring bs = mk_ro_bytestring(size, NULL);
+  memset(bs.bs_array, value, size);
   return bs;
 }
 
 struct bytestring
 bsappend(struct bytestring p, struct bytestring q)
 {
-  struct bytestring r;
-  r.size = p.size + q.size;
-  r.string = mmalloc(r.size);
-  memcpy(r.string, p.string, p.size);
-  memcpy((uint8_t *)r.string + p.size, q.string, q.size);
+  struct bytestring r = mk_ro_bytestring(p.bs_size + q.bs_size, NULL);
+  memcpy(r.bs_array, p.bs_array, p.bs_size);
+  memcpy((uint8_t *)r.bs_array + p.bs_size, q.bs_array, q.bs_size);
   return r;
 }
 
 struct bytestring
 bsappenddot(struct bytestring p, struct bytestring q)
 {
-  struct bytestring r;
-  r.size = p.size + q.size + 1;
-  r.string = mmalloc(r.size);
-  memcpy(r.string, p.string, p.size);
-  memcpy((uint8_t *)r.string + p.size, ".", 1);
-  memcpy((uint8_t *)r.string + p.size + 1, q.string, q.size);
+  struct bytestring r = mk_ro_bytestring(r.bs_size = p.bs_size + q.bs_size + 1, NULL);
+  memcpy(r.bs_array, p.bs_array, p.bs_size);
+  memcpy((uint8_t *)r.bs_array + p.bs_size, ".", 1);
+  memcpy((uint8_t *)r.bs_array + p.bs_size + 1, q.bs_array, q.bs_size);
   return r;
 }
 
 /*
  * Compare bytestrings.
- * We can't use memcmp() directly for two reasons:
- *  - the two strings can have different lengths
- *  - the return value is only guaranteed to be ==0 or !=0
  */
 int
 bscompare(struct bytestring bsp, struct bytestring bsq)
 {
-  uint8_t *p = bsp.string;
-  uint8_t *q = bsq.string;
-  size_t len = bsp.size < bsq.size ? bsp.size : bsq.size;
-  while (len--) {
-    int r = (int)*p++ - (int)*q++;
-    if (r) {
-      /* Unequal bytes found. */
-      if (r < 0)
-        return -1;
-      if (r > 0)
-        return 1;
-      return 0;
-    }
+  size_t len = bsp.bs_size < bsq.bs_size ? bsp.bs_size : bsq.bs_size;
+  if (len) {
+    int r = memcmp(bsp.bs_array, bsq.bs_array, len);
+    if (r < 0)
+      return -1;
+    if (r > 0)
+      return 1;
   }
   /* Got to the end of the shorter string. */
   /* The shorter string is considered smaller. */
-  if (bsp.size < bsq.size)
+  if (bsp.bs_size < bsq.bs_size)
     return -1;
-  if (bsp.size > bsq.size)
+  if (bsp.bs_size > bsq.bs_size)
     return 1;
   return 0;
 }
@@ -4609,7 +5195,9 @@ evali(NODEPTR an)
   value_t xi, yi, r;
   struct forptr *xfp;
   char *msg;
+#if 0
   heapoffs_t l;
+#endif
   enum node_tag tag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
@@ -4636,6 +5224,7 @@ evali(NODEPTR an)
 #define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); goto ap2; } while(0)
 #define GOPAIR(a) do { FUN(n) = new_ap(combPair, (a)); goto ap; } while(0)
 #define GOPAIRUNIT do { FUN(n) = combPairUnit; goto ap; } while(0)
+#define GOBOOL(b) do { if (b) goto lbltrue; else goto lblfalse; } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
  *  - sets n to the "top" node
@@ -4674,23 +5263,41 @@ evali(NODEPTR an)
   /*pp(stdout, an);*/
   if (--glob_slice <= 0)
     yield();
+#if 0
+  /* This increases the cycle count */
   l = LABEL(n);
   if (l < T_IO_STDIN) {
     /* The node is one of the permanent nodes; the address offset is the tag */
     tag = l;
-  } else {
-    /* Heap allocated node */
-    if (ISINDIR(n)) {
-      /* Follow indirections */
+  } else
+#endif
+    {
+    tag_t ut;
+    /* first follow AP nodes down the spine */
+    for(;;) {
+      ut = n->ufun.uutag;
+      if ((ut & BIT_MASK) != BIT_AP)
+        break;
+      PUSH(n);
+      n = (NODEPTR)ut;
+    }
+    /* Skip idirections */
+    if ((ut & BIT_MASK) == BIT_IN) {
+      /* Follow and short-circuit the chain. */
       NODEPTR on = n;
       do {
         n = GETINDIR(n);
       } while(ISINDIR(n));
       SETINDIR(on, n);          /* and short-circuit them */
+      tag = GETTAG(n);
+    } else {
+      /* The tag is the rest of the bits we fetched */
+      tag = ut >> TAG_SHIFT;
     }
-    tag = GETTAG(n);
   }
-  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  /* Invariant: at this point n=current node, tag=GETTAG(n) */
+
+  // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
@@ -4701,9 +5308,7 @@ evali(NODEPTR an)
 
   case T_INT:    RET;
   case T_DBL:    RET;
-#if NEED_INT64
   case T_INT64:  RET;
-#endif  /* NEED_INT64 */
   case T_FLT32:  RET;
   case T_PTR:    RET;
   case T_FUNPTR: RET;
@@ -4722,7 +5327,11 @@ evali(NODEPTR an)
    */
   case T_S:    GCCHECK(2); CHKARG3; GOAP2(x, z, new_ap(y, z));                            /* S x y z = x z (y z) */
   case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));                 /* S' x y z w = x (y w) (z w) */
+  lblfalse:
+    n = combFalse;
   case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
+  lbltrue:
+    n = combTrue;
   case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
   case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
   case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
@@ -4734,7 +5343,10 @@ evali(NODEPTR an)
   case T_Z:    if (!HASNARGS(3)) {
                GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
-//case T_J:                CHKARG3; GOAP(z, x);                                           /* J x y z = z x */
+  case T_J:                CHKARG3; GOAP(z, x);                                           /* J x y z = z x */
+  case T_L:                CHKARG3; GOAP(y, x);                                           /* L x y z = y x */
+  case T_KK:               CHKARG3; GOIND(y);                                             /* KK x y z = y */
+  case T_KA:               CHKARG3; GOIND(z);                                             /* KA x y z = z */
   t_c:
   case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
@@ -4756,6 +5368,70 @@ evali(NODEPTR an)
   case T_CCB:  if (!HASNARGS(4)) {
                GCCHECK(2); CHKARG3; COUNT(red_ccb); GOAP2(combB, new_ap(x, z), y);} else{ /* C'B x y z = B (x z) y */
                GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                          /* C'B x y z w = x z (y w) */
+
+  case T_TAG0:
+  case T_TAG1:
+  case T_TAG2:
+  case T_TAG3:
+  case T_TAG4:
+  case T_TAG5:
+  case T_TAG6:
+  case T_TAG7:
+  case T_TAG8:
+  case T_TAG9:
+  case T_TAG10:
+  case T_TAG11:
+  case T_TAG12:
+  case T_TAG13:
+  case T_TAG14:
+  case T_TAG15:
+  case T_TAG16:
+  case T_TAG17:
+  case T_TAG18:
+  case T_TAG19:
+  case T_TAG20:
+  case T_TAG21:
+  case T_TAG22:
+  case T_TAG23:
+  case T_TAG24:
+  case T_TAG25:
+  case T_TAG26:
+  case T_TAG27:
+  case T_TAG28:
+  case T_TAG29:
+  case T_TAG30:
+  case T_TAG31:
+  case T_TAG32:
+               GCCHECK(2); CHKARG2; GOAP2(y, mkInt(tag - T_TAG0), x);                     /* TAGN x y = y (INT N) x */
+
+  case T_T3:   GCCHECK(2); CHECK(4); POP(4); n = TOP(-1); x = ARG(n);
+               GOAP2(new_ap(x, ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));                /* T3 x1 x2 x3 f = x x1 x2 x3 */
+  case T_T4:   GCCHECK(3); CHECK(5); POP(5); n = TOP(-1); x = ARG(n);
+               GOAP2(new_ap(new_ap(x, ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));  /* T4 x1 x2 x3 x4 f = x x1 x2 x3 x4 */
+  case T_T5:   GCCHECK(4); CHECK(6); POP(6); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(x, ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T6:   GCCHECK(5); CHECK(7); POP(7); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T7:   GCCHECK(6); CHECK(8); POP(8); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T8:   GCCHECK(7); CHECK(9); POP(9); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T9:   GCCHECK(8); CHECK(10); POP(10); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T10:   GCCHECK(9); CHECK(11); POP(11); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T11:   GCCHECK(10); CHECK(12); POP(12); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T12:   GCCHECK(11); CHECK(13); POP(13); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T13:   GCCHECK(12); CHECK(14); POP(14); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-14))), ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T14:   GCCHECK(13); CHECK(15); POP(15); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-15))), ARG(TOP(-14))), ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T15:   GCCHECK(14); CHECK(16); POP(16); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-16))), ARG(TOP(-15))), ARG(TOP(-14))), ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
+  case T_T16:   GCCHECK(15); CHECK(17); POP(17); n = TOP(-1); x = ARG(n);
+    GOAP2(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(new_ap(x, ARG(TOP(-17))), ARG(TOP(-16))), ARG(TOP(-15))), ARG(TOP(-14))), ARG(TOP(-13))), ARG(TOP(-12))), ARG(TOP(-11))), ARG(TOP(-10))), ARG(TOP(-9))), ARG(TOP(-8))), ARG(TOP(-7))), ARG(TOP(-6))), ARG(TOP(-5))), ARG(TOP(-4))), ARG(TOP(-3)), ARG(TOP(-2)));
 
     /*
      * Strict primitives require evaluating the arguments before we can proceed.
@@ -4834,8 +5510,12 @@ evali(NODEPTR an)
   case T_QUOT:
   case T_REM:
   case T_SUBR:
+  case T_UADD:
+  case T_USUB:
+  case T_UMUL:
   case T_UQUOT:
   case T_UREM:
+  case T_USUBR:
   case T_AND:
   case T_OR:
   case T_XOR:
@@ -4865,7 +5545,9 @@ evali(NODEPTR an)
       PUSH(combBININT2);
     }
     goto top;
+
   case T_NEG:
+  case T_UNEG:
   case T_INV:
   case T_POPCOUNT:
   case T_CLZ:
@@ -4898,14 +5580,9 @@ evali(NODEPTR an)
 
   case T_I64TOF:
     {
-#if WANT_INT64 || WORD_SIZE == 64
+#if WANT_INT64
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-#if SANITY
-    if (GETTAG(x) != T_INT64)
-      ERR("T_INT64 tag");
-#endif
-    flt32_t rf = (flt32_t)GETINT64VALUE(x);
+    flt32_t rf = (flt32_t)evalint64(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
     SETFLT(n, rf);
@@ -4918,19 +5595,53 @@ evali(NODEPTR an)
   case T_ITOF:
     {
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-#if SANITY
-    if (GETTAG(x) != T_INT)
-      ERR("T_ITOF tag");
-#endif
-    flt32_t rf = (flt32_t)GETVALUE(x);
+    flt32_t rf = (flt32_t)evalint(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
     SETFLT(n, rf);
     RET;
     }
 
+  case T_UTOF:
+    {
+    CHECK(1);
+    flt32_t rf = (flt32_t)(uvalue_t)evalint(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETFLT(n, rf);
+    RET;
+    }
+
+  case T_FTOI:
+    {
+    CHECK(1);
+    value_t i = (value_t)evalflt(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, i);
+    RET;
+    }
+
 #endif  /* WANT_FLOAT32 */
+
+#if WANT_FLOAT64 && WANT_FLOAT32
+  case T_DTOF:
+    {
+    float xf = (float)evaldbl(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETFLT(n, xf);
+    RET;
+    }
+  case T_FTOD:
+    {
+    double xd = (double)evalflt(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETDBL(n, xd);
+    RET;
+    }
+#endif  /* WANT_FLOAT64 && WANT_FLOAT32 */
 
 #if WANT_FLOAT64
   case T_DADD:
@@ -4953,16 +5664,11 @@ evali(NODEPTR an)
     PUSH(combUNDBL1);
     goto top;
 
-#if WANT_INT64 || WORD_SIZE == 64
+#if WANT_INT64
   case T_I64TOD:
     {
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-#if SANITY
-    if (GETTAG(x) != T_INT64)
-      ERR("T_INT64 tag");
-#endif
-    flt64_t rd = (flt64_t)GETINT64VALUE(x);
+    flt64_t rd = (flt64_t)evalint64(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
     SETDBL(n, rd);
@@ -4973,15 +5679,30 @@ evali(NODEPTR an)
   case T_ITOD:
     {
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-#if SANITY
-    if (GETTAG(x) != T_INT)
-      ERR("T_ITOD tag");
-#endif
-    flt64_t rd = (flt64_t)GETVALUE(x);
+    flt64_t rd = (flt64_t)evalint(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
     SETDBL(n, rd);
+    RET;
+    }
+
+  case T_UTOD:
+    {
+    CHECK(1);
+    flt64_t rd = (flt64_t)(uvalue_t)evalint(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETDBL(n, rd);
+    RET;
+    }
+
+  case T_DTOI:
+    {
+    CHECK(1);
+    value_t i = (value_t)evaldbl(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, i);
     RET;
     }
 
@@ -5009,15 +5730,19 @@ evali(NODEPTR an)
     PUSH(combBINBS2);
     goto top;
 
-#if NEED_INT64
+#if WANT_INT64
   case T_ADD64:
   case T_SUB64:
   case T_MUL64:
   case T_QUOT64:
   case T_REM64:
   case T_SUBR64:
+  case T_UADD64:
+  case T_USUB64:
+  case T_UMUL64:
   case T_UQUOT64:
   case T_UREM64:
+  case T_USUBR64:
   case T_AND64:
   case T_OR64:
   case T_XOR64:
@@ -5037,17 +5762,30 @@ evali(NODEPTR an)
   case T_UGE64:
   case T_UCMP64:
     CHECK(2);
+    /*
+    fprintf(stderr, "bin64 op=%s\n", TAGNAME(tag)); fflush(stderr);
+    { NODEPTR x = evali(ARG(TOP(1)));
+      fprintf(stderr, "x.tag=%s x.val=%lld\n", TAGNAME(GETTAG(x)), GETINT64VALUE(x)); fflush(stderr);
+      NODEPTR y = evali(ARG(TOP(0)));
+      fprintf(stderr, "y.tag=%s y.val=%ld\n", TAGNAME(GETTAG(y)), GETVALUE(y)); fflush(stderr);
+    }
+    */
     n = ARG(TOP(1));
     if (GETTAG(n) == T_INT64) {
+      //fprintf(stderr, "push combBININT64_1\n"); fflush(stderr);
       n = ARG(TOP(0));
       PUSH(combBININT64_1);
-      if (GETTAG(n) == T_INT64)
+      if (GETTAG(n) == T_INT64) {
+        //fprintf(stderr, "goto binint64_1\n"); fflush(stderr);
         goto binint64_1;
+      }
     } else {
+      //fprintf(stderr, "push combBININT64_2\n"); fflush(stderr);
       PUSH(combBININT64_2);
     }
     goto top;
   case T_NEG64:
+  case T_UNEG64:
   case T_INV64:
   case T_POPCOUNT64:
   case T_CLZ64:
@@ -5056,24 +5794,23 @@ evali(NODEPTR an)
     n = ARG(TOP(0));
     PUSH(combUNINT64_1);
     goto top;
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 
 
-  /* XXX This needs redoing with Int64 */
-  /* Retag a word sized value, keeping the value bits */
+    /* Convert between different types. */
 #define CONV(t, set, get) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); set(n, get(x)); RET; } while(0)
 #if WANT_INT64
   case T_TODBL:    CONV(T_DBL,    SETINT64VALUE, GETINT64VALUE); /* raw int64_t -> double */
-  case T_FROMDBL:  CONV(T_INT64,  SETINT64VALUE, GETINT64VALUE);
+  case T_FROMDBL:  CONV(T_INT64,  SETINT64VALUE, GETINT64VALUE); /* raw double -> int64_t */
   case T_ITOI64:   CONV(T_INT64,  SETINT64VALUE, GETVALUE);
   case T_UTOU64:   CONV(T_INT64,  SETINT64VALUE, (uint64_t)GETVALUE);
   case T_I64TOI:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
   case T_U64TOU:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
-#endif
+#endif  /* WANT_INT64 */
 #if WANT_FLOAT32
   case T_TOFLT:    CONV(T_FLT32,  SETINT32VALUE, GETINT32VALUE);
   case T_FROMFLT:  CONV(T_INT,    SETVALUE,      GETINT32VALUE);
-#endif
+#endif  /* WANT_FLOAT32 */
   case T_TOINT:    CONV(T_INT,    SETVALUE,      GETVALUE);
   case T_TOPTR:    CONV(T_PTR,    SETVALUE,      GETVALUE);
   case T_TOFUNPTR: CONV(T_FUNPTR, SETVALUE,      GETVALUE);
@@ -5085,7 +5822,7 @@ evali(NODEPTR an)
     xfp = evalforptr(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETPTR(n, xfp->payload.string);
+    SETPTR(n, xfp->payload.bs_array);
     RET;
 
   case T_FP2BS:
@@ -5094,7 +5831,7 @@ evali(NODEPTR an)
     xi = evalint(ARG(TOP(1)));
     POP(2);
     n = TOP(-1);
-    xfp->payload.size = xi;
+    xfp->payload.bs_size = xi;
     SETBSTR(n, xfp);
     RET;
 
@@ -5114,22 +5851,7 @@ evali(NODEPTR an)
       y = evali(ARG(TOP(1)));
       POP(2);
       n = TOP(-1);
-      GOIND(arr == ARR(y) ? combTrue : combFalse);
-    }
-
-  case T_BSTOUTF8:
-    {
-      CHECK(1);
-      n = ARG(TOP(0));
-      /* Zap the pointer to the list so it can be GC:ed.
-       * The actual list is protected from GC by evalbytestring().
-       */
-      // ARG(TOP(0)) = combK;
-      struct bytestring bs = evalstring(n);
-      POP(1);
-      n = TOP(-1);
-      SETBSTR(n, mkForPtrFree(bs));
-      RET;
+      GOBOOL(arr == ARR(y));
     }
 
   case T_BSHEADUTF8:
@@ -5146,10 +5868,10 @@ evali(NODEPTR an)
     POP(1);
     n = TOP(-1);
     { void *out;
-      (void)headutf8(xfp->payload, &out);           /* skip one UTF8 character */
-      xi = (char*)out - (char*)xfp->payload.string; /* offset */
-      yi = xfp->payload.size - xi;                  /* remaining length */
-      SETBSTR(n, bssubstr(xfp, xi, yi));            /* make a substring */
+      (void)headutf8(xfp->payload, &out);             /* skip one UTF8 character */
+      xi = (char*)out - (char*)xfp->payload.bs_array; /* offset */
+      yi = xfp->payload.bs_size - xi;                 /* remaining length */
+      SETBSTR(n, bssubstr(xfp, xi, yi));              /* make a substring */
     }
     RET;
 
@@ -5158,7 +5880,7 @@ evali(NODEPTR an)
     CHECK(1);
 
     xfp = evalbstr(ARG(TOP(0)));
-    GCCHECK(strNodes(xfp->payload.size));
+    GCCHECK(strNodes(xfp->payload.bs_size));
     POP(1);
     n = TOP(-1);
     //printf("T_FROMUTF8 x = %p fp=%p payload.string=%p\n", x, x->uarg.uuforptr, x->uarg.uuforptr->payload.string);
@@ -5168,23 +5890,10 @@ evali(NODEPTR an)
     if (doing_rnf) RET;
     CHECK(1);
     struct forptr *xfp = evalbstr(ARG(TOP(0)));
-    GCCHECK(strNodes(xfp->payload.size));
+    GCCHECK(strNodes(xfp->payload.bs_size));
     POP(1);
     n = TOP(-1);
     GOIND(bsunpack(xfp->payload));
-
-  case T_BSPACK:
-    CHECK(1);
-    n = ARG(TOP(0));
-    /* Zap the pointer to the list so it can be GC:ed.
-     * The actual list is protected from GC by evalbytestring().
-     */
-    ARG(TOP(0)) = combK;
-    struct bytestring rbs = evalbytestring(n);
-    POP(1);
-    n = TOP(-1);
-    SETBSTR(n, mkForPtrFree(rbs));
-    RET;
 
   case T_BSREPLICATE:
     CHECK(2);
@@ -5200,7 +5909,7 @@ evali(NODEPTR an)
     xfp = evalbstr(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETINT(n, xfp->payload.size);
+    SETINT(n, xfp->payload.bs_size);
     RET;
 
   case T_BSSUBSTR:
@@ -5219,8 +5928,82 @@ evali(NODEPTR an)
     xi = evalint(ARG(TOP(1)));
     POP(2);
     n = TOP(-1);
-    SETINT(n, ((uint8_t *)xfp->payload.string)[xi]);
+    SETINT(n, ((uint8_t *)xfp->payload.bs_array)[xi]);
     RET;
+
+  case T_BSNEW:
+    {
+    CHKARG3NP;
+    struct bytestring bs;
+    bs.bs_size = evalint(x);
+    bs.bs_capacity = evalint(y);
+    GCCHECK(2);                 /* PAIR + StrNode */
+    bs.bs_array = mmalloc(bs.bs_capacity);
+    memset(bs.bs_array, 0, bs.bs_size);
+    POP(3);
+    GOPAIR(mkStrNode(bs));
+    }
+
+  case T_BSFREEZE:
+    {
+    CHKARG2NP;
+    xfp = evalbstr(x);
+    GCCHECK(1);                 /* PAIR */
+    struct bytestring *bsp = &xfp->payload;
+    if (bsp->bs_size != bsp->bs_capacity) {
+      bsp->bs_array = mrealloc(bsp->bs_array, bsp->bs_size);
+      adjforptr(xfp);           /* in case bs_array moved */
+    }
+    bsp->bs_capacity = 0;        /* mark a immutable */
+    POP(2);
+    GOPAIR(x);
+    }
+
+  case T_BSAPPBYTE:
+    CHKARG3NP;
+    xfp = evalbstr(x);
+    xi = evalint(y);
+    bsappbyte(xfp, xi);
+    POP(3);
+    GOPAIRUNIT;
+    
+  case T_BSAPPCHAR:
+    CHKARG3NP;
+    xfp = evalbstr(x);
+    xi = evalint(y);
+    if ((xi & 0x1ff800) == 0xd800) {
+      /* xi is a surrogate */
+      xi = 0xfffd; /* replacement character */
+    }
+    if (0 < xi && xi < 0x80) {   /* exclude 0, since this is modified UTF-8 */
+      bsappbyte(xfp, xi);
+    } else if (xi < 0x800) {
+      /* 0 encodes here, with an over-long representation */
+      bsappbyte(xfp, ((xi >> 6 )       ) | 0xc0);
+      bsappbyte(xfp, ((xi      ) & 0x3f) | 0x80);
+    } else if (xi < 0x10000) {
+      bsappbyte(xfp, ((xi >> 12)       ) | 0xe0);
+      bsappbyte(xfp, ((xi >> 6 ) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi      ) & 0x3f) | 0x80);
+    } else if (xi < 0x110000) {
+      bsappbyte(xfp, ((xi >> 18)       ) | 0xf0);
+      bsappbyte(xfp, ((xi >> 12) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi >> 6 ) & 0x3f) | 0x80);
+      bsappbyte(xfp, ((xi      ) & 0x3f) | 0x80);
+    } else {
+      ERR("invalid char");
+    }
+    POP(3);
+    GOPAIRUNIT;
+
+  case T_BSREAD:
+    CHKARG3NP;
+    xfp = evalbstr(x);
+    xi = evalint(y);
+    GCCHECK(2);                 /* PAIR + Int */
+    POP(3);
+    yi = ((uint8_t *)xfp->payload.bs_array)[xi];
+    GOPAIR(mkInt(yi));
 
   case T_BSWRITE:
     CHKARG4NP;
@@ -5228,22 +6011,23 @@ evali(NODEPTR an)
     xi = evalint(y);
     yi = evalint(z);
     POP(4);
-    ((uint8_t *)xfp->payload.string)[xi] = (uint8_t)yi;
+    ((uint8_t *)xfp->payload.bs_array)[xi] = (uint8_t)yi;
     GOPAIRUNIT;
 
   case T_RAISE:
     if (doing_rnf) RET;
     CHKARG1;
     raise_exn(x);               /* never returns */
-    
+
   case T_SPNEW:
-    GCCHECK(1);
+    GCCHECK(2);                 /* PAIR + Int */
     CHKARG2;
     xi = new_stableptr(x);
     GOPAIR(mkInt(xi));
   case T_SPDEREF:
     CHKARG2NP;
     xi = evalint(x);
+    GCCHECK(1);                 /* PAIR */
     POP(2);
     GOPAIR(deref_stableptr(xi));
   case T_SPFREE:
@@ -5254,16 +6038,17 @@ evali(NODEPTR an)
     GOPAIRUNIT;
 
   case T_WKNEW:
-    GCCHECK(2);
+    GCCHECK(2);                 /* PAIR + weak */
     CHKARG3;
     GOPAIR(new_weak_ptr(x, y, 0));
   case T_WKNEWFIN:
-    GCCHECK(3);
+    GCCHECK(3);                 /* PAIR + weak + finalizer */
     CHKARG4;
     GOPAIR(new_weak_ptr(x, y, z));
   case T_WKDEREF:
     CHKARG2NP;
     x = deref_weak_ptr(evalweak(x));
+    GCCHECK(1);                 /* PAIR */
     POP(2);
     GOPAIR(x);
   case T_WKFINAL:
@@ -5302,6 +6087,24 @@ evali(NODEPTR an)
     }
 #endif
 
+  case T_IO_ATOMIC:
+    /* Perform an IO action "atomically".
+     * It's not really atomic, but 10 uninterrupted slices.
+     * This is good enough for atomicModifyIORef. */
+    {
+      GCCHECK(2);
+      CHKARG2NP;                     /* set x=action, y=world, n */
+      NODEPTR p1 = new_ap(x, y);
+      NODEPTR p2 = new_ap(p1, combK);
+      glob_slice += slice * 10;      /* give the current thread 10 extra slices */
+      NODEPTR p3 = evali(p2);        /* this evaluation is guarenteed at least 10 uninterrupted slices */
+      glob_slice -= slice * 10;      /* and take them away again */
+      GCCHECKSAVE(p3, 2);
+      POP(2);
+      GOPAIR(p3);
+    }
+    break;
+
   case T_IO_BIND:
     goto t_c;
   case T_IO_RETURN:
@@ -5310,6 +6113,22 @@ evali(NODEPTR an)
     GCCHECK(2);
     CHKARG2;
     GOAP2(combIOBIND, x, new_ap(combK, y));
+  case T_IO_LAZYBIND:
+    /* Lazy bind, used for the lazy ST monad.
+     * DO NOT USE FOR IO, because effects are not guaranteed to happen.
+     *   (x `lazyBind` y) z = let w = x z in y (fst w) (snd w)
+     */
+    GCCHECK(4);
+    CHKARG3;
+    w = new_ap(x, z);
+    GOAP2(y, new_ap(combFst, w), new_ap(combSnd, w));
+  case T_IO_STRICT:
+    CHKARG2;
+    /* Force the world argument before executing the IO.
+     * IO.strict io World = seq World (io World)
+     */
+    (void)evali(y);             /* evaluate the world */
+    GOAP(x, y);                 /* and run IO computation */
 #if WANT_STDIO
   case T_IO_PP:
     CHKARG2;
@@ -5371,58 +6190,60 @@ evali(NODEPTR an)
       GOPAIR(x);                  /* and this is the result */
     }
 
-  case T_NEWCASTRINGLEN:
-    {
-      CHKARG2NP;                /* set x,y,n */
-      struct bytestring bs = evalbytestring(x);
-      GCCHECK(5);
-      NODEPTR cs = alloc_node(T_PTR);
-      PTR(cs) = bs.string;
-      NODEPTR res = new_ap(new_ap(combPair, cs), mkInt(bs.size));
-      POP(2);
-      GOPAIR(res);
-    }
   case T_PACKCSTRING:
     {
       CHKARG2NP;                  /* sets x, y, n */
+      {
       char *cstr = evalptr(x);
-      size_t size = strlen(cstr);
-      char *str = mmalloc(size);
-      memcpy(str, cstr, size);
-      struct bytestring bs = { size, str };
+      struct bytestring bs = mk_ro_bytestring(strlen(cstr), NULL);
+      memcpy(bs.bs_array, cstr, bs.bs_size);
       NODEPTR res = mkStrNode(bs);
-      GCCHECKSAVE(res, 1);
+      GCCHECKSAVE(res, 2);
       POP(2);
       GOPAIR(res);
+      }
     }
   case T_PACKCSTRINGLEN:
     {
       CHKARG3NP;                /* sets x,y,z,n */
+      {
       char *cstr = evalptr(x);
-      size_t size = evalint(y);
-      char *str = mmalloc(size);
-      memcpy(str, cstr, size);
-      struct bytestring bs = { size, str };
+      struct bytestring bs = mk_ro_bytestring(evalint(y), NULL);
+      memcpy(bs.bs_array, cstr, bs.bs_size);
       NODEPTR res = mkStrNode(bs);
       POP(3);
-      GCCHECKSAVE(res, 1);
+      GCCHECKSAVE(res, 2);
       GOPAIR(res);
+      }
     }
   case T_BSGRAB:
     {
       CHKARG2NP;                  /* sets x, y, n */
-      char *cstr = evalptr(x);
-      size_t size = strlen(cstr);
-      struct bytestring bs = { size, cstr };
+      {
+      char *p = evalptr(x);
+      struct bytestring bs = mk_ro_bytestring(strlen(p), p);
       NODEPTR res = mkStrNode(bs);
-      GCCHECKSAVE(res, 1);
+      GCCHECKSAVE(res, 2);
       POP(2);
       GOPAIR(res);
+      }
+    }
+  case T_BSGRABLEN:
+    {
+      CHKARG3NP;                  /* sets x, y, z, n */
+      {
+      struct bytestring bs = mk_ro_bytestring(evalint(y), evalptr(x));
+      NODEPTR res = mkStrNode(bs);
+      GCCHECKSAVE(res, 2);
+      POP(3);
+      GOPAIR(res);
+      }
     }
 
   case T_ARR_ALLOC:
     {
       CHKARG3NP;                /* sets x,y,z,n */
+      {
       size_t size = evalint(x);
       struct ioarray *arr = arr_alloc(size, y);
       GCCHECK(2);
@@ -5430,10 +6251,12 @@ evali(NODEPTR an)
       ARR(res) = arr;
       POP(3);
       GOPAIR(res);
+      }
     }
   case T_ARR_COPY:
     {
       CHKARG2NP;
+      {
       NODEPTR a = evali(x);
       if (GETTAG(a) != T_ARR)
         ERR("T_ARR_COPY tag");
@@ -5443,6 +6266,7 @@ evali(NODEPTR an)
       ARR(res) = arr;
       POP(2);
       GOPAIR(res);
+      }
     }
   case T_ARR_SIZE:
     {
@@ -5538,7 +6362,7 @@ evali(NODEPTR an)
 
   case T_IO_STATS:
     {
-    GCCHECK(4);
+    GCCHECK(5);
     CHKARG1;
     NODEPTR res = new_ap(new_ap(combPair, mkInt((uvalue_t)num_alloc)), mkInt((uvalue_t)(num_reductions - glob_slice)));
     GOPAIR(res);
@@ -5670,7 +6494,54 @@ evali(NODEPTR an)
       POP(2);
       GOPAIR(mkInt(mt->mt_state));
     }
+  case T_IO_WAITRDFD:
+  case T_IO_WAITWRFD: {
+#if WANT_IO_POLL
+    CHKARG2NP; /* x = filedescriptor, y = RealWorld; no pop yet */
+    GCCHECK(2);
+
+    /*
+     * When the thread wakes up again it will re-execute that last op.
+     * check_pollq() sets mt_fd=IO_POLL_EVENT_HAS_HAPPENED when waking the thread.
+     * If we did not do this check we would just sleep again.
+     */
+    if (runq.mq_head->mt_fd == IO_POLL_EVENT_HAS_HAPPENED) {
+      runq.mq_head->mt_fd = IO_POLL_WAITING_FOR_NONE;
+      POP(2);
+      GOPAIR(mkInt(0));
+    }
+
+    check_thrown(true);      /* check if we have a thrown exception */
+
+    int fd = evalint(x);
+    int events = tag == T_IO_WAITRDFD ? POLLIN : POLLOUT;
+
+    /* Set up the waiting thread's state, preparing it to leave the run queue
+     * until an event is ready for it.
+     */
+    struct mthread *mt = remove_q_head(&runq);
+    mt->mt_fd     = fd;
+    mt->mt_events = events;
+    add_q_tail(&pollq, mt);     /* put it on the q of I/O waiters */
+#if THREAD_DEBUG
+      if (thread_trace) {
+        printf("T_IO_WAITxxFD: wait for FD=%d, events=%x, thread=%d\n", fd, events, (int)mt->mt_id);
+      }
+#endif  /* THREAD_DEBUG */
+
+    POP(2);
+    resched(mt, ts_wait_io);    /* set the thread state and reschedule */
+#else /* WANT_IO_POLL */
+    CHKARG2;
+#if WANT_ERRNO
+    errno = EINVAL;
+#endif
+    GCCHECK(2);
+    GOPAIR(mkInt(-1));          /* cannot poll */
+#endif /* WANT_IO_POLL */
+  }
   case T_IO_GETMASKINGSTATE:
+    GCCHECK(2);
     CHKARG1;                    /* x = ST */
     GOPAIR(mkInt(runq.mq_head->mt_mask));
 
@@ -5736,7 +6607,7 @@ evali(NODEPTR an)
   case T_DYNSYM:
     /* A dynamic FFI lookup */
     CHECK(1);
-    msg = evalstring(ARG(TOP(0))).string;
+    msg = evalstring(ARG(TOP(0))).bs_array;
     GCCHECK(1);
     x = ffiNode(msg);
     FREE(msg);
@@ -5748,6 +6619,7 @@ evali(NODEPTR an)
   case T_TICK:
     xi = GETVALUE(n);
     CHKARG1;
+    // fprintf(stderr, "tick=%s\n", (char*)tick_table[xi].tick_name.string); fflush(stderr);
     dotick(xi);
     GOIND(x);
 #endif
@@ -5762,9 +6634,9 @@ evali(NODEPTR an)
     // In this case, n was an AP that got pushed and potentially
     // updated.
     uvalue_t xu, yu, ru;
-#if NEED_INT64
+#if WANT_INT64
     uint64_t x64u, y64u, r64u;
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 #if WANT_FLOAT32
     flt32_t xf, yf, rf;
 #endif  /* WANT_FLOAT32 */
@@ -5801,22 +6673,29 @@ evali(NODEPTR an)
       POP(3);
       n = TOP(-1);
     binint:
+/* if we don't need Int64 implementation, just make Int and Int64 the same */
       switch (GETTAG(p)) {
       case T_IND:   p = GETINDIR(p); goto binint;
-      case T_ADD:   ru = xu + yu; break;
-      case T_SUB:   ru = xu - yu; break;
-      case T_MUL:   ru = xu * yu; break;
-      case T_SUBR:  ru = yu - xu; break;
+      case T_ADD:   ADD_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_SUB:   SUB_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_MUL:   MUL_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_SUBR:  SUB_OVERFLOW(value_t, ru, yu, xu); break;
       case T_QUOT:  if (yu == 0)
                       raise_rts(exn_dividebyzero);
+                    else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
+                      raise_rts(exn_overflow);
                     else
                       ru = (uvalue_t)((value_t)xu / (value_t)yu);
                     break;
       case T_REM:   if (yu == 0)
                       raise_rts(exn_dividebyzero);
-                    else
+                    else        /* this should not overflow under any circumstances */
                       ru = (uvalue_t)((value_t)xu % (value_t)yu);
                     break;
+      case T_UADD:  ru = xu + yu; break;
+      case T_USUB:  ru = xu - yu; break;
+      case T_UMUL:  ru = xu * yu; break;
+      case T_USUBR: ru = yu - xu; break;
       case T_UQUOT: if (yu == 0)
                       raise_rts(exn_dividebyzero);
                     else
@@ -5834,17 +6713,17 @@ evali(NODEPTR an)
       case T_SHR:   ru = xu >> yu; break;
       case T_ASHR:  ru = (uvalue_t)((value_t)xu >> yu); break;
 
-      case T_EQ:    GOIND(xu == yu ? combTrue : combFalse);
-      case T_NE:    GOIND(xu != yu ? combTrue : combFalse);
-      case T_ULT:   GOIND(xu <  yu ? combTrue : combFalse);
-      case T_ULE:   GOIND(xu <= yu ? combTrue : combFalse);
-      case T_UGT:   GOIND(xu >  yu ? combTrue : combFalse);
-      case T_UGE:   GOIND(xu >= yu ? combTrue : combFalse);
+      case T_EQ:    GOBOOL(xu == yu);
+      case T_NE:    GOBOOL(xu != yu);
+      case T_ULT:   GOBOOL(xu <  yu);
+      case T_ULE:   GOBOOL(xu <= yu);
+      case T_UGT:   GOBOOL(xu >  yu);
+      case T_UGE:   GOBOOL(xu >= yu);
       case T_UCMP:  GOIND(xu <  yu ? combLT   : xu > yu ? combGT : combEQ);
-      case T_LT:    GOIND((value_t)xu <  (value_t)yu ? combTrue : combFalse);
-      case T_LE:    GOIND((value_t)xu <= (value_t)yu ? combTrue : combFalse);
-      case T_GT:    GOIND((value_t)xu >  (value_t)yu ? combTrue : combFalse);
-      case T_GE:    GOIND((value_t)xu >= (value_t)yu ? combTrue : combFalse);
+      case T_LT:    GOBOOL((value_t)xu <  (value_t)yu);
+      case T_LE:    GOBOOL((value_t)xu <= (value_t)yu);
+      case T_GT:    GOBOOL((value_t)xu >  (value_t)yu);
+      case T_GE:    GOBOOL((value_t)xu >= (value_t)yu);
       case T_ICMP:  GOIND((value_t)xu <  (value_t)yu ? combLT   : (value_t)xu > (value_t)yu ? combGT : combEQ);
 
       default:
@@ -5867,7 +6746,8 @@ evali(NODEPTR an)
     unint:
       switch (GETTAG(p)) {
       case T_IND:      p = GETINDIR(p); goto unint;
-      case T_NEG:      ru = -xu; break;
+      case T_NEG:      if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow); ru = -xu; break;
+      case T_UNEG:     ru = -xu; break;
       case T_INV:      ru = ~xu; break;
       case T_POPCOUNT: ru = POPCOUNT(xu); break;
       case T_CLZ:      ru = CLZ(xu); break;
@@ -5879,7 +6759,7 @@ evali(NODEPTR an)
       SETINT(n, (value_t)ru);
       goto ret;
 
-#if NEED_INT64
+#if WANT_INT64
     case T_BININT64_2:
       n = ARG(TOP(1));
       TOP(0) = combBININT64_1;
@@ -5888,8 +6768,10 @@ evali(NODEPTR an)
     case T_BININT64_1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_INT64)
+      if (GETTAG(n) != T_INT64) {
+        //fprintf(stderr, "tag=%s\n", TAGNAME(GETTAG(n))); fflush(stderr);
         ERR("BININT64 0");
+      }
 #endif  /* SANITY */
     binint64_1:
       x64u = (uint64_t)GETINT64VALUE(n);
@@ -5910,12 +6792,14 @@ evali(NODEPTR an)
     binint64:
       switch (GETTAG(p)) {
       case T_IND:   p = GETINDIR(p); goto binint64;
-      case T_ADD64: r64u = x64u + y64u; break;
-      case T_SUB64: r64u = x64u - y64u; break;
-      case T_MUL64: r64u = x64u * y64u; break;
-      case T_SUBR64:r64u = y64u - x64u; break;
+      case T_ADD64: ADD_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_SUB64: SUB_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_MUL64: MUL_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_SUBR64:SUB_OVERFLOW(int64_t, r64u, y64u, x64u); break;
       case T_QUOT64:if (y64u == 0)
                       raise_rts(exn_dividebyzero);
+                    else if ((int64_t)x64u == INT64_MIN && (int64_t)y64u == -1)
+                      raise_rts(exn_overflow);
                     else
                       r64u = (uint64_t)((int64_t)x64u / (int64_t)y64u);
                     break;
@@ -5924,6 +6808,10 @@ evali(NODEPTR an)
                     else
                       r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
                     break;
+      case T_UADD64:r64u = x64u + y64u; break;
+      case T_USUB64:r64u = x64u - y64u; break;
+      case T_UMUL64:r64u = x64u * y64u; break;
+      case T_USUBR64:r64u = y64u - x64u; break;
       case T_UQUOT64:if (y64u == 0)
                       raise_rts(exn_dividebyzero);
                     else
@@ -5941,17 +6829,17 @@ evali(NODEPTR an)
       case T_SHR64: r64u = x64u >> yu; break;
       case T_ASHR64:r64u = (uint64_t)((int64_t)x64u >> yu); break;
 
-      case T_EQ64:  GOIND(x64u == y64u ? combTrue : combFalse);
-      case T_NE64:  GOIND(x64u != y64u ? combTrue : combFalse);
-      case T_ULT64: GOIND(x64u <  y64u ? combTrue : combFalse);
-      case T_ULE64: GOIND(x64u <= y64u ? combTrue : combFalse);
-      case T_UGT64: GOIND(x64u >  y64u ? combTrue : combFalse);
-      case T_UGE64: GOIND(x64u >= y64u ? combTrue : combFalse);
+      case T_EQ64:  GOBOOL(x64u == y64u);
+      case T_NE64:  GOBOOL(x64u != y64u);
+      case T_ULT64: GOBOOL(x64u <  y64u);
+      case T_ULE64: GOBOOL(x64u <= y64u);
+      case T_UGT64: GOBOOL(x64u >  y64u);
+      case T_UGE64: GOBOOL(x64u >= y64u);
       case T_UCMP64:GOIND(x64u <  y64u ? combLT   : x64u > y64u ? combGT : combEQ);
-      case T_LT64:  GOIND((int64_t)x64u <  (int64_t)y64u ? combTrue : combFalse);
-      case T_LE64:  GOIND((int64_t)x64u <= (int64_t)y64u ? combTrue : combFalse);
-      case T_GT64:  GOIND((int64_t)x64u >  (int64_t)y64u ? combTrue : combFalse);
-      case T_GE64:  GOIND((int64_t)x64u >= (int64_t)y64u ? combTrue : combFalse);
+      case T_LT64:  GOBOOL((int64_t)x64u <  (int64_t)y64u);
+      case T_LE64:  GOBOOL((int64_t)x64u <= (int64_t)y64u);
+      case T_GT64:  GOBOOL((int64_t)x64u >  (int64_t)y64u);
+      case T_GE64:  GOBOOL((int64_t)x64u >= (int64_t)y64u);
       case T_ICMP64:GOIND((int64_t)x64u <  (int64_t)y64u ? combLT   : (int64_t)x64u > (int64_t)y64u ? combGT : combEQ);
 
       default:
@@ -5974,7 +6862,8 @@ evali(NODEPTR an)
     unint64:
       switch (GETTAG(p)) {
       case T_IND:        p = GETINDIR(p); goto unint64;
-      case T_NEG64:      r64u = -x64u; break;
+      case T_NEG64:      if ((int64_t)x64u == INT64_MIN) raise_rts(exn_overflow); r64u = -x64u; break;
+      case T_UNEG64:     r64u = -x64u; break;
       case T_INV64:      r64u = ~x64u; break;
       case T_POPCOUNT64: ru = POPCOUNT64(x64u); SETINT(n, (value_t)ru); goto ret;
       case T_CLZ64:      ru = CLZ64(x64u); SETINT(n, (value_t)ru); goto ret;
@@ -5985,7 +6874,7 @@ evali(NODEPTR an)
       }
       SETINT64(n, (int64_t)r64u);
       goto ret;
-#endif  /* NEED_INT64 */
+#endif  /* WANT_INT64 */
 
 #if WANT_FLOAT32
     case T_BINFLT2:
@@ -6020,12 +6909,12 @@ evali(NODEPTR an)
       case T_FMUL:  rf = xf * yf; break;
       case T_FDIV:  rf = xf / yf; break;
 
-      case T_FEQ:   GOIND(xf == yf ? combTrue : combFalse);
-      case T_FNE:   GOIND(xf != yf ? combTrue : combFalse);
-      case T_FLT:   GOIND(xf <  yf ? combTrue : combFalse);
-      case T_FLE:   GOIND(xf <= yf ? combTrue : combFalse);
-      case T_FGT:   GOIND(xf >  yf ? combTrue : combFalse);
-      case T_FGE:   GOIND(xf >= yf ? combTrue : combFalse);
+      case T_FEQ:   GOBOOL(xf == yf);
+      case T_FNE:   GOBOOL(xf != yf);
+      case T_FLT:   GOBOOL(xf <  yf);
+      case T_FLE:   GOBOOL(xf <= yf);
+      case T_FGT:   GOBOOL(xf >  yf);
+      case T_FGE:   GOBOOL(xf >= yf);
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
@@ -6089,12 +6978,12 @@ evali(NODEPTR an)
       case T_DMUL:  rd = xd * yd; break;
       case T_DDIV:  rd = xd / yd; break;
 
-      case T_DEQ:   GOIND(xd == yd ? combTrue : combFalse);
-      case T_DNE:   GOIND(xd != yd ? combTrue : combFalse);
-      case T_DLT:   GOIND(xd <  yd ? combTrue : combFalse);
-      case T_DLE:   GOIND(xd <= yd ? combTrue : combFalse);
-      case T_DGT:   GOIND(xd >  yd ? combTrue : combFalse);
-      case T_DGE:   GOIND(xd >= yd ? combTrue : combFalse);
+      case T_DEQ:   GOBOOL(xd == yd);
+      case T_DNE:   GOBOOL(xd != yd);
+      case T_DLT:   GOBOOL(xd <  yd);
+      case T_DLE:   GOBOOL(xd <= yd);
+      case T_DGT:   GOBOOL(xd >  yd);
+      case T_DGE:   GOBOOL(xd >= yd);
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
@@ -6155,12 +7044,12 @@ evali(NODEPTR an)
 
       case T_BSAPPEND: rbs = bsappend(xbs, ybs); break;
       case T_BSAPPENDDOT: rbs = bsappenddot(xbs, ybs); break;
-      case T_BSEQ:   GOIND(bscompare(xbs, ybs) == 0 ? combTrue : combFalse);
-      case T_BSNE:   GOIND(bscompare(xbs, ybs) != 0 ? combTrue : combFalse);
-      case T_BSLT:   GOIND(bscompare(xbs, ybs) <  0 ? combTrue : combFalse);
-      case T_BSLE:   GOIND(bscompare(xbs, ybs) <= 0 ? combTrue : combFalse);
-      case T_BSGT:   GOIND(bscompare(xbs, ybs) >  0 ? combTrue : combFalse);
-      case T_BSGE:   GOIND(bscompare(xbs, ybs) >= 0 ? combTrue : combFalse);
+      case T_BSEQ:   GOBOOL(bscompare(xbs, ybs) == 0);
+      case T_BSNE:   GOBOOL(bscompare(xbs, ybs) != 0);
+      case T_BSLT:   GOBOOL(bscompare(xbs, ybs) <  0);
+      case T_BSLE:   GOBOOL(bscompare(xbs, ybs) <= 0);
+      case T_BSGT:   GOBOOL(bscompare(xbs, ybs) >  0);
+      case T_BSGE:   GOBOOL(bscompare(xbs, ybs) >= 0);
       case T_BSCMP:  r = bscompare(xbs, ybs); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
       default:
@@ -6192,21 +7081,29 @@ die_exn(NODEPTR exn)
    * (combShowExn exn) and evaluate it.
    */
   NODEPTR x;
-  char *msg;
+  const char *msg;
 
   in_raise = true;
 
   if (GETTAG(exn) == T_INT) {
     /* This is the special hack for RTS generated exception, represented by a T_INT */
-    switch(GETVALUE(exn)) {
-    case 0: msg = "stack overflow"; break;
-    case 1: msg = "heap overflow"; break;
-    case 2: msg = "thread killed"; break;
-    case 3: msg = "user interrupt"; break;
-    case 4: msg = "DivideByZero"; break;
-    case 5: msg = "blocked MVar"; break;
-    case 6: msg = "blocked STM"; break;
-    default: msg = "unknown"; break;
+    enum rts_exn eexn = GETVALUE(exn);
+    static const char *msgs[] =
+      { "stack overflow",
+        "heap overflow",
+        "thread killed",
+        "user interrupt",
+        "DivideByZero",
+        "blocked MVar",
+        "blocked STM",
+        "arithmetic overflow",
+        "Serialize",
+        "Deserialize",
+      };
+    if (eexn < 0 || eexn >= exn_last) {
+      msg = "unknown";
+    } else {
+      msg = msgs[eexn];
     }
   } else {
     /* just overwrite the top stack element, we don't need it */
@@ -6214,7 +7111,7 @@ die_exn(NODEPTR exn)
     GCCHECK(1);
     PUSH(new_ap(combShowExn, exn));/* TOP(0) = (combShowExn exn) */
     x = evali(TOP(0));             /* evaluate it */
-    msg = evalstring(x).string;    /* and convert to a C string */
+    msg = evalstring(x).bs_array;    /* and convert to a C string */
     POP(1);
   }
 #if WANT_STDIO
@@ -6254,15 +7151,25 @@ extern const int combexprlen;
 int dump_ticks = 0;
 #endif
 
-NODEPTR
-mhs_init_args(
 #if WANT_ARGS
+  #if WANT_STDIO
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(a,b,c,d)
+  #else
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(a,b)
+  #endif
+#else  /* WANT_ARGS */
+  #if WANT_STDIO
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(c,d)
+  #else
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args()
+  #endif
+#endif  /* WANT_ARGS */
+
+NODEPTR
+MHS_INIT_ARGS(
               int argc, char **argv,
-#endif
-#if WANT_STDIO
               char **outnamep,
               size_t *file_sizep
-#endif
 )
 {
   NODEPTR prog;
@@ -6382,15 +7289,15 @@ mhs_init_args(
       *file_sizep = combexprlen;
 #endif
     } else {
-#if WANT_STDIO
+#if WANT_STDIO & WANT_ARGS
       /* Open a regular file */
-      FILE *f = fopen(inname, "r");
+      FILE *f = fopen(inname, "rb");
       if (!f)
         ERR1("file not found %s", inname);
       fseek(f, 0, SEEK_END);
       *file_sizep = ftell(f);   /* find its size */
       rewind(f);
-    
+
       bf = add_FILE(f);
 #else
       ERR("no stdio");
@@ -6407,8 +7314,12 @@ mhs_init_args(
     }
 #endif
     if (c == 'z') {
-      /* add LZ77 compressor transducer */
-      bf = add_lz77_decompressor(bf);
+#if WANT_LZMA
+      /* add LZMA decompressor transducer */
+      bf = add_lzma_decompressor(bf);
+#else
+      ERR("LZMA compression not supported");
+#endif
     } else {
       /* put it back, we need it */
       ungetb(c, bf);
@@ -6425,7 +7336,7 @@ mhs_init_args(
   want_gc_red = 0;              /* can be enabled, but it is rarely a win */
   prog = POPTOP();
   return prog;
-}  
+}
 
 void
 mhs_init(void)
@@ -6433,7 +7344,7 @@ mhs_init(void)
   char *args[2] = { "<mhs_init>", 0 };
   char *outname;
   size_t file_size;
-  (void)mhs_init_args(1, args, &outname, &file_size);
+  (void)MHS_INIT_ARGS(1, args, &outname, &file_size);
 }
 
 int
@@ -6445,14 +7356,15 @@ mhs_main(int argc, char **argv)
 #if WANT_KPERF
   counter_t instrs;
 #endif  /* WANT_KPERF */
+  boot_time = GETTIMEMICRO();
 
-  prog = mhs_init_args(argc, argv, &outname, &file_size);
+  prog = MHS_INIT_ARGS(argc, argv, &outname, &file_size);
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
   if (outname) {
     /* Save GCed file (smaller), and exit. */
-    FILE *out = fopen(outname, "w");
+    FILE *out = fopen(outname, "wb");
     if (!out)
       ERR1("cannot open output file %s", outname);
     struct BFILE *bf = add_FILE(out);
@@ -6479,8 +7391,8 @@ mhs_main(int argc, char **argv)
 #endif  /* WANT_KPERF */
   start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */
-  flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
-  flushb((BFILE*)FORPTR(comb_stderr)->payload.string);
+  flushb((BFILE*)FORPTR(comb_stdout)->payload.bs_array);
+  flushb((BFILE*)FORPTR(comb_stderr)->payload.bs_array);
   gc();                      /* Run finalizers */
 #if WANT_KPERF
   instrs = end_kperf();
@@ -6654,8 +7566,17 @@ MHS_FROM(mhs_from_Double, SETDBL, flt64_t);
 MHS_FROM(mhs_from_Float, SETFLT, flt32_t);
 #endif
 MHS_FROM(mhs_from_Int, SETINT, value_t);
+/* A Bool is the K (False) or A (True) combinator, not an int node. */
+#define SETBOOL(n, x) SETINDIR((n), (x) ? combTrue : combFalse)
+MHS_FROM(mhs_from_Bool, SETBOOL, value_t);
+#if WANT_INT64
+MHS_FROM(mhs_from_Int64, SETINT64, int64_t);
+#endif
 MHS_FROM(mhs_from_Word, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Word8, SETINT, uvalue_t);
+#if WANT_INT64
+MHS_FROM(mhs_from_Word64, SETINT64, uint64_t);
+#endif
 MHS_FROM(mhs_from_Ptr, SETPTR, void*);
 MHS_FROM(mhs_from_ForPtr, SETFORPTR, struct forptr *);
 MHS_FROM(mhs_from_FunPtr, SETFUNPTR, HsFunPtr);
@@ -6697,8 +7618,15 @@ MHS_TO(mhs_to_Float, evalflt, flt32_t);
 MHS_TO(mhs_to_Double, evaldbl, flt64_t);
 #endif
 MHS_TO(mhs_to_Int, evalint, value_t);
+MHS_TO(mhs_to_Bool, evalbool, value_t);
+#if WANT_INT64
+MHS_TO(mhs_to_Int64, evalint64, int64_t);
+#endif
 MHS_TO(mhs_to_Word, evalint, uvalue_t);
 MHS_TO(mhs_to_Word8, evalint, uint8_t);
+#if WANT_INT64
+MHS_TO(mhs_to_Word64, evalint64, uint64_t);
+#endif
 MHS_TO(mhs_to_Ptr, evalptr, void*);
 MHS_TO(mhs_to_FunPtr, evalfunptr, HsFunPtr);
 MHS_TO(mhs_to_CChar, evalint, char);
@@ -6722,7 +7650,8 @@ MHS_TO(mhs_to_CUIntPtr, evalint, uintptr_t);
 
 /* The rest of this file was generated by the compiler, with some minor edits with #if. */
 from_t mhs_GETRAW(int s) { return  mhs_from_Int(s, 0, GETRAW()); }
-from_t mhs_GETTIMEMILLI(int s) { return  mhs_from_Int(s, 0, GETTIMEMILLI()); }
+from_t mhs_GETTIMEMICRO(int s) { return  mhs_from_Int(s, 0, GETTIMEMICRO()); }
+from_t mhs_GETBOOTTIMEMICRO(int s) { return  mhs_from_Int(s, 0, boot_time); }
 #if WANT_MATH
 #if WANT_FLOAT64
 from_t mhs_acos(int s) { return mhs_from_Double(s, 1, acos(mhs_to_Double(s, 0))); }
@@ -6736,6 +7665,7 @@ from_t mhs_sin(int s) { return mhs_from_Double(s, 1, sin(mhs_to_Double(s, 0))); 
 from_t mhs_sqrt(int s) { return mhs_from_Double(s, 1, sqrt(mhs_to_Double(s, 0))); }
 from_t mhs_tan(int s) { return mhs_from_Double(s, 1, tan(mhs_to_Double(s, 0))); }
 from_t mhs_scalbn(int s) { return mhs_from_Double(s, 2, scalbn(mhs_to_Double(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_pow(int s) { return mhs_from_Double(s, 2, pow(mhs_to_Double(s, 0), mhs_to_Double(s, 1))); }
 #endif  /* WANT_FLOAT64 */
 #if WANT_FLOAT32
 from_t mhs_acosf(int s) { return mhs_from_Float(s, 1, acosf(mhs_to_Float(s, 0))); }
@@ -6749,6 +7679,7 @@ from_t mhs_sinf(int s) { return mhs_from_Float(s, 1, sinf(mhs_to_Float(s, 0))); 
 from_t mhs_sqrtf(int s) { return mhs_from_Float(s, 1, sqrtf(mhs_to_Float(s, 0))); }
 from_t mhs_tanf(int s) { return mhs_from_Float(s, 1, tanf(mhs_to_Float(s, 0))); }
 from_t mhs_scalbnf(int s) { return mhs_from_Float(s, 2, scalbnf(mhs_to_Float(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_powf(int s) { return mhs_from_Float(s, 2, powf(mhs_to_Float(s, 0), mhs_to_Float(s, 1))); }
 #endif  /* WANT_FLOAT32 */
 #endif  /* WANT_MATH */
 
@@ -6765,7 +7696,7 @@ from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1
 from_t mhs_fopen(int s) { return mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 from_t mhs_system(int s) { return mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
 from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+from_t mhs_remove(int s) { return mhs_from_Int(s, 1, remove(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_STDIO */
 #if WANT_FD
 from_t mhs_add_fd(int s) { return mhs_from_Ptr(s, 1, add_fd(mhs_to_Int(s, 0))); }
@@ -6808,6 +7739,11 @@ from_t mhs_add_lz77_decompressor(int s) { return mhs_from_Ptr(s, 1, add_lz77_dec
 from_t mhs_lz77c(int s) { return mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_LZ77 */
 
+#if WANT_LZMA
+from_t mhs_add_lzma_compressor(int s) { return mhs_from_Ptr(s, 1, add_lzma_compressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_lzma_decompressor(int s) { return mhs_from_Ptr(s, 1, add_lzma_decompressor(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_LZ77 */
+
 #if WANT_RLE
 from_t mhs_add_rle_compressor(int s) { return mhs_from_Ptr(s, 1, add_rle_compressor(mhs_to_Ptr(s, 0))); }
 from_t mhs_add_rle_decompressor(int s) { return mhs_from_Ptr(s, 1, add_rle_decompressor(mhs_to_Ptr(s, 0))); }
@@ -6822,8 +7758,6 @@ from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), 
 from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, realloc(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
 from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
-from_t mhs_getenv(int s) { return mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
-from_t mhs_environ(int s) { return mhs_from_Ptr(s, 0, environ); }
 from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
 from_t mhs_ismacos(int s) { return mhs_from_Int(s, 0, ismacos()); }
 from_t mhs_islinux(int s) { return mhs_from_Int(s, 0, islinux()); }
@@ -6841,27 +7775,23 @@ from_t mhs_peek_uint8(int s) { return mhs_from_Word(s, 1, peek_uint8(mhs_to_Ptr(
 from_t mhs_poke_uint8(int s) { poke_uint8(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_peek_uint16(int s) { return mhs_from_Word(s, 1, peek_uint16(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_uint16(int s) { poke_uint16(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
-#if WORD_SIZE >= 32
 from_t mhs_peek_uint32(int s) { return mhs_from_Word(s, 1, peek_uint32(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_uint32(int s) { poke_uint32(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WORD_SIZE */
-#if WORD_SIZE >= 64
-from_t mhs_peek_uint64(int s) { return mhs_from_Word(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WORD_SIZE */
+#if WANT_INT64
+from_t mhs_peek_uint64(int s) { return mhs_from_Word64(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word64(s, 1)); return mhs_from_Unit(s, 2); }
+#endif  /* WANT_INT64 */
 
 from_t mhs_peek_int8(int s) { return mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_peek_int16(int s) { return mhs_from_Int(s, 1, peek_int16(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int16(int s) { poke_int16(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
-#if WORD_SIZE >= 32
 from_t mhs_peek_int32(int s) { return mhs_from_Int(s, 1, peek_int32(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int32(int s) { poke_int32(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WORD_SIZE */
-#if WORD_SIZE >= 64
-from_t mhs_peek_int64(int s) { return mhs_from_Int(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WORD_SIZE */
+#if WANT_INT64
+from_t mhs_peek_int64(int s) { return mhs_from_Int64(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int64(s, 1)); return mhs_from_Unit(s, 2); }
+#endif  /* WANT_INT64 */
 from_t mhs_peek_char(int s) { return mhs_from_CChar(s, 1, peek_char(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_char(int s) { poke_char(mhs_to_Ptr(s, 0), mhs_to_CChar(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_peek_schar(int s) { return mhs_from_CSChar(s, 1, peek_schar(mhs_to_Ptr(s, 0))); }
@@ -6906,15 +7836,24 @@ from_t mhs_opendir(int s) { return mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0)))
 from_t mhs_readdir(int s) { return mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
 from_t mhs_c_d_name(int s) { return mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to_Ptr(s, 0)))->d_name); }
 from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
-from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, MKDIR(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_get_permissions(int s) { return mhs_from_Int(s, 1, get_permissions(mhs_to_Ptr(s, 0))); }
+from_t mhs_set_permissions(int s) { return mhs_from_Int(s, 2, set_permissions(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
 from_t mhs_getcpu(int s) { GETCPUTIME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+#if WANT_ENV
+from_t mhs_getenv(int s) { return mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
+from_t mhs_environ(int s) { return mhs_from_Ptr(s, 0, environ); }
+from_t mhs_unsetenv(int s) { return mhs_from_Int(s, 1, unsetenv(mhs_to_Ptr(s, 0))); }
+from_t mhs_setenv(int s) { return mhs_from_Int(s, 3, setenv(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2))); }
+#endif  /* WANT_ENV */
 
-/* Use this to detect if we have (and want) GMP or not. */
+/* Use this to detect if we have (and want) GMP/imath or not. */
 from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
+from_t mhs_want_imath(int s) { return mhs_from_Int(s, 0, WANT_IMATH); }
 
-#if WANT_GMP
+#if WANT_GMP || WANT_IMATH
 void
 free_mpz(void *p)
 {
@@ -6963,8 +7902,15 @@ print_mpz(mpz_ptr p)
 }
 #endif
 
-#if NEED_INT64
-/* GMP lacks 64 bit support on 32 bit platforms */
+#if WANT_INT64 && (WORD_SIZE < 64 || LONG_MAX < INT64_MAX)
+/* GMP lacks 64 bit support on 32 bit platforms, and where long is 32 bits (LLP64) */
+void
+mpz_init_set_ui64(mpz_t rop, uint64_t op)
+{
+  mpz_init_set_ui(rop, op >> 32);
+  mpz_mul_2exp(rop, rop, 32);
+  mpz_add_ui(rop, rop, op & 0xffffffff);
+}
 void
 mpz_init_set_si64(mpz_t rop, int64_t op)
 {
@@ -6974,13 +7920,6 @@ mpz_init_set_si64(mpz_t rop, int64_t op)
     mpz_init_set_ui64(rop, -op);
     mpz_neg(rop, rop);
   }
-}
-void
-mpz_init_set_ui64(mpz_t rop, uint64_t op)
-{
-  mpz_init_set_ui(rop, op >> 32);
-  mpz_mul_2exp(rop, rop, 32);
-  mpz_add_ui(rop, rop, op & 0xffffffff);
 }
 int64_t
 mpz_get_si64(mpz_t op)
@@ -6997,15 +7936,11 @@ mpz_get_si64(mpz_t op)
   }
   return r;
 }
-#endif  /* NEED_INT64 */
-#if WORD_SIZE == 64
+#endif  /* WANT_INT64 */
+#if WORD_SIZE == 64 && LONG_MAX >= INT64_MAX
 #define mpz_init_set_ui64 mpz_init_set_ui
 #define mpz_init_set_si64 mpz_init_set_si
 #define mpz_get_si64 mpz_get_si_
-#define mhs_to_Int64 mhs_to_Int
-#define mhs_to_Word64 mhs_to_Word
-#define mhs_from_Int64 mhs_from_Int
-#define mhs_from_Word64 mhs_from_Word
 #endif
 
 from_t mhs_new_mpz(int s) { return mhs_from_ForPtr(s, 0, new_mpz()); }
@@ -7015,11 +7950,22 @@ from_t mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return 
 from_t mhs_mpz_add(int s) { mpz_add(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_cmp(int s) { return mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+#if WANT_FLOAT64
 from_t mhs_mpz_get_d(int s) { return mhs_from_Double(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_FLOAT64 */
+#if WANT_FLOAT32
 from_t mhs_mpz_get_f(int s) { return mhs_from_Float(s, 1, (float)mpz_get_d(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_FLOAT32 */
+#if WANT_INT64 && WORD_SIZE == 64 && LONG_MAX < INT64_MAX
+/* LLP64: Int and Word are wider than the long the GMP interface takes. */
+from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si64(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_init_set_si(int s) { mpz_init_set_si64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_init_set_ui(int s) { mpz_init_set_ui64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
+#else
 from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si_(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_init_set_ui(int s) { mpz_init_set_ui(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
+#endif
 from_t mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_mul(int s) { mpz_mul(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_mul_2exp(int s) { mpz_mul_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
@@ -7043,30 +7989,47 @@ from_t mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr
 from_t mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); return mhs_from_Unit(s, 4); }
 from_t mhs_mpz_tstbit(int s) { return mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+#if WANT_INT64
 from_t mhs_mpz_init_set_si64(int s) { mpz_init_set_si64(mhs_to_Ptr(s, 0), mhs_to_Int64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_init_set_ui64(int s) { mpz_init_set_ui64(mhs_to_Ptr(s, 0), mhs_to_Word64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_get_si64(int s) { return mhs_from_Int64(s, 1, mpz_get_si64(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_INT64 */
 from_t mhs_mpz_log2(int s) {
   mpz_ptr a = mhs_to_Ptr(s, 0);
   return mhs_from_Int(s, 1, mpz_sizeinbase(a, 2) - 1);
 }
-#endif  /* WANT_GMP */
+#endif  /* WANT_GMP || WANT_IMATH */
 #if WANT_TIME
 from_t mhs_gettimeofday(int s) { return mhs_from_Int(s, 2, gettimeofday(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 #endif
-#if WANT_ERRNO
-from_t mhs_E2BIG(int s) { return mhs_from_Int(s, 0, E2BIG); }
-from_t mhs_EAGAIN(int s) { return mhs_from_Int(s, 0, EAGAIN); }
-from_t mhs_EINTR(int s) { return mhs_from_Int(s, 0, EINTR); }
-from_t mhs_EINVAL(int s) { return mhs_from_Int(s, 0, EINVAL); }
-from_t mhs_EWOULDBLOCK(int s) { return mhs_from_Int(s, 0, EWOULDBLOCK); }
-from_t mhs_addr_errno(int s) { return mhs_from_Ptr(s, 0, &errno); }
-from_t mhs_strerror_r(int s) { return mhs_from_Int(s, 3, strerror_r(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Word(s, 2))); }
-#endif
+from_t mhs_get_executable_path(int s) { return mhs_from_Ptr(s, 0, get_executable_path()); }
+
+#if WANT_SOCKET
+#include <sys/socket.h>
+from_t mhs_F_SETFL(int s) { return mhs_from_Int(s, 0, F_SETFL); }
+from_t mhs_O_NONBLOCK(int s) { return mhs_from_Int(s, 0, O_NONBLOCK); }
+from_t mhs_SOL_SOCKET(int s) { return mhs_from_Int(s, 0, SOL_SOCKET); }
+from_t mhs_SO_DEBUG(int s) { return mhs_from_Int(s, 0, SO_DEBUG); }
+from_t mhs_SO_ERROR(int s) { return mhs_from_Int(s, 0, SO_ERROR); }
+from_t mhs_SO_REUSEADDR(int s) { return mhs_from_Int(s, 0, SO_REUSEADDR); }
+from_t mhs_SO_TYPE(int s) { return mhs_from_Int(s, 0, SO_TYPE); }
+from_t mhs_accept(int s) { return mhs_from_Int(s, 3, accept(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_bind(int s) { return mhs_from_Int(s, 3, bind(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2))); }
+from_t mhs_close(int s) { return mhs_from_Int(s, 1, close(mhs_to_Int(s, 0))); }
+from_t mhs_connect(int s) { return mhs_from_Int(s, 3, connect(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2))); }
+from_t mhs_fcntl(int s) { return mhs_from_Int(s, 3, fcntl(mhs_to_Int(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2))); }
+from_t mhs_getsockopt(int s) { return mhs_from_Int(s, 5, getsockopt(mhs_to_Int(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2), mhs_to_Ptr(s, 3), mhs_to_Ptr(s, 4))); }
+from_t mhs_listen(int s) { return mhs_from_Int(s, 2, listen(mhs_to_Int(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_recv(int s) { return mhs_from_Int(s, 4, recv(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Word(s, 2), mhs_to_Int(s, 3))); }
+from_t mhs_send(int s) { return mhs_from_Int(s, 4, send(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Word(s, 2), mhs_to_Int(s, 3))); }
+from_t mhs_setsockopt(int s) { return mhs_from_Int(s, 5, setsockopt(mhs_to_Int(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2), mhs_to_Ptr(s, 3), mhs_to_Int(s, 4))); }
+from_t mhs_socket(int s) { return mhs_from_Int(s, 3, socket(mhs_to_Int(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2))); }
+#endif  /* WANT_SOCKET */
 
 const struct ffi_entry ffi_table[] = {
   { "GETRAW", 0, mhs_GETRAW},
-  { "GETTIMEMILLI", 0, mhs_GETTIMEMILLI},
+  { "GETTIMEMICRO", 0, mhs_GETTIMEMICRO},
+  { "GETBOOTTIMEMICRO", 0, mhs_GETBOOTTIMEMICRO},
 #if WANT_MATH
 #if WANT_FLOAT64
   { "acos", 1, mhs_acos},
@@ -7080,6 +8043,7 @@ const struct ffi_entry ffi_table[] = {
   { "sqrt", 1, mhs_sqrt},
   { "tan", 1, mhs_tan},
   { "scalbn", 2, mhs_scalbn},
+  { "pow", 2, mhs_pow},
   { "poke_flt64", 2, mhs_poke_flt64 },
   { "peek_flt64", 1, mhs_peek_flt64 },
 #endif  /* WANT_FLOAT64 */
@@ -7095,6 +8059,7 @@ const struct ffi_entry ffi_table[] = {
   { "sqrtf", 1, mhs_sqrtf},
   { "tanf", 1, mhs_tanf},
   { "scalbnf", 2, mhs_scalbnf},
+  { "powf", 2, mhs_powf},
   { "poke_flt32", 2, mhs_poke_flt32 },
   { "peek_flt32", 1, mhs_peek_flt32 },
 #endif  /* WANT_FLOAT32 */
@@ -7112,7 +8077,7 @@ const struct ffi_entry ffi_table[] = {
   { "putchar", 1, mhs_putchar},
   { "fopen", 2, mhs_fopen},
   { "tmpname", 2, mhs_tmpname},
-  { "unlink", 1, mhs_unlink},
+  { "remove", 1, mhs_remove},
   { "system", 1, mhs_system},
 #endif  /* WANT_STDIO */
 #if WANT_FD
@@ -7156,6 +8121,11 @@ const struct ffi_entry ffi_table[] = {
   { "lz77c", 3, mhs_lz77c},
 #endif  /* WANT_LZ77 */
 
+#if WANT_LZMA
+  { "add_lzma_compressor", 1, mhs_add_lzma_compressor},
+  { "add_lzma_decompressor", 1, mhs_add_lzma_decompressor},
+#endif  /* WANT_LZ77 */
+
 #if WANT_RLE
   { "add_rle_compressor", 1, mhs_add_rle_compressor},
   { "add_rle_decompressor", 1, mhs_add_rle_decompressor},
@@ -7170,8 +8140,6 @@ const struct ffi_entry ffi_table[] = {
   { "realloc", 2, mhs_realloc},
   { "free", 1, mhs_free},
   { "&free", 0, mhs_addr_free},
-  { "getenv", 1, mhs_getenv},
-  { "environ", 0, mhs_environ},
   { "iswindows", 0, mhs_iswindows},
   { "ismacos", 0, mhs_ismacos},
   { "islinux", 0, mhs_islinux},
@@ -7189,14 +8157,12 @@ const struct ffi_entry ffi_table[] = {
   { "poke_uint8", 2, mhs_poke_uint8},
   { "peek_uint16", 1, mhs_peek_uint16},
   { "poke_uint16", 2, mhs_poke_uint16},
-#if WORD_SIZE >= 32
   { "peek_uint32", 1, mhs_peek_uint32},
   { "poke_uint32", 2, mhs_poke_uint32},
-#endif  /* WORD_SIZE >= 32 */
-#if WORD_SIZE >= 64
+#if WANT_INT64
   { "peek_uint64", 1, mhs_peek_uint64},
   { "poke_uint64", 2, mhs_poke_uint64},
-#endif  /* WORD_SIZE >= 64 */
+#endif  /* WANT_INT64 */
   { "peek_uint", 1, mhs_peek_uint},
   { "poke_uint", 2, mhs_poke_uint},
 
@@ -7204,14 +8170,12 @@ const struct ffi_entry ffi_table[] = {
   { "poke_int8", 2, mhs_poke_int8},
   { "peek_int16", 1, mhs_peek_int16},
   { "poke_int16", 2, mhs_poke_int16},
-#if WORD_SIZE >= 32
   { "peek_int32", 1, mhs_peek_int32},
   { "poke_int32", 2, mhs_poke_int32},
-#endif  /* WORD_SIZE >= 32 */
-#if WORD_SIZE >= 64
+#if WANT_INT64
   { "peek_int64", 1, mhs_peek_int64},
   { "poke_int64", 2, mhs_poke_int64},
-#endif  /* WORD_SIZE >= 64 */
+#endif  /* WANT_INT64 */
   { "peek_int", 1, mhs_peek_int},
   { "poke_int", 2, mhs_poke_int},
   { "peek_llong", 1, mhs_peek_llong},
@@ -7224,10 +8188,6 @@ const struct ffi_entry ffi_table[] = {
   { "poke_ullong", 2, mhs_poke_ullong},
   { "poke_ulong", 2, mhs_poke_ulong},
   { "poke_size_t", 2, mhs_poke_size_t},
-#if WANT_FLOAT
-  { "peek_flt", 1, mhs_peek_flt},
-  { "poke_flt", 2, mhs_poke_flt},
-#endif  /* WANT_FLOAT */
   { "sizeof_char", 0, mhs_sizeof_char},
   { "sizeof_short", 0, mhs_sizeof_short},
   { "sizeof_int", 0, mhs_sizeof_int},
@@ -7242,16 +8202,21 @@ const struct ffi_entry ffi_table[] = {
   { "chdir", 1, mhs_chdir},
   { "mkdir", 2, mhs_mkdir},
   { "getcwd", 2, mhs_getcwd},
+  { "set_permissions", 2, mhs_set_permissions},
+  { "get_permissions", 1, mhs_get_permissions},
 #endif  /* WANT_DIR */
   { "getcpu", 2, mhs_getcpu},
   { "want_gmp", 0, mhs_want_gmp},
-#if WANT_GMP
+  { "want_imath", 0, mhs_want_imath},
+#if WANT_GMP || WANT_IMATH
   { "new_mpz", 0, mhs_new_mpz},
   { "mpz_abs", 2, mhs_mpz_abs},
   { "mpz_add", 3, mhs_mpz_add},
   { "mpz_and", 3, mhs_mpz_and},
   { "mpz_cmp", 2, mhs_mpz_cmp},
+#if WANT_FLOAT64
   { "mpz_get_d", 1, mhs_mpz_get_d},
+#endif  /* WANT_FLOAT64 */
   { "mpz_get_si", 1, mhs_mpz_get_si},
   { "mpz_init_set_si", 2, mhs_mpz_init_set_si},
   { "mpz_init_set_ui", 2, mhs_mpz_init_set_ui},
@@ -7265,25 +8230,191 @@ const struct ffi_entry ffi_table[] = {
   { "mpz_tdiv_qr", 4, mhs_mpz_tdiv_qr},
   { "mpz_tstbit", 2, mhs_mpz_tstbit},
   { "mpz_xor", 3, mhs_mpz_xor},
+#if WANT_FLOAT32
   { "mpz_get_f", 1, mhs_mpz_get_f},
+#endif  /* WANT_FLOAT32 */
+#if WANT_INT64
   { "mpz_init_set_si64", 2, mhs_mpz_init_set_si64},
   { "mpz_init_set_ui64", 2, mhs_mpz_init_set_ui64},
   { "mpz_get_si64", 1, mhs_mpz_get_si64},
+#endif  /* WANT_INT64 */
   { "mpz_log2", 1, mhs_mpz_log2},
-#endif  /* WANT_GMP */
+#endif  /* WANT_GMP || WANT_IMATH */
 #if WANT_TIME
   { "gettimeofday", 2, mhs_gettimeofday},
 #endif
 #if WANT_ERRNO
   { "E2BIG", 0, mhs_E2BIG},
+  { "EACCES", 0, mhs_EACCES},
+  { "EADDRINUSE", 0, mhs_EADDRINUSE},
+  { "EADDRNOTAVAIL", 0, mhs_EADDRNOTAVAIL},
+  { "EADV", 0, mhs_EADV},
+  { "EAFNOSUPPORT", 0, mhs_EAFNOSUPPORT},
   { "EAGAIN", 0, mhs_EAGAIN},
+  { "EALREADY", 0, mhs_EALREADY},
+  { "EBADF", 0, mhs_EBADF},
+  { "EBADMSG", 0, mhs_EBADMSG},
+  { "EBADRPC", 0, mhs_EBADRPC},
+  { "EBUSY", 0, mhs_EBUSY},
+  { "ECHILD", 0, mhs_ECHILD},
+  { "ECOMM", 0, mhs_ECOMM},
+  { "ECONNABORTED", 0, mhs_ECONNABORTED},
+  { "ECONNREFUSED", 0, mhs_ECONNREFUSED},
+  { "ECONNRESET", 0, mhs_ECONNRESET},
+  { "EDEADLK", 0, mhs_EDEADLK},
+  { "EDESTADDRREQ", 0, mhs_EDESTADDRREQ},
+  { "EDIRTY", 0, mhs_EDIRTY},
+  { "EDOM", 0, mhs_EDOM},
+  { "EDQUOT", 0, mhs_EDQUOT},
+  { "EEXIST", 0, mhs_EEXIST},
+  { "EFAULT", 0, mhs_EFAULT},
+  { "EFBIG", 0, mhs_EFBIG},
+  { "EFTYPE", 0, mhs_EFTYPE},
+  { "EHOSTDOWN", 0, mhs_EHOSTDOWN},
+  { "EHOSTUNREACH", 0, mhs_EHOSTUNREACH},
+  { "EIDRM", 0, mhs_EIDRM},
+  { "EILSEQ", 0, mhs_EILSEQ},
+  { "EINPROGRESS", 0, mhs_EINPROGRESS},
   { "EINTR", 0, mhs_EINTR},
   { "EINVAL", 0, mhs_EINVAL},
+  { "EIO", 0, mhs_EIO},
+  { "EISCONN", 0, mhs_EISCONN},
+  { "EISDIR", 0, mhs_EISDIR},
+  { "ELOOP", 0, mhs_ELOOP},
+  { "EMFILE", 0, mhs_EMFILE},
+  { "EMLINK", 0, mhs_EMLINK},
+  { "EMSGSIZE", 0, mhs_EMSGSIZE},
+  { "EMULTIHOP", 0, mhs_EMULTIHOP},
+  { "ENAMETOOLONG", 0, mhs_ENAMETOOLONG},
+  { "ENETDOWN", 0, mhs_ENETDOWN},
+  { "ENETRESET", 0, mhs_ENETRESET},
+  { "ENETUNREACH", 0, mhs_ENETUNREACH},
+  { "ENFILE", 0, mhs_ENFILE},
+  { "ENOBUFS", 0, mhs_ENOBUFS},
+  { "ENODATA", 0, mhs_ENODATA},
+  { "ENODEV", 0, mhs_ENODEV},
+  { "ENOENT", 0, mhs_ENOENT},
+  { "ENOEXEC", 0, mhs_ENOEXEC},
+  { "ENOLCK", 0, mhs_ENOLCK},
+  { "ENOLINK", 0, mhs_ENOLINK},
+  { "ENOMEM", 0, mhs_ENOMEM},
+  { "ENOMSG", 0, mhs_ENOMSG},
+  { "ENONET", 0, mhs_ENONET},
+  { "ENOPROTOOPT", 0, mhs_ENOPROTOOPT},
+  { "ENOSPC", 0, mhs_ENOSPC},
+  { "ENOSR", 0, mhs_ENOSR},
+  { "ENOSTR", 0, mhs_ENOSTR},
+  { "ENOSYS", 0, mhs_ENOSYS},
+  { "ENOTBLK", 0, mhs_ENOTBLK},
+  { "ENOTCONN", 0, mhs_ENOTCONN},
+  { "ENOTDIR", 0, mhs_ENOTDIR},
+  { "ENOTEMPTY", 0, mhs_ENOTEMPTY},
+  { "ENOTSOCK", 0, mhs_ENOTSOCK},
+  { "ENOTSUP", 0, mhs_ENOTSUP},
+  { "ENOTTY", 0, mhs_ENOTTY},
+  { "ENXIO", 0, mhs_ENXIO},
+  { "EOPNOTSUPP", 0, mhs_EOPNOTSUPP},
+  { "EPERM", 0, mhs_EPERM},
+  { "EPFNOSUPPORT", 0, mhs_EPFNOSUPPORT},
+  { "EPIPE", 0, mhs_EPIPE},
+  { "EPROCLIM", 0, mhs_EPROCLIM},
+  { "EPROCUNAVAIL", 0, mhs_EPROCUNAVAIL},
+  { "EPROGMISMATCH", 0, mhs_EPROGMISMATCH},
+  { "EPROGUNAVAIL", 0, mhs_EPROGUNAVAIL},
+  { "EPROTO", 0, mhs_EPROTO},
+  { "EPROTONOSUPPORT", 0, mhs_EPROTONOSUPPORT},
+  { "EPROTOTYPE", 0, mhs_EPROTOTYPE},
+  { "ERANGE", 0, mhs_ERANGE},
+  { "EREMCHG", 0, mhs_EREMCHG},
+  { "EREMOTE", 0, mhs_EREMOTE},
+  { "EROFS", 0, mhs_EROFS},
+  { "ERPCMISMATCH", 0, mhs_ERPCMISMATCH},
+  { "ERREMOTE", 0, mhs_ERREMOTE},
+  { "ESHUTDOWN", 0, mhs_ESHUTDOWN},
+  { "ESOCKTNOSUPPORT", 0, mhs_ESOCKTNOSUPPORT},
+  { "ESPIPE", 0, mhs_ESPIPE},
+  { "ESRCH", 0, mhs_ESRCH},
+  { "ESRMNT", 0, mhs_ESRMNT},
+  { "ESTALE", 0, mhs_ESTALE},
+  { "ETIME", 0, mhs_ETIME},
+  { "ETIMEDOUT", 0, mhs_ETIMEDOUT},
+  { "ETOOMANYREFS", 0, mhs_ETOOMANYREFS},
+  { "ETXTBSY", 0, mhs_ETXTBSY},
+  { "EUSERS", 0, mhs_EUSERS},
   { "EWOULDBLOCK", 0, mhs_EWOULDBLOCK},
+  { "EXDEV", 0, mhs_EXDEV},
   { "&errno", 0, mhs_addr_errno},
   { "strerror_r", 3, mhs_strerror_r},
 #endif
+  { "get_executable_path", 0, mhs_get_executable_path},
+#if WANT_ENV
+  { "getenv", 1, mhs_getenv},
+  { "environ", 0, mhs_environ},
+  { "unsetenv", 1, mhs_unsetenv},
+  { "setenv", 3, mhs_setenv},
+#endif  /* WANT_ENV */
+#if WANT_SOCKET
+  { "F_SETFL", 0, mhs_F_SETFL},
+  { "O_NONBLOCK", 0, mhs_O_NONBLOCK},
+  { "SOL_SOCKET", 0, mhs_SOL_SOCKET},
+  { "SO_DEBUG", 0, mhs_SO_DEBUG},
+  { "SO_ERROR", 0, mhs_SO_ERROR},
+  { "SO_REUSEADDR", 0, mhs_SO_REUSEADDR},
+  { "SO_TYPE", 0, mhs_SO_TYPE},
+  { "accept", 3, mhs_accept},
+  { "bind", 3, mhs_bind},
+  { "close", 1, mhs_close},
+  { "connect", 3, mhs_connect},
+  { "fcntl", 3, mhs_fcntl},
+  { "getsockopt", 5, mhs_getsockopt},
+  { "listen", 2, mhs_listen},
+  { "recv", 4, mhs_recv},
+  { "send", 4, mhs_send},
+  { "setsockopt", 5, mhs_setsockopt},
+  { "socket", 3, mhs_socket},
+#endif  /* WANT_SOCKET */
   { 0,0 }
 };
 
 int num_ffi = sizeof(ffi_table) / sizeof(ffi_table[0]);
+
+
+
+/*******************************/
+/* HsFFI.h API */
+
+void
+hs_init(int *argc, char **argv[])
+{
+  (void)mhs_main(*argc, *argv);
+}
+
+void
+hs_exit(void)
+{
+  _exit(0);
+}
+
+void
+hs_set_argv(int argc, char *argv[])
+{
+  ERR("hs_set_argv not implemented");
+}
+
+void
+hs_perform_gc(void)
+{
+  gc();
+}
+
+void
+hs_free_stable_ptr(void *sp)
+{
+  free_stableptr((uvalue_t)sp);
+}
+
+void
+hs_free_fun_ptr(HsFunPtr fp)
+{
+  ERR("hs_free_fun_ptr not implemented");
+}

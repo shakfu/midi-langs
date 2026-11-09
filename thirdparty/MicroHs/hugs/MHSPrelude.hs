@@ -4,18 +4,25 @@ module MHSPrelude(
   module Prelude,
   module MHSPrelude,
 --  module Control.Monad.Fail,
-  module Control.Arrow,
+  -- Exporting these with 'module Control.Arrow' does not work
+  first, second,
   module Data.Monoid,
   module Data.Semigroup,
-  (<$>), Applicative(..), (*>),
+  module Data.Version,
+  Int64,
+  (<$>), Applicative(..), (*>), (<*), (>=>), (<=<),
+  getExecutablePath,
+  listDirectory
   ) where
 import Hugs.Prelude()
-import Prelude hiding(fail)
+import Prelude hiding(catch, fail)
 import qualified Prelude
 import Control.Arrow(first, second)
 import Control.Applicative
 import Control.Exception(Exception, try)
 --import Control.Monad.Fail
+import Data.ByteString(ByteString)
+import Data.Int
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -25,9 +32,11 @@ import Data.Text(Text, append, pack)
 import Data.Word
 import Data.Version
 import Debug.Trace
+import System.Directory (getDirectoryContents)
 import System.IO
 import System.Environment
 import System.IO.MD5
+import Text.Read (reads)
 
 ------- List --------
 
@@ -54,6 +63,12 @@ spanEnd p xs = (dropWhileEnd p xs, takeWhileEnd p xs)
 
 breakEnd :: (a -> Bool) -> [a] -> ([a], [a])
 breakEnd p = spanEnd (not . p)
+
+subsequences :: [a] -> [[a]]
+subsequences xs = [] : sub xs
+  where sub []     = []
+        sub (x:xs) = [x] : foldr f [] (sub xs)
+          where f ys r = ys : (x : ys) : r
 
 ------- Version --------
 
@@ -116,6 +131,13 @@ openFileM path m = do
     Left _ -> return Nothing
     Right h -> return (Just h)
 
+openBinaryFileM :: FilePath -> IOMode -> IO (Maybe Handle)
+openBinaryFileM path m = do
+  r <- try $ openBinaryFile path m
+  case r of
+    Left _ -> return Nothing
+    Right h -> return (Just h)
+
 splitTmp :: String -> (String, String)
 splitTmp tmpl =
   case span (/= '.') (reverse tmpl) of
@@ -152,6 +174,11 @@ openTmpFile tmplt = do
 
 ------- Read --------
 
+readMaybe :: Read a => String -> Maybe a
+readMaybe s = case reads s of
+    [(r, _)] -> Just r
+    _ -> Nothing
+
 mhsError :: String -> a
 mhsError = error
 
@@ -169,6 +196,9 @@ appendDot x y = x `append` pack "." `append` y
 
 wantGMP :: Bool
 wantGMP = False
+
+wantImath :: Bool
+wantImath = False
 
 compiledWithMhs :: Bool
 compiledWithMhs = False
@@ -193,6 +223,7 @@ force :: (NFData a) => a -> a
 force x = x `deepseq` x
 
 instance NFData Int
+instance NFData Int64
 instance NFData Word
 instance NFData Float
 instance NFData Double
@@ -201,6 +232,7 @@ instance NFData Bool
 instance NFData Ordering
 instance NFData ()
 instance NFData Text
+instance NFData ByteString
 
 instance NFData Integer where
   rnf x = (x == 0) `seq` ()
@@ -229,3 +261,19 @@ instance NFData MD5CheckSum
 
 class HasCallStack
 instance HasCallStack
+
+(<=<) :: forall m a b c . Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
+f <=< g = \ a -> do
+  b <- g a
+  f b
+
+(>=>) :: forall m a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
+(>=>) = flip (<=<)
+
+getExecutablePath :: forall a . IO a
+getExecutablePath = error "unimplemented"
+
+listDirectory :: FilePath -> IO [FilePath]
+listDirectory dir = do
+  r <- getDirectoryContents dir
+  return $ filter (\s -> s /= "." && s /= "..") r

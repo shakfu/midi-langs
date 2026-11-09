@@ -14,12 +14,11 @@ The first rule that applies picks the interpreter:
 
 1. Under `docs/<interpreter>/`: that interpreter.
 2. In `README.md` and other `docs/` directories, such as `docs/clap/`: the enclosing `### <interpreter>` section.
-3. Otherwise, the fence language: `alda`, `forth` (stack-midi), `joy`, `lua`, `python` (pktpy-midi), `scheme` (s7-midi).
+3. Otherwise, the fence language: `alda`, `forth` (stack-midi), `haskell` (mhs-midi), `joy`, `lua`, `python` (pktpy-midi), `scheme` (s7-midi).
 
-Other fence languages (`sh`, `text`, `c`, `haskell`) are not run. These paths are not collected:
+Other fence languages (`sh`, `text`, `c`) are not run. These paths are not collected:
 
 - `docs/dev/`
-- `docs/mhs-midi/`, until the MicroHs upgrade
 - the vendored Alda docs under `docs/alda-midi/`
 - `TODO.md` files
 
@@ -35,7 +34,7 @@ Tutorials, examples and READMEs hold complete programs. Reference entries may be
 
 ## Environment
 
-Each block runs with `MIDI_LANGS_BACKEND=null` and `--no-sleep` (except pforth-midi, which has no such flag), in its own temporary directory, with stdin closed, for at most 30 s.
+Each block runs with `MIDI_LANGS_BACKEND=null` and `--no-sleep` (except pforth-midi, which has no such flag), in its own temporary directory, with stdin closed, for at most 30 s. mhs-midi blocks run with `mhs-midi-pkg -r`, so a runnable one is a program with `main`; signatures and REPL transcripts are `norun`.
 
 ## Baseline
 

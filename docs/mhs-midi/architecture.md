@@ -50,7 +50,7 @@ Pure functions and data types with no IO:
 
 Low-level C FFI bindings:
 
-```haskell
+```haskell norun
 foreign import ccall "midi_ffi.h midi_note_on"
     c_midi_note_on :: CInt -> CInt -> CInt -> IO CInt
 ```

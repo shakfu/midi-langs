@@ -6,6 +6,8 @@ module Data.Integer(
   _intListToInteger,
   ) where
 import qualified Prelude()              -- do not import Prelude
+import Primitives(primSeq)
+import Control.Exception.Internal(throw, ArithException(DivideByZero))
 import Data.Bits.Base
 import Data.Bool
 import Data.Enum
@@ -37,7 +39,7 @@ instance Ord Integer where
   (>=) = geI
 
 instance Show Integer where
-  showsPrec = showIntegral
+  showsPrec = showSignedInt
 
 {- in Text.Read.Internal
 instance Read Integer
@@ -57,7 +59,8 @@ instance Num Integer where
   fromInteger x = x
 
 instance Integral Integer where
-  quotRem = quotRemI
+  quotRem x y =
+    if y == 0 then throw DivideByZero else quotRemI x y
   toInteger x = x
 
 instance Real Integer where
@@ -117,6 +120,8 @@ _integerToIntList i = if i < 0 then (-1::Int) : f (-i) else f i
 
 _intListToInteger :: [Int] -> Integer
 _intListToInteger [] = _intToInteger 0
-_intListToInteger ads@(x : ds) = if x == -1 then - f ds else f ads
-  where f = foldr (\ d a -> a * integerListBase + toInteger d) 0
-
+_intListToInteger ads@(x : ds) = if x == -1 then - f 0 (reverse ds) else f 0 (reverse ads)
+  where f a [] = a
+        f a (d:ys) =
+          let a' = a * integerListBase + toInteger d
+          in  primSeq a' (f a' ys)

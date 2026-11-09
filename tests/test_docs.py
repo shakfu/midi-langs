@@ -22,7 +22,6 @@ BASELINE = ROOT / "tests" / "docs_baseline.txt"
 TIMEOUT = 30
 
 # interpreter -> (command, {fence language: file extension})
-# mhs-midi is left out until the MicroHs upgrade lands.
 INTERPRETERS = {
     "alda-midi": (["alda_midi", "--no-sleep"], {"alda": ".alda"}),
     "stack-midi": (["stack_midi", "--no-sleep", "--script"], {"forth": ".stk"}),
@@ -32,6 +31,8 @@ INTERPRETERS = {
     "pktpy-midi": (["pktpy_midi", "--no-sleep"], {"python": ".py"}),
     "s7-midi": (["s7_midi", "--no-sleep"], {"scheme": ".scm"}),
     "guile-midi": (["guile_midi", "--no-sleep"], {"scheme": ".scm", "wisp": ".w"}),
+    # The package build: starts in seconds and needs no compile cache
+    "mhs-midi": (["mhs-midi-pkg", "--no-sleep", "-r"], {"haskell": ".hs"}),
 }
 
 # Interpreter for a fence outside docs/<interpreter>/ and README sections
@@ -42,11 +43,11 @@ DEFAULT_FOR_FENCE = {
     "lua": "lua-midi",
     "python": "pktpy-midi",
     "scheme": "s7-midi",
+    "haskell": "mhs-midi",
 }
 
 EXCLUDED = [
     "docs/dev/",
-    "docs/mhs-midi/",
     # Upstream Alda documentation, vendored
     "docs/alda-midi/alda-language/",
     "docs/alda-midi/alda_reference/",

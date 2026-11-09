@@ -56,6 +56,8 @@ import Data.Eq
 import Data.Float
 import Data.Fractional
 import Data.Function
+import Data.Functor.Const_Type
+import Data.Functor.Identity
 import Data.Maybe
 import Data.Monoid
 import Data.Int
@@ -595,7 +597,9 @@ convertFrac _            = pfail
 
 -- | @since base-2.01
 instance Read Int where
-  readPrec     = readNumber convertInt
+  -- Just using (readNumber convertInt) generates an overflow in negate for minInt.
+  -- So we force the conversion to return the Integer, and convert after negation.
+  readPrec     = fmap fromInteger (readNumber convertInt)
   readListPrec = readListPrecDefault
   readList     = readListDefault
 
@@ -855,3 +859,5 @@ deriving newtype instance Read WordPtr
 deriving instance Read a => Read (First a)
 deriving instance Read a => Read (Last a)
 deriving instance Read (f a) => Read (Ap f a)
+deriving instance Read a => Read (Identity a)
+deriving instance Read a => Read (Const a b)

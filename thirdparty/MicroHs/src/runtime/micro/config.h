@@ -42,9 +42,16 @@
 
 /*
  * Include ops for floating point arithmetic.
- * Without this +,-,* etc will not be available for the Double type.
+ * Without this +,-,* etc will not be available for the Float type.
  */
-#define WANT_FLOAT 0
+#define WANT_FLOAT32 0
+
+/*
+ * Include ops for floating point arithmetic.
+ * Without this +,-,* etc will not be available for the Double type.
+ * Using this on a 32 bit platform will make cells be 12 bytes instead of 8,
+ */
+#define WANT_FLOAT64 0
 
 /*
  * Include <math.h>
@@ -66,6 +73,21 @@
  * Process argc, argv
  */
 #define WANT_ARGS 0
+
+/*
+ * Environment
+ */
+#define WANT_ENV 0
+
+/*
+ * Use GMP for bignums
+ */
+#define WANT_GMP 0
+
+/*
+ * Use imath for bignums
+ */
+#define WANT_IMATH 0
 
 /*
  * Number of bits in a word.  Only 32 and 64 are supported.
@@ -97,7 +119,7 @@
 /*
  * Get time since some epoch in milliseconds.
  */
-/* #define GETTIMEMILLI */
+/* #define GETTIMEMICRO */
 
 
 /*
@@ -111,3 +133,5 @@
 #define INTTABLE 0              /* use fixed table of small INT nodes */
 #define SANITY   0              /* do some sanity checks */
 #define STACKOVL 0              /* check for stack overflow */
+
+#include <stdbool.h>

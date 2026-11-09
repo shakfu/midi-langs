@@ -10,9 +10,16 @@
 
 /*
  * Include ops for floating point arithmetic.
- * Without this +,-,* etc will not be available for the Double type.
+ * Without this +,-,* etc will not be available for the Float type.
  */
-#define WANT_FLOAT 1
+#define WANT_FLOAT32 1
+
+/*
+ * Include ops for floating point arithmetic.
+ * Without this +,-,* etc will not be available for the Double type.
+ * Using this on a 32 bit platform will make cells be 12 bytes instead of 8,
+ */
+#define WANT_FLOAT64 0
 
 /*
  * Include <math.h>
@@ -47,13 +54,13 @@
 
 #include <inttypes.h>
 
-static inline uint64_t clz(uint64_t x) {
+static INLINE uint64_t clz(uint64_t x) {
   if (x == 0) return 64;
   return __builtin_clzll(x);
 }
 #define CLZ clz
 
-static inline uint64_t ctz(uint64_t x) {
+static INLINE uint64_t ctz(uint64_t x) {
   if (x == 0) return 64;
   return __builtin_ctzll(x);
 }

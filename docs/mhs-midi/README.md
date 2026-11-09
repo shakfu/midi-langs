@@ -49,7 +49,7 @@ This builds all mhs-midi variants. The recommended variant for end users is `mhs
 
 ### 3. Immediate Playback (MidiPerform)
 
-```haskell
+```haskell norun
 > import MidiPerform
 > open
 MIDI open
@@ -62,7 +62,7 @@ MIDI open
 
 ### 4. Pure Composition (MusicPerform)
 
-```haskell
+```haskell norun
 > import MusicPerform
 > midiOpenVirtual "test"
 > let m = line [c4, e4, g4] mf quarter
@@ -127,7 +127,7 @@ main = do
 
 Each voice runs in its own thread. The scheduler provides:
 
-```haskell
+```haskell norun
 spawn :: String -> IO () -> IO VoiceId  -- Spawn a named voice
 run :: IO ()                             -- Wait for all voices
 stop :: VoiceId -> IO Bool              -- Stop a specific voice
@@ -138,7 +138,7 @@ status :: IO (Bool, Int, [String])      -- (running, count, names)
 
 Async note helpers for quick voice creation:
 
-```haskell
+```haskell norun
 asyncNote :: Channel -> Pitch -> Velocity -> Duration -> IO VoiceId
 asyncChord :: Channel -> [Pitch] -> Velocity -> Duration -> IO VoiceId
 asyncPerform :: Music -> IO VoiceId
@@ -148,7 +148,7 @@ asyncPerform :: Music -> IO VoiceId
 
 ### Random Selection
 
-```haskell
+```haskell norun
 pick [c4, e4, g4]           -- random note from list
 chance 75 (note c4)         -- 75% probability
 oneOf [note c4, chord [c4, e4, g4]]  -- random action
@@ -157,7 +157,7 @@ maybeDo (note c4)           -- 50% chance
 
 ### Random Sequences
 
-```haskell
+```haskell norun
 scramble [c4, e4, g4, c5]   -- random order
 randomNote c4 c5            -- random pitch in range
 randomMelody 8 c4 c5        -- 8 random notes
@@ -165,7 +165,7 @@ randomMelody 8 c4 c5        -- 8 random notes
 
 ### Algorithmic Patterns
 
-```haskell
+```haskell norun
 walk 16 c4 3                -- random walk, max 3 semitone steps
 drunk 16 c4 (major c4) 2    -- walk constrained to scale
 euclidean 5 8 (note c4)     -- 5 hits over 8 steps
@@ -173,7 +173,7 @@ euclidean 5 8 (note c4)     -- 5 hits over 8 steps
 
 ### Scales for Generative Use
 
-```haskell
+```haskell norun
 major c4        -- C major scale (multiple octaves)
 minor a4        -- A minor
 pentatonic c4   -- pentatonic
@@ -185,7 +185,7 @@ dorian d4       -- dorian mode
 
 ### Constructors
 
-```haskell
+```haskell norun
 note :: Pitch -> Velocity -> Duration -> Music
 rest :: Duration -> Music
 chord :: [Pitch] -> Velocity -> Duration -> Music
@@ -194,7 +194,7 @@ line :: [Pitch] -> Velocity -> Duration -> Music
 
 ### Pure Generative Functions
 
-```haskell
+```haskell norun
 -- Deterministic algorithms
 euclideanRhythm 3 8         -- [T,F,F,T,F,F,T,F]
 arpUp, arpDown, arpUpDown   -- arpeggio patterns
@@ -209,7 +209,7 @@ drunkWalk 42 c4 scale 2 16  -- constrained to scale
 
 ### Combinators
 
-```haskell
+```haskell norun
 (+:+) :: Music -> Music -> Music   -- sequential
 (|||) :: Music -> Music -> Music   -- parallel
 timesM :: Int -> Music -> Music    -- repeat
@@ -217,7 +217,7 @@ timesM :: Int -> Music -> Music    -- repeat
 
 ### Transformations
 
-```haskell
+```haskell norun
 transpose :: Int -> Music -> Music
 louder :: Int -> Music -> Music
 softer :: Int -> Music -> Music
@@ -251,6 +251,8 @@ main = do
 - [Architecture](architecture.md) - How the FFI works
 
 - [Package Build](mhs-pkg-build.md) - Technical details on `.pkg` embedding
+
+- [CLAP and VST3 plugin](../clap/README.md) - mhs-midi in a DAW, with an editor and script-time voices
 
 ## Build Variants
 
@@ -310,7 +312,7 @@ Package variants (`mhs-midi-pkg`, `mhs-midi-pkg-zstd`) require MicroHs packages 
 ```bash
 cd thirdparty/MicroHs
 make
-make install   # Creates ~/.mcabal/mhs-0.15.2.0/ with base.pkg
+make install   # Creates ~/.mcabal/mhs-0.16.9.0/ with base.pkg
 ```
 
 ### Non-Standalone Variant

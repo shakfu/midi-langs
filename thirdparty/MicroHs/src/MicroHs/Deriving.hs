@@ -25,18 +25,18 @@ import MicroHs.TCMonad
 --   all other names should be qualified with B@
 
 deriveStrat :: StandM -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
-deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of arguments that need eta reducing
+deriveStrat mctx newt lhs cs strat (narg, acls) =  -- narg is the number of arguments that need eta reducing
 --  trace ("deriveStrat " ++ show (mctx, newt, lhs, cs, strat, narg, cls)) $
-  let c = cs!!0 in
+  let c = cs!!0; cls = dropForallContext acls in
   case strat of
-    DerNone | newt && useNewt cls -> maybe (deriveNoHdr mctx narg lhs cs cls)
-                                           (newtypeDer  mctx narg lhs  c cls)
+    DerNone | newt && useNewt cls -> maybe (deriveNoHdr mctx narg lhs cs  cls)
+                                           (newtypeDer  mctx narg lhs  c acls)
                                            (getViaM narg lhs c)
-            | otherwise           -> deriveNoHdr mctx narg lhs cs cls
-    DerStock                      -> deriveNoHdr mctx narg lhs cs cls
-    DerNewtype | newt             -> newtypeDer  mctx narg lhs  c cls =<< getVia narg lhs c
-    DerAnyClass                   -> anyclassDer mctx narg lhs    cls
-    DerVia via | newt             -> newtypeDer  mctx narg lhs  c cls via
+            | otherwise           -> deriveNoHdr mctx narg lhs cs  cls
+    DerStock                      -> deriveNoHdr mctx narg lhs cs  cls
+    DerNewtype | newt             -> newtypeDer  mctx narg lhs  c acls =<< getVia narg lhs c
+    DerAnyClass                   -> anyclassDer mctx narg lhs     cls
+    DerVia via | newt             -> newtypeDer  mctx narg lhs  c acls via
     _                             -> cannotDerive lhs cls
   where useNewt d = unIdent (getAppCon d) `notElem`
           ["Data.Data_Class.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic", "GHC.Generics.Generic1",
@@ -209,24 +209,35 @@ conFieldTys (Constr _ _ _ _ as) = getFieldTys as
 -- If there is no mctx we use the default strategy to derive the instance context.
 -- The default strategy basically is to require the class constraint for every
 -- constructor argument (except direct recursion) with free type variables.
--- E.g.  data T = C a | D (a, Int) deriving Eq
+-- E.g.  data T a = C a | D (a, Int) deriving Eq
 -- will get context  (Eq a, Eq (a, Int))
 -- Used for regular deriving, not standalone.
 mkHdr :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
-mkHdr (Just (ctx, _)) _ _ _ = return ctx
-mkHdr _ lhs@(_, iks) cs cls = do
+mkHdr mctx lhs cs cls = mkHdrWithTyVarConstraint mctx lhs cs cls Nothing
+
+mkHdrWithTyVarConstraint :: StandM -> LHS -> [Constr] -> EConstraint -> Maybe EConstraint -> T EConstraint
+mkHdrWithTyVarConstraint (Just (ctx, _)) _ _ _ _ = return ctx
+mkHdrWithTyVarConstraint _ lhs@(_, iks) cs cls tyVarConstraint = do
   ty <- mkLhsTy 0 lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
-      ctys = nubBy eqEType [ tt | Constr evs _ _ _ flds <- cs, tt <- getFieldTys flds,
-                            not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
-  pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
+      ctys = nubBy eqEType [ tt
+                           | Constr evs _ _ _ flds <- cs
+                           , tt <- getFieldTys flds
+                           , not (ty `eqEType` tt)
+                           , not $ null $ freeTyVars [tt] \\ map idKindIdent evs
+                           ]
+      tyVars = map (EVar . idKindIdent) iks  -- type variables in type definition
+      iks' = map (`IdKind` EVar dummyIdent) (freeTyVars [cls])  -- free type variables in the derived class
+      tyVarConstraints = maybe [] (\c -> map (tApp c) tyVars) tyVarConstraint
+--  traceM $ "mkHdrWithTyVarConstraints: " ++ show (cls, iks')
+  pure $ eForall (iks' ++ iks) $ addConstraints (map (tApp cls) ctys ++ tyVarConstraints) $ tApp cls ty
 
 -- instance header for Functor, Foldable, Traversable
 mkHdr1 :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr1 (Just (ctx, _)) _ _ _ = return ctx
 mkHdr1 _ lhs@(_, iks) cs cls = do
   ty' <- mkLhsTy 1 lhs
-  let tvar = idKindIdent $ last iks        -- safe, because iks is non-null when calling mkHdr1
+  let tvar = idKindIdent $ last iks               -- safe, because iks is non-null when calling mkHdr1
       ctys :: [EType]                             -- All top level types used by the constructors.
       ctys = nubBy eqEType [ tt
                            | Constr evs _ _ _ flds <- cs
@@ -324,12 +335,14 @@ derBounded mctx 0 lhs cs@(c0:_) ebnd = do
   let loc = getSLoc ebnd
       mkEqn bnd (Constr _ _ c _ flds) =
         let n = either length length flds
-        in  eEqn [] $ tApps c (replicate n (EVar bnd))
+        in  eEqn [] $ tApps c (replicate n bnd)
 
       iMinBound = mkIdentSLoc loc "minBound"
       iMaxBound = mkIdentSLoc loc "maxBound"
-      minEqn = mkEqn iMinBound c0
-      maxEqn = mkEqn iMaxBound (last cs)
+      eMinBound = EVar (mkBuiltin loc "minBound")
+      eMaxBound = EVar (mkBuiltin loc "maxBound")
+      minEqn = mkEqn eMinBound c0
+      maxEqn = mkEqn eMaxBound (last cs)
       inst = Instance hdr [Fcn iMinBound [minEqn], Fcn iMaxBound [maxEqn]] []
   -- traceM $ showEDefs [inst]
   return [inst]
@@ -346,21 +359,22 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
       eLastCon = case last cs of Constr _ _ c _ _ -> tCon c
 
       iFromEnum = mkIdentSLoc loc "fromEnum"
+      eFromEnum = eAppI (mkBuiltin loc "fromEnum")
       iToEnum = mkIdentSLoc loc "toEnum"
       iEnumFrom = mkIdentSLoc loc "enumFrom"
       iEnumFromThen = mkIdentSLoc loc "enumFromThen"
-      iEnumFromTo = mkBuiltin loc "enumFromTo"
-      iEnumFromThenTo = mkBuiltin loc "enumFromThenTo"
+      eEnumFromTo = eAppI2 (mkBuiltin loc "enumFromTo")
+      eEnumFromThenTo = eAppI3 (mkBuiltin loc "enumFromThenTo")
       enumFromEqn =
         -- enumFrom x = enumFromTo x (last cs)
         let x = EVar (mkIdentSLoc loc "x")
-        in eEqn [x] (eAppI2 iEnumFromTo x eLastCon)
+        in eEqn [x] (eEnumFromTo x eLastCon)
       enumFromThenEqn =
         -- enumFromThen x1 x2 = if fromEnum x2 >= fromEnum x1 then enumFromThenTo x1 x2 (last cs) else enumFromThenTo x1 x2 (head cs)
         let
           x1 = EVar (mkIdentSLoc loc "x1")
           x2 = EVar (mkIdentSLoc loc "x2")
-        in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (EApp (EVar iFromEnum) x2) (EApp (EVar iFromEnum) x1)) (eAppI3 iEnumFromThenTo x1 x2 eLastCon) (eAppI3 iEnumFromThenTo x1 x2 eFirstCon))
+        in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (eFromEnum x2) (eFromEnum x1)) (eEnumFromThenTo x1 x2 eLastCon) (eEnumFromThenTo x1 x2 eFirstCon))
       inst = Instance hdr [Fcn iFromEnum (fromEnumEqns loc cs), Fcn iToEnum (toEnumEqns loc cs), Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]] []
   return [inst]
 derEnum _ _ lhs _ e = cannotDerive lhs e
@@ -410,16 +424,19 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
         eAnd = eAppI2 (mkBuiltin loc "&&")
         eAdd = eAppI2 (mkBuiltin loc "+")
         eMul = eAppI2 (mkBuiltin loc "*")
-        iUnsafeRangeSize = mkIdentSLoc loc "unsafeRangeSize"
+        eRange           = eAppI  (mkBuiltin loc "range")
+        eUnsafeIndex     = eAppI2 (mkBuiltin loc "unsafeIndex")
+        eInRange         = eAppI2 (mkBuiltin loc "inRange")
+        eUnsafeRangeSize = eAppI  (mkBuiltin loc "unsafeRangeSize")
         (xp, xs) = mkPat c0 "x$"
         (yp, ys) = mkPat c0 "y$"
         (zp, zs) = mkPat c0 "z$"
-        rangeEqn = eEqn [ETuple [xp, yp]] $ EListish (LCompr (tApps iC0 zs) (zipWith3 (\x y z -> SBind z (eAppI iRange (ETuple [x, y]))) xs ys zs))
+        rangeEqn = eEqn [ETuple [xp, yp]] $ EListish (LCompr (tApps iC0 zs) (zipWith3 (\x y z -> SBind z (eRange (ETuple [x, y]))) xs ys zs))
         unsafeIndexEqn =
-          let mkUnsafeIndex x y z = eAppI2 iUnsafeIndex (ETuple [x, y]) z
-              mkUnsafeRangeSize x y = eAppI iUnsafeRangeSize (ETuple [x, y])
+          let mkUnsafeIndex x y z = eUnsafeIndex (ETuple [x, y]) z
+              mkUnsafeRangeSize x y = eUnsafeRangeSize (ETuple [x, y])
           in eEqn [ETuple [xp, yp], zp] $ foldl (\ acc (x, y, z) -> eAdd (mkUnsafeIndex x y z) (eMul (mkUnsafeRangeSize x y) acc)) (mkUnsafeIndex (head xs) (head ys) (head zs)) $ zip3 (tail xs) (tail ys) (tail zs)
-        inRangeEqn = eEqn [ETuple [xp, yp], zp] $ foldr1 eAnd $ zipWith3 (\x y z -> eAppI2 iInRange (ETuple [x, y]) z) xs ys zs
+        inRangeEqn = eEqn [ETuple [xp, yp], zp] $ foldr1 eAnd $ zipWith3 (\x y z -> eInRange (ETuple [x, y]) z) xs ys zs
         inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]] []
     return [inst]
   else
@@ -490,6 +507,7 @@ derRead mctx 0 lhs cs eread = do
   let
     loc = getSLoc eread
     iReadPrec = mkIdentSLoc loc "readPrec"
+    eReadPrec = EVar (mkBuiltin loc "readPrec")
     iReadList = mkIdentSLoc loc "readList"
     iReadListPrec = mkIdentSLoc loc "readListPrec"
     eReadListDefault = EVar (mkBuiltin loc "readListDefault")
@@ -501,8 +519,8 @@ derRead mctx 0 lhs cs eread = do
     eExpectIdent s = eAppI iExpectP (eAppI (mkBuiltin loc "Ident") (ELit loc (LStr s)))
     eExpectPunc s = eAppI iExpectP (eAppI (mkBuiltin loc "Punc") (ELit loc (LStr s)))
     eExpectSymbol s = eAppI iExpectP (eAppI (mkBuiltin loc "Symbol") (ELit loc (LStr s)))
-    eReadField = eAppI (mkBuiltin loc "step") (EVar iReadPrec)
-    eReadNamedField name = eAppI2 (mkBuiltin loc "readField") (ELit loc (LStr name)) (eAppI (mkBuiltin loc "reset") (EVar iReadPrec))
+    eReadField = eAppI (mkBuiltin loc "step") eReadPrec
+    eReadNamedField name = eAppI2 (mkBuiltin loc "readField") (ELit loc (LStr name)) (eAppI (mkBuiltin loc "reset") eReadPrec)
     eReturn = eAppI (mkBuiltin loc "return")
     ePfail = EVar (mkBuiltin loc "pfail")
     readConstr c@(Constr _ _ ident isInfix fields) =
@@ -530,16 +548,18 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 --  data T a = A
 derData :: Deriver
 derData mctx _ lhs@(utyname, vks) cs edata = do
-  hdr <- mkHdr mctx lhs cs edata
-  mn <- getDefModuleName mctx
   let
-    tyname = qualIdent mn utyname
     loc = getSLoc edata
     mkB = mkBuiltin loc
     mkI = mkIdentSLoc loc
     lit = ELit loc
     str = lit . LStr . unIdentPar
     eList = EListish . LList
+    etyp = EVar (mkI nameDataTypeableTypeable)
+  hdr <- mkHdrWithTyVarConstraint mctx lhs cs edata (Just etyp)
+  mn <- getDefModuleName mctx
+  let
+    tyname = qualIdent mn utyname
     iMkDataType = mkB "mkDataType"
     iMkConstrTag = mkB "mkConstrTag"
     iConstrIndex = mkB "constrIndex"
@@ -734,32 +754,45 @@ newtypeDer :: StandM -> Int -> LHS -> Constr -> EConstraint -> EType -> T [EDef]
 newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
   let loc = getSLoc cls
       (clsIks, cls) = unForall acls
+--  traceM ("newtypeDer: " ++ show (hdr, viaty))
+  let qiCls = getAppCon cls
+      clsQual = qualOf qiCls
+  ct <- gets classTable
+  (ClassInfo _ supers clsCon mits _) <-
+    case M.lookup qiCls ct of
+      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
+      Just x -> return x
   hdr <-
     case mctx of
       Just (h, _) -> pure h
       Nothing -> do
         newtyr <- mkLhsTy narg lhs                    -- the newtype, eta reduced
---        traceM $ "newtypeDer newty=" ++ show newtyr
         let
+          cdef = tApp cls newtyr       -- the instance we are trying to make
           ctxOld = tApp cls viaty
           ctx = filter (not . null . freeTyVars . (:[])) [ctxOld]
           iks' = dropEnd narg iks
-        pure $ eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newtyr
---  traceM ("newtypeDer: " ++ show (hdr, viaty))
-  let qiCls = getAppCon cls
-      clsQual = qualOf qiCls
-  ct <- gets classTable
-  (ClassInfo _ _ _ mits _) <-
-    case M.lookup qiCls ct of
-      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
-      Just x -> return x
+          -- clsCon is the class constructor type
+          --   forall ... t1 -> t2 -> C v1 ... vn
+          -- extract v1...vn from this
+          supVs = map unEVar $ snd $ getApp $ snd $ getArrows $ dropForallContext clsCon
+            where unEVar (EVar i) = i; unEVar _ = impossible
+          curTs = snd $ getApp cdef   -- extract the actual types in the instance
+          xctx = filter hasTyVars $ map (subst s) supers     -- add the superclasses as extra context (if they have tyvars)
+            where s = zip supVs curTs                        -- substitution to get the supers to use the right types
+                  hasTyVars t = not $ null $ freeTyVars [t]
+--        traceM $ "newtypeDer newtyr=" ++ show newtyr ++ ", acls=" ++ show acls ++ ", clsIks=" ++ show clsIks ++
+--                 ", supers=" ++ show supers ++ ", xiks=" ++ show xiks ++ ", (iks, iks')=" ++ show (iks, iks') ++
+--                 ", clsCon=" ++ show clsCon ++ ", xctx=" ++ show xctx
+--        traceM $ "newtypeDer " ++ show (xctx, ctx)
+        pure $ eForall (clsIks ++ iks') $ addConstraints (xctx ++ ctx) cdef
   -- hdr looks like forall vs . ctx => C t1 ... tn
   let (_, newtys) = getApp $ dropForallContext hdr
       mkMethod (mi, amty) = do
         let (tvs, mty) =
               case amty of
                 EForall _ xs (EApp (EApp _implies _Ca) t) -> (map idKindIdent xs, t)
-                _ -> impossibleShow amty
+                _ -> impossiblePP amty
             qvar t = EQVar t kType
             nty = subst (zip tvs newtys) mty
             -- Any leading quantifier in nty (used in the method signature)
@@ -778,6 +811,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
         unless (length tvs == length newtys) $
           mhsError "mkMethod: arity"
         return [msign, body]
+--  traceM $ "newtypeDer " ++ show (hdr) -- , newtys, xiks, supers, hdr)
   body <- concat <$> mapM mkMethod mits
 
 --  traceM $ "newtypeDer: " ++ show (Instance hdr body [])

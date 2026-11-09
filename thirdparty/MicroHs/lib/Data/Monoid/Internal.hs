@@ -23,11 +23,13 @@ import Text.Show
 
 class Semigroup a => Monoid a where
   mempty :: a
-  mappend :: a -> a -> a
-  mappend = (<>)
   mconcat :: [a] -> a
   mconcat [] = mempty
   mconcat (a:as) = a <> mconcat as
+
+  mappend :: -- Semigroup a =>
+             a -> a -> a
+  mappend = (<>)
 
 ---------------------
 
@@ -79,7 +81,7 @@ instance Applicative Dual where
 ---------------------
 
 newtype Max a = Max { getMax :: a }
-  deriving (Bounded, Eq, Ord, Show)
+  deriving (Bounded, Eq, Ord, Show, Num)
 
 instance Ord a => Semigroup (Max a) where
   Max a <> Max b = Max (a `max` b)
@@ -95,10 +97,12 @@ instance Applicative Max where
   pure = Max
   (<*>) = coerce
 
+-- Foldable and Traversable in their respective modules
+
 ---------------------
 
 newtype Min a = Min { getMin :: a }
-  deriving (Bounded, Eq, Ord, Show)
+  deriving (Bounded, Eq, Ord, Show, Num)
 
 instance Ord a => Semigroup (Min a) where
   Min a <> Min b = Min (a `min` b)
@@ -113,6 +117,8 @@ instance Functor Min where
 instance Applicative Min where
   pure = Min
   (<*>) = coerce
+
+-- Foldable and Traversable in their respective modules
 
 ---------------------
 
@@ -132,6 +138,8 @@ instance Applicative Sum where
   pure = Sum
   (<*>) = coerce
 
+-- Foldable and Traversable in their respective modules
+
 ---------------------
 
 newtype Product a = Product { getProduct :: a }
@@ -149,6 +157,8 @@ instance Functor Product where
 instance Applicative Product where
   pure = Product
   (<*>) = coerce
+
+-- Foldable and Traversable in their respective modules
 
 ---------------------
 

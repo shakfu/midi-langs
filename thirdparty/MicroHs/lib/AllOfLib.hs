@@ -18,7 +18,13 @@ import Control.Monad
 import Control.Monad.Fail
 import Control.Monad.IO.Class
 import Control.Monad.ST
+import Control.Monad.ST.Lazy
+import Control.Monad.ST.Lazy.Unsafe
+import Control.Monad.ST.Strict
 import Control.Monad.ST_Type
+import Control.Monad.ST.Unsafe
+import Data.Any
+import Data.Array.Byte
 import Data.Bits
 import Data.Bool
 import Data.Bool_Type
@@ -94,7 +100,12 @@ import Data.RealFrac
 import Data.Records
 import Data.Semigroup
 import Data.STRef
+import Data.STRef.Lazy
+import Data.STRef.Strict
 import Data.String
+import Data.String.Interpolate
+import Data.String.Interpolate.Basic
+import Data.String.Interpolate.ShowS
 import Data.Text
 import Data.Text.Encoding
 import Data.Text.IO
@@ -158,6 +169,7 @@ import System.IO.Error
 import System.IO.MD5
 import System.IO.PrintOrRun
 import System.IO.Serialize
+import System.IO.Serialize.TypeDescr
 import System.IO.StringHandle
 import System.IO.TimeMilli
 import System.Info

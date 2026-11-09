@@ -1,8 +1,6 @@
 # CLAP plugins
 
-Each midi-lang except mhs-midi is also a CLAP note-effect plugin. Code comes from an editor in the plugin window, or over UDP. Its MIDI goes to the host on one note output port; route that port to any instrument.
-
-mhs-midi waits for the MicroHs upgrade.
+Each midi-lang is also a CLAP note-effect plugin. Code comes from an editor in the plugin window, or over UDP. Its MIDI goes to the host on one note output port; route that port to any instrument.
 
 ## Build and install
 
@@ -96,6 +94,7 @@ The project saves the editor text, the Wrap, Live and UDP settings, and the clip
 | stack-midi | 57166 | `seq-play&`, `seq-loop&` | any code |
 | pforth-midi | 57167 | none | a MIDI word |
 | alda-midi | 57168 | parts play together | playback, between events |
+| mhs-midi | 57169 | `spawn` (Async) | any code |
 
 In every plugin:
 
@@ -113,6 +112,7 @@ Per language:
 - **stack-midi**: output with a counted error starts with `error:`. Stopped code also resets the stack, compile mode and blocks; definitions stay.
 - **pforth-midi**: code runs line by line, 256 characters at most per line. Only a MIDI word sees Stop, so `begin again` without one cannot be stopped. `key` and `accept` read an empty line.
 - **alda-midi**: parts, instruments and attributes carry over between evaluations; each evaluation plays only its own notes. Parse errors appear in full; other errors go to the host's standard error. At `(tempo 120)` a quarter note is one beat.
+- **mhs-midi**: each paragraph is one REPL entry: a group of definitions, or one expression, which may span lines. `MidiPerform` and `Async` are imported. Every evaluation is compiled first, which takes 0.1 to 0.3 s; in Live mode the code then starts at the next point the host can still play on time. The first instance in a process starts the interpreter, in about 2 s; it then outlives instances, and each new instance starts with no definitions. `midiSleep` and `threadDelay` wait in script time, so `spawn` voices play together. The REPL cannot show the thread id `spawn` returns, so end a `spawn` entry with `>> return ()`.
 
 Example, in lua-midi:
 

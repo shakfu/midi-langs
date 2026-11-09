@@ -13,6 +13,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "midi_ffi.h"
+
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -171,6 +173,7 @@ static void print_usage(const char *prog) {
     printf("Usage:\n");
     printf("  %s                     Start interactive REPL (default)\n", prog);
     printf("  %s [mhs-options]       Pass options directly to MicroHs\n", prog);
+    printf("  %s --no-sleep          MIDI sleeps return at once (for tests)\n", prog);
     printf("  %s --help              Show this help\n", prog);
     printf("\nEnvironment:\n");
     printf("  MHSDIR                 Path to MicroHs directory (auto-detected if not set)\n");
@@ -192,6 +195,8 @@ int main(int argc, char **argv) {
         print_usage(argv[0]);
         return 0;
     }
+
+    argc = midi_strip_no_sleep(argc, argv);
 
     /* Get executable directory */
     if (get_exe_dir(exe_dir, sizeof(exe_dir)) != 0) {

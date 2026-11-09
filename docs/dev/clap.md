@@ -32,13 +32,14 @@ Imperative code cannot follow a host seek or loop: a running voice cannot rewind
 | audio | clip and live players, held notes | evaluator (as above) |
 | udp | the socket | evaluator (job queue, reply promise) |
 
-guile-midi adds a watcher thread in Guile mode; see Stop.
+guile-midi adds a watcher thread in Guile mode; see Stop. mhs-midi runs its interpreter on a thread of its own; see mhs-midi.
 
 Handoffs, all in `projects/clap/plugin.cpp`:
 
 - Clip: `nextClip` (evaluator to audio) and `retiredClip` (audio to evaluator, which frees it). The audio thread takes a new clip only when `retiredClip` is empty, so it never frees memory.
 - Live: an SPSC ring of 16384 events. Each event carries the stop generation of its job. Stop bumps the generation; the audio thread then drops older events and releases held notes.
 - Live pacing: the audio thread publishes `horizon`, the beat the evaluator may run ahead to (block end plus 50 ms). The evaluator publishes `frontier`, the beat before which every event is queued. Offline, `process()` waits until `frontier` passes the block end, for at most 10 s. A queued job lowers `frontier` too, so offline rendering waits for code that has not started yet.
+- Live start: a job starts at `horizon`. Its first send or wait moves it to the current `horizon` if that has passed the start, so code that runs past the lookahead before its first event starts late as a whole instead of clamping its first notes. mhs-midi needs this: it compiles each evaluation first.
 - Stop drops queued jobs. A job records the generation when it is dequeued; if a stop came after that, it does not run. Without this, a stop that arrived between dequeue and start was lost, and the job ran unstoppable.
 
 ## Stop
@@ -55,12 +56,25 @@ Each interpreter needs a way for Stop to end running code. Each polls `midi_cloc
 | stack | `stack_interrupt_hook`, before each token and in `times`, `*` and do-loops |
 | pforth | MIDI words return an ior that `?midi` turns into an abort; pForth is vendored unmodified, so code without MIDI words cannot be stopped |
 | alda | the playback loop checks between events |
+| mhs | the adapter sets the runtime's `has_sigint`, which raises `UserInterrupt` in the REPL thread |
 
 pocketpy got a patch where s7 and pForth did not. Its only polled check is a CPU-time watchdog, and `clock()` counts every thread in a DAW. A trace hook does not fire for one-line loops.
 
 ## Output
 
 pocketpy, s7, Guile and Lua take output callbacks or ports. Joy and stack-midi printed with `printf` directly; their prints now go through `joy_printf` and `stack_printf`, which write to stdout unless a host redirects them. pForth's `sdTerminalOut`, `sdSleepMillis` and `sdTerminalIn` are renamed at compile time and wrapped in `projects/pforth-midi/pf_io_midi.c`, as `sdTerminalIn` already was.
+
+## mhs-midi
+
+The MicroHs runtime can neither run on the plugin's evaluator thread nor return to it between evaluations: its REPL owns the thread it runs on. So it runs on a thread that lives for the process, and the adapter (`projects/mhs-midi/plugin/mhs_clap.cpp`) sends it requests and waits. The REPL is `PluginRepl.hs`, built from MicroHs's own REPL functions and compiled to C like `generated/mhs.c`. It needs a two-line export patch to `thirdparty/MicroHs/src/MicroHs/{Interactive,Main}.hs`, marked `midi-langs patch`.
+
+`mhs_plugin_runtime.c` compiles the runtime with three changes, made with macros and include order rather than in the vendored source:
+
+- Haskell's `stdout` and `stderr` write to a private stream, read per request; the host's are untouched.
+- No SIGINT handler. Stop sets `has_sigint` directly.
+- The runtime clock is script time (`plugin/runtime/extra.c`), and IO polling is off (`plugin/runtime/config.h`), so a runtime whose threads all sleep advances script time instead of sleeping. `midiSleep` is a `threadDelay` under a sink, so voices are ordinary `forkIO` threads, run in script-time order by MicroHs's timer queue. `nextWake` reads that queue; `resume` sleeps the REPL thread until the given time.
+
+The alternative was running `mhs-midi` as a child process over a pipe. It was not chosen: script time would have to cross the pipe, and some hosts restrict child processes.
 
 ## VST3
 

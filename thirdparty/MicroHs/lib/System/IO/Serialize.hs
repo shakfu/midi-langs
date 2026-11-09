@@ -3,12 +3,18 @@
 module System.IO.Serialize(
   hSerialize, hDeserialize,
   writeSerialized, writeSerializedCompressed,
-  readSerialized,
+  readSerialized, readSerializedH, readSerializedBS,
+  writeSerializedCompressedBS, writeSerializedBS,
+  hSerializeDescr, hDeserializeDescr,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives(Ptr)
+import Data.ByteString(ByteString)
+import Data.Data(Data)
 import System.IO
 import System.IO.Internal
+import System.IO.Serialize.TypeDescr
+import System.IO.StringHandle(withByteStringHandle, handleWriteToByteString)
 
 primHSerialize   :: forall a . Ptr BFILE -> a -> IO ()
 primHSerialize    = _primitive "IO.serialize"
@@ -27,27 +33,66 @@ writeSerialized p s = do
   hSerialize h s
   hClose h
 
-foreign import ccall "add_lz77_compressor" c_add_lz77_compressor :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall "add_lz77_compressor"   c_add_lz77_compressor   :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall "add_lz77_decompressor" c_add_lz77_decompressor :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall "add_lzma_compressor"   c_add_lzma_compressor   :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall "add_lzma_decompressor" c_add_lzma_decompressor :: Ptr BFILE -> IO (Ptr BFILE)
 
 writeSerializedCompressed :: forall a . FilePath -> a -> IO ()
 writeSerializedCompressed p s = do
   h <- openBinaryFile p WriteMode
-  hPutChar h 'z'                               -- indicate compressed
-  h' <- addTransducer c_add_lz77_compressor h
+  hPutChar h 'q'                               -- indicate compressed
+  h' <- addTransducer c_add_lzma_compressor h
   hSerialize h' s
-  hClose h'
+  hFlush h'
 
 -- Read compressed or uncompressed
-readSerialized :: forall a . FilePath -> IO a
-readSerialized p = do
-  h <- openBinaryFile p ReadMode
+readSerialized :: FilePath -> IO a
+readSerialized p = openBinaryFile p ReadMode >>= readSerializedH
+
+readSerializedBS :: ByteString -> IO a
+readSerializedBS bs = withByteStringHandle bs readSerializedH
+
+readSerializedH :: Handle -> IO a
+readSerializedH h = do
   c <- hLookAhead h
-  h' <- if c == 'z' then do                    -- compressed?
-          hGetChar h   -- get rid of the 'z'
-          addTransducer c_add_lz77_decompressor h
+  h' <- if c == 'q' then do                    -- compressed?
+          hGetChar h   -- get rid of the 'q'
+          addTransducer c_add_lzma_decompressor h
         else
           return h
   a <- hDeserialize h'
   hClose h'
   return a
+
+writeSerializedCompressedBS :: a -> IO ByteString
+writeSerializedCompressedBS a =
+  handleWriteToByteString $ \ h -> do
+    hPutChar h 'q'                               -- indicate compressed
+    h' <- addTransducer c_add_lzma_compressor h
+    hSerialize h' a
+    hFlush h'
+
+writeSerializedBS :: a -> IO ByteString
+writeSerializedBS a =
+  handleWriteToByteString $ \ h -> do
+    hSerialize h a
+    hFlush h
+
+descrVersion :: String
+descrVersion = "TD1 "
+
+hSerializeDescr :: forall a . Data a => Handle -> a -> IO ()
+hSerializeDescr h a = do
+  let d = descrVersion ++ show (getTypeDescrMD5 (undefined :: a))
+  hPutStr h d
+  hSerialize h a
+
+hDeserializeDescr :: forall a . Data a => Handle -> IO (Maybe a)
+hDeserializeDescr h = do
+  let d = descrVersion ++ show (getTypeDescrMD5 (undefined :: a))
+  d' <- replicateM (length d) (hGetChar h)
+  if d == d' then
+    Just <$> hDeserialize h
+   else
+    return Nothing

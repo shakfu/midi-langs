@@ -13,17 +13,17 @@ module MicroHs.Compile(
   moduleToFile,
   packageDir, packageSuffix, packageTxtSuffix,
   mhsVersion,
-  getMhsDir,
-  openFilePath,
+  getPaths,
   loadPkg,
   addPreludeImport,
+  loadEmbedded,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Exception
+import qualified Data.ByteString as BS
 import Data.Char
 import Data.List
 import Data.Maybe
-import Data.Version
 import System.Directory
 import System.Environment
 import System.FilePath
@@ -36,6 +36,7 @@ import MicroHs.Abstract
 import MicroHs.Builtin
 import MicroHs.CompileCache
 import MicroHs.Desugar
+import qualified MicroHs.Embed as Embed
 import MicroHs.Exp
 import MicroHs.Expr
 import MicroHs.Flags
@@ -48,13 +49,11 @@ import MicroHs.StateIO
 import MicroHs.SymTab
 import MicroHs.TCMonad(TCState)
 import MicroHs.TypeCheck
-import Paths_MicroHs(version, getDataDir)
+import MicroHs.Version
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 mhsVersion :: String
 mhsVersion = showVersion version
-
-mhsCacheName :: FilePath
-mhsCacheName = ".mhscache"
 
 type Time = Int
 
@@ -72,29 +71,34 @@ compileCacheTop flags mn ch = do
   return res
 
 compileMany :: Flags -> [IdentModule] -> Cache -> IO Cache
-compileMany flags mns ach =
+compileMany flags mns ach = do
   execStateIO (do mapM_ (loadPkg flags) (preload flags)
+                  mapM_ (loadEmbedPkg flags) Embed.packages
                   mapM_ (compileModuleCached flags ImpNormal) mns)
               ach
+
+loadEmbedded :: Flags -> Cache -> IO Cache
+loadEmbedded flags ach =
+  execStateIO (mapM_ (loadEmbedPkg flags) Embed.packages) ach
 
 getCached :: Flags -> IO Cache
 getCached flags | not (readCache flags) = return emptyCache
 getCached flags = do
-  mcash <- loadCached mhsCacheName
+  mcash <- loadCached (cacheName flags)
   case mcash of
     Nothing ->
       return emptyCache
     Just cash -> do
       when (loading flags || verbosityGT flags 0) $
-        putStrLn $ "Loading saved cache " ++ show mhsCacheName
+        putStrLn $ "Loading saved cache " ++ show (cacheName flags)
       validateCache flags cash
 
 maybeSaveCache :: Flags -> Cache -> IO ()
 maybeSaveCache flags cash =
   when (writeCache flags) $ do
     when (verbosityGT flags 0) $
-      putStrLn $ "Saving cache " ++ show mhsCacheName
-    saveCache mhsCacheName cash
+      putStrLn $ "Saving cache " ++ show (cacheName flags)
+    saveCache (cacheName flags) cash
 
 -- Load the real modules for imported boot modules.
 -- Doing so can result in more boot imports, so we recurse.
@@ -113,6 +117,7 @@ compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, 
 compile flags nm ach = do
   let comp = do
         mapM_ (loadPkg flags) (preload flags)
+        mapM_ (loadEmbedPkg flags) Embed.packages
         res <- compileModuleCached flags ImpNormal nm
         loadBoots flags
         loadDependencies flags
@@ -162,7 +167,6 @@ compileModuleCached flags impt mn = do
                 putStrLn ""
               dumpIf flags Dpreproc $
                 liftIO $ putStrLn $ "preprocessed:\n" ++ file
-              modify $ addWorking mn
               compileModule flags ImpNormal mn pathfn file
     Just tm -> do
       when (verbosityGT flags 1) $
@@ -192,7 +196,6 @@ compileBootModule flags mn = do
     Just (pathfn, file) -> do
       dumpIf flags Dpreproc $
         liftIO $ putStrLn $ "preprocessed:\n" ++ file
-      modify $ addBoot mn
       compileModule flags ImpBoot mn pathfn file
 
 compileModule :: Flags -> ImpType -> IdentModule -> FilePath -> String -> CM (TModule [LDef], Symbols, Time)
@@ -204,9 +207,13 @@ compileModule flags impt mn pathfn file = do
   when (verbosityGT flags 4) $
     liftIO $ putStrLn $ "parsing: " ++ pathfn
   let pmdl@(EModule mnn _ _) = parseDie pTop pathfn file
+  -- Remember the module under the name from the parsed file.
+  modify $ case impt of
+             ImpNormal -> addWorking mnn
+             ImpBoot   -> addBoot    mnn
   t2 <- liftIO (seq pmdl getTimeMilli)
   dumpIf flags Dparse $
-    liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
+    liftIO $ putStrLn $ "parsed:\n" ++ prettyShow pmdl
   when (isNothing (getFileName mn) && mn /= mnn) $
     mhsError $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
   ((dmdl, syms, imported, tTCDesug, tImp), _) <- compileModuleP flags impt (addPreludeImport pmdl)
@@ -258,9 +265,9 @@ compileModuleP flags impt mdl@(EModule _ _ defs) = do
   return ((dmdl, syms, imported, tThis, tImp), tcstate)
 
 compileToCombinators :: TModule [LDef] -> TModule [LDef]
-compileToCombinators dmdl = do
+compileToCombinators dmdl =
   let cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
-  seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
+  in seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
 
 -- Add implicit imports:
 --   import Prelude
@@ -397,22 +404,29 @@ hasLangCPP fn = do
 moduleToFile :: IdentModule -> FilePath
 moduleToFile mn = map (\ c -> if c == '.' then pathSeparator else c) (unIdent mn)
 
+-- Find a source module in the source search path.
 findModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, Handle))
 findModulePath flags suf mn = do
   let
     fn = moduleToFile mn <.> suf
-  openFilePath (paths flags) fn
+  openFilePath (srcPaths flags) fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
-openFilePath adirs fileName =
+openFilePath = openFilePath' openFileM
+
+openBinaryFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
+openBinaryFilePath = openFilePath' openBinaryFileM
+
+openFilePath' :: (FilePath -> IOMode -> IO (Maybe Handle)) -> [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
+openFilePath' openM adirs fileName =
   case adirs of
     [] -> return Nothing
     dir:dirs -> do
       let
         path = dir </> fileName
-      mh <- openFileM path ReadMode
+      mh <- openM path ReadMode
       case mh of
-        Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
+        Nothing -> openFilePath' openM dirs fileName -- If opening failed, try the next directory
         Just hdl -> return (Just (path, hdl))
 
 runCPPString :: Flags -> FilePath -> String -> IO String
@@ -421,8 +435,9 @@ runCPPString flags fn ifile = do
   hClose hi
   writeFile fni $ "#line 1 \"" ++ fn ++ "\"\n" ++ ifile
   (fno, ho) <- openTmpFile "mhsout.hs"
+  hClose ho
   runCPP flags fni fno
-  ofile <- hGetContents ho
+  ofile <- hGetContents =<< openFile fno ReadMode
   removeFile fni
   removeFile fno
   return ofile
@@ -435,11 +450,12 @@ runPreString flags pgm args fn ifile = do
   hClose hi
   writeFile fni ifile
   (fno, ho) <- openTmpFile "mhspreout.hs"
-  let cmd = unwords $ pgm : fn : fni : fno : args
+  hClose ho
+  let cmd = unwords $ map quote $ pgm : fn : fni : fno : args
   when (verbosityGT flags 1) $
     putStrLn $ "Run preprocessor: " ++ show cmd
   callCommand cmd
-  ofile <- hGetContents ho
+  ofile <- hGetContents =<< openFile fno ReadMode
   removeFile fni
   removeFile fno
   return ofile
@@ -452,32 +468,36 @@ mhsDefines =
 runCPP :: Flags -> FilePath -> FilePath -> IO ()
 runCPP flags infile outfile = do
   mcpphs <- lookupEnv "MHSCPPHS"
-  datadir <- getMhsDir
-  let cpphs = fromMaybe "cpphs" mcpphs
+  let datadir = mhsdir flags
+      cpphs = fromMaybe "cpphs" mcpphs
       mhsIncludes = ["-I" ++ datadir </> "src/runtime"]
-      args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
-      cmd = cpphs ++ " --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
+      args = mhsDefines ++ mhsIncludes ++ cppArgs flags
+      cmd = unwords $ map quote $ [cpphs, "--strip"] ++ args ++ [infile, "-O" ++ outfile]
   when (verbosityGT flags 1) $
     putStrLn $ "Run cpphs: " ++ show cmd
   callCommand cmd
 
+-- Quote one shell word, closing and reopening quotes around single quotes.
 quote :: String -> String
-quote s = "'" ++ s ++ "'"
+quote s = "'" ++ concatMap escape s ++ "'"
+  where escape '\'' = "'\\''"
+        escape c = [c]
 
 runHsc2hs :: Flags -> FilePath -> IO String
 runHsc2hs flags fni = do
   (fno, ho) <- openTmpFile "mhshsc2hs.hs"
+  hClose ho
   mhsc2hs <- lookupEnv "MHSHSC2HS"
-  datadir <- getMhsDir
-  let hsc2hs = fromMaybe "hsc2hs" mhsc2hs
+  let datadir = mhsdir flags
+      hsc2hs = fromMaybe "hsc2hs" mhsc2hs
       mhsIncludes = ["-I" ++ datadir </> "src/runtime"
                     ,"-I" ++ datadir </> "src/runtime/unix"]
-      args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
-      cmd = unwords $ [hsc2hs, "-o", fno] ++ args ++ [fni]
+      args = mhsDefines ++ mhsIncludes ++ cppArgs flags
+      cmd = unwords $ map quote $ [hsc2hs, "-o", fno] ++ args ++ [fni]
   when (verbosityGT flags 1) $
     putStrLn $ "Run hsc2hs: " ++ show cmd
   callCommand cmd
-  ofile <- hGetContents ho
+  ofile <- hGetContents =<< openFile fno ReadMode
   removeFile fno
   return ofile
 
@@ -493,7 +513,7 @@ findPkgModule :: Flags -> IdentModule -> CM (FilePath, (TModule [LDef], Symbols,
 findPkgModule flags mn = do
   t0 <- liftIO getTimeMilli
   let fn = moduleToFile mn <.> packageTxtSuffix
-  mres <- liftIO $ openFilePath (pkgPath flags) fn
+  mres <- liftIO $ openBinaryFilePath (pkgPaths flags) fn
   case mres of
     Just (pfn, hdl) -> do
       -- liftIO $ putStrLn $ "findPkgModule " ++ pfn
@@ -509,17 +529,29 @@ findPkgModule flags mn = do
     Nothing ->
       errorMessage (getSLoc mn) $
         "Module not found: " ++ show mn ++
-        "\nsearch path=" ++ show (paths flags) ++
-        "\npackage path=" ++ show (pkgPath flags)
+        "\nsearch path=" ++ show (srcPaths flags) ++
+        "\npackage path=" ++ show (pkgPaths flags)
 
 loadPkg :: Flags -> FilePath -> CM ()
 loadPkg flags fn = do
   when (loading flags || verbosityGT flags 0) $
     liftIO $ putStrLn $ "Loading package " ++ fn
   pkg <- liftIO $ readSerialized fn
+  loadPkg' (Just fn) pkg
+
+loadPkg' :: Maybe FilePath -> Package -> CM ()
+loadPkg' mfn pkg = do
   when (pkgCompiler pkg /= mhsVersion) $
-    mhsError $ "Package compile version mismatch: file=" ++ fn ++ ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
-  modify $ addPackage fn pkg
+    mhsError $ "Package compiler version mismatch: file=" ++ fromMaybe (show $ pkgName pkg) mfn ++
+               ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
+  modify $ addPackage mfn pkg
+
+loadEmbedPkg :: Flags -> BS.ByteString -> CM ()
+loadEmbedPkg flags bs = do
+  pkg <- liftIO $ readSerializedBS bs
+  when (loading flags || verbosityGT flags 0) $
+    liftIO $ putStrLn $ "Loading embedded package " ++ showIdent (pkgName pkg)
+  loadPkg' Nothing pkg
 
 -- XXX add function to find&load package from package name
 
@@ -536,17 +568,15 @@ loadDependencies flags = do
     mapM_ (loadDeps flags) deps'
     loadDependencies flags  -- loadDeps can add new dependencies
 
+-- Find a package in the package searcg path.
 loadDeps :: Flags -> (IdentPackage, Version) -> CM ()
 loadDeps flags (pid, pver) = do
-  mres <- liftIO $ openFilePath (pkgPath flags) (packageDir </> unIdent pid ++ "-" ++ showVersion pver <.> packageSuffix)
+  mres <- liftIO $ openBinaryFilePath (pkgPaths flags) (packageDir </> unIdent pid ++ "-" ++ showVersion pver <.> packageSuffix)
   case mres of
     Nothing -> mhsError $ "Cannot find package " ++ showIdent pid
     Just (pfn, hdl) -> do
       liftIO $ hClose hdl
       loadPkg flags pfn
-
-getMhsDir :: IO FilePath
-getMhsDir = maybe getDataDir return =<< lookupEnv "MHSDIR"
 
 -- Deal with literate Haskell
 unlit :: FilePath -> String -> String
@@ -567,3 +597,28 @@ unlit fn = unlines . un 1 True . lines
     code n [] = err n "unlit: missing \\end{code}"
     err :: Int -> String -> a
     err n s = error $ "unlit: " ++ fn ++ ":" ++ show n ++ ": " ++ s
+
+---------------
+
+getPaths :: IO (FilePath, [FilePath], Maybe FilePath)
+getPaths = do
+  mdir <- lookupEnv "MHSDIR"
+  let srcs = ["."]
+  case mdir of
+    -- If MHSDIR is set, use that and no package directories
+    Just dir -> return (dir, srcs ++ [dir </> "lib"], Nothing)
+    Nothing -> do
+      -- There are two scenarios: either we are running inplace or installed
+      binDir <- takeDirectory <$> catch getExecutablePath (\ (_ :: SomeException) -> getProgName) -- ~/.mcabal/bin
+      let upDir = binDir </> ".."
+      inplace <- doesFileExist (upDir </> "src/runtime/eval.c")
+      if inplace then do
+        let libDir = upDir </> "lib"
+            nogmpDir | not (wantGMP || wantImath) = [libDir </> "no-gmp"]
+                     | otherwise                  = []
+        return (upDir, srcs ++ nogmpDir ++ [libDir], Nothing)
+       else do
+        let vers = "mhs-" ++ mhsVersion
+            pkgDir = upDir </> vers                                   -- ~/.mcabal/bin/../mhs-VERSION
+            mhsDir = pkgDir </> "packages" </> vers </> "data"
+        return (mhsDir, srcs, Just pkgDir)

@@ -6,21 +6,33 @@ All notable changes to midi-langs are documented in this file.
 
 ### Added
 
-- **CLAP plugins** for every language but mhs-midi: `make clap` builds `build/clap/<name>.clap`, note-effect plugins with an editor, UDP input, and one MIDI note output port. By default an evaluation runs at once and becomes a clip in beats. The clip loops on the host's song position, so it follows tempo, seeks, loops and offline render, and the project saves it. **Live** mode plays code as it runs, with script time waiting on the frames the host renders; events land on their exact frame in real time and offline. The host frame clock was chosen over wall-clock stamping, which jitters by up to a block and bunches notes in offline render. Clips exist because running code cannot follow a seek. Docs: `docs/clap/README.md`; design: `docs/dev/clap.md`. Tested on Linux only. mhs-midi waits for the MicroHs upgrade.
+- **CLAP plugins** for every language: `make clap` builds `build/clap/<name>.clap`, note-effect plugins with an editor, UDP input, and one MIDI note output port. By default an evaluation runs at once and becomes a clip in beats. The clip loops on the host's song position, so it follows tempo, seeks, loops and offline render, and the project saves it. **Live** mode plays code as it runs, with script time waiting on the frames the host renders; events land on their exact frame in real time and offline. The host frame clock was chosen over wall-clock stamping, which jitters by up to a block and bunches notes in offline render. Clips exist because running code cannot follow a seek. Docs: `docs/clap/README.md`; design: `docs/dev/clap.md`. Tested on Linux and macOS.
 
   Stop has to end running code, so each interpreter got a way to poll it. pocketpy needed a 6-line patch (`py_interrupt_hook`). Joy and stack-midi gained output and interrupt hooks. In s7 and pforth-midi, a tight loop without a MIDI call cannot be stopped.
 
 - **VST3 plugins** for hosts without CLAP, such as Ableton Live: `make vst3` builds `build/vst3/<name>.vst3` for each CLAP plugin, through clap-wrapper (`thirdparty/clap-wrapper`, VST3 SDK in `thirdparty/vst3sdk`). The plugin code is linked in, so a `.vst3` needs no `.clap`. clap-wrapper's VST3 output dropped raw MIDI, the only event the plugins send; the vendored copy carries the fix, with three others, from open clap-wrapper PRs #630 and #632-#634. Live refuses a VST3 instrument without a note input and an audio output, so in the VST3 only, the plugin adds an ignored note input and a silent stereo output. Design: `docs/dev/clap.md`. Tested on macOS in a headless host and in Ableton Live 12.4.
 
-- **Script time** (`projects/common/midi_clock.h`): with a `midi_sink` installed, `midi_out_send` stamps messages with script time, and `midi_sleep` advances it instead of sleeping. Every language but mhs-midi sends through it, and each scheduler has a script-time path. The CLIs install no sink, so their behaviour is unchanged, apart from the fixes below.
+- **mhs-midi plugin**: mhs-midi is now a CLAP and VST3 plugin like the others. MicroHs runs its REPL on a thread of its own that lives for the process, with the packages embedded; each paragraph is one REPL entry. Under a sink, `midiSleep` is a `threadDelay` and the runtime's clock is script time, so `spawn` voices are ordinary threads scheduled in script time. Stop sets the runtime's interrupt flag. A child process over a pipe was the alternative; it would carry script time across the pipe, and some hosts restrict child processes. Design: `docs/dev/clap.md`.
+
+- **Script time** (`projects/common/midi_clock.h`): with a `midi_sink` installed, `midi_out_send` stamps messages with script time, and `midi_sleep` advances it instead of sleeping. Every language sends through it, and each scheduler has a script-time path. The CLIs install no sink, so their behaviour is unchanged, apart from the fixes below.
 
 ### Changed
+
+- **Live mode start**: a job's first send or wait moves it to the current horizon if the host has played past the job's start meanwhile. Code that ran past the 50 ms lookahead before its first event used to play its first notes clamped late and the rest on time; now it starts late as a whole. mhs-midi, which compiles each evaluation first, needs this.
+
+- **mhs-midi doc tests**: `docs_examples` now runs the Haskell programs in `README.md` and `docs/` with `mhs-midi-pkg --no-sleep -r`; signatures and REPL transcripts are `norun`. mhs-midi's CLIs gained `--no-sleep`. Two examples named a variable `pattern`, a keyword in MicroHs 0.16; they now use `riff` and `rhythm`.
+
+- **MicroHs 0.15.2.0 to 0.16.9.0** (`thirdparty/MicroHs`), for mhs-midi; two of its modules export more for the plugin (`midi-langs patch`). 0.16 compresses with LZMA instead of LZ77 and reads its targets from `mhs.conf` instead of `targets.conf`. The standalone variants now embed `mhs.conf` (`mhs-embed --conf`); without it they cannot compile to C. `MHS_VERSION` is read from `MicroHs.cabal`. Delete old `.mhscache` files (`make reset`); 0.16 cannot read 0.15's. The LZ77 read leak in `tests/lsan.supp` is now an LZMA one, which upstream master fixes.
 
 - **pktpy-midi `midi.sleep` and `midi.rest`** wait through `midi_sleep` instead of `time.sleep`, so `--no-sleep` now skips them.
 
 - **joy-midi `quit`, `abort`, and errors in `mktime` and `strftime`** go through `joy_exit` and `joy_error`. The two errors now report like other errors instead of exiting.
 
 ### Fixed
+
+- **mhs-midi random functions** (`midiSeedRandom`, `midiRandom`, `midiRandomRange`, and `pick`, `walk`, `drunk` and the others built on them) failed with `FFI unknown` in the REPL, in `-r` and in the plugin: `midi_ffi_wrappers.c` had no entries for them. Compiled programs linked them directly, so only interpreted code failed. Found by the mhs-midi doc tests.
+
+- **mhs-midi programs compiled to executables** failed to link when they sent MIDI: `midi_ffi.c` calls `midi_sink_active` and `midi_backend_api`, which `libmidi_open.a` defines, and the standalone variants neither embedded nor linked that library. `mhs_standalone_compile` compiled a program without MIDI, so it passed; `mhs_standalone_compile_midi` compiles one that plays notes.
 
 - **guile-midi on macOS 26 with the macOS 27 SDK**: every binary aborted at load with `Symbol not found: _pipe2`. Homebrew's static `libguile-3.0.a` calls `pipe2` but leaves out gnulib's replacement, which its dylib carries. The 27 SDK exports `pipe2` from libSystem, so the link succeeded against a function macOS 26 lacks. `projects/guile-midi/pipe2_compat.c` defines it for deployment targets before macOS 27.
 
