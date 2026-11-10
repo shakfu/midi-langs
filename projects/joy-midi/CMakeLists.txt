@@ -74,6 +74,7 @@ if(COMMAND midi_langs_add_clap)
     midi_langs_add_clap(joy_midi_clap
         NAME joy-midi
         CLASS_PREFIX MidiLangsJoyMidi
+        GRAMMAR joy
         SOURCES joy_clap.cpp ${CMAKE_CURRENT_BINARY_DIR}/joy_prelude_data.cpp
         LIBRARIES joy_midi_core
     )

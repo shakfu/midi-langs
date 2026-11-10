@@ -64,6 +64,7 @@ if(COMMAND midi_langs_add_clap)
     midi_langs_add_clap(pktpy_midi_clap
         NAME pktpy-midi
         CLASS_PREFIX MidiLangsPktpyMidi
+        GRAMMAR python
         SOURCES pktpy_clap.cpp
         LIBRARIES pktpy_midi_core
     )

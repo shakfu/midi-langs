@@ -1,6 +1,13 @@
-// Unit tests for the CLAP framework's timeline and eval-code selection.
+// Unit tests for the CLAP framework's timeline, eval-code selection and syntax highlighting.
 
 #include "editor_logic.hpp"
+#include "highlight.hpp"
+#include "highlight_forth.h"
+#include "highlight_haskell.h"
+#include "highlight_joy.h"
+#include "highlight_lua.h"
+#include "highlight_python.h"
+#include "highlight_scheme.h"
 #include "timeline.hpp"
 
 #include <cstdio>
@@ -195,6 +202,89 @@ void testLivePlayback()
 	check(out.size() == 2 && out[0].status == 0x80, "stop releases live notes");
 }
 
+// --- syntax highlighting -------------------------------------------------
+
+// The highlight of the byte where `word` starts in text.
+Highlight KindOf(const std::vector<HighlightRun>& runs, const std::string& text, const std::string& word)
+{
+	const size_t at = text.find(word);
+	for (const HighlightRun& r : runs) {
+		if (at >= r.start && at < r.end) return r.kind;
+	}
+	return Highlight::kNone;
+}
+
+void testHighlightNames()
+{
+	check(HighlightForCapture("keyword.return") == Highlight::kKeyword, "dotted capture names map by their head");
+	check(HighlightForCapture("constant.numeric") == Highlight::kNumber, "constant.numeric is a number");
+	check(HighlightForCapture("constant") == Highlight::kConstant, "plain constant");
+	check(HighlightForCapture("_op") == Highlight::kNone, "helper captures have no colour");
+	check(HighlightForCapture("spell") == Highlight::kNone, "unknown captures have no colour");
+}
+
+void testHighlightQueries()
+{
+	// Each query must compile, predicates included, against its own grammar.
+	const struct {
+		const char* name;
+		const TSLanguage* language;
+		const char* query;
+	} grammars[] = {
+		{"lua", tree_sitter_lua(), kHighlightQuery_lua},
+		{"python", tree_sitter_python(), kHighlightQuery_python},
+		{"scheme", tree_sitter_scheme(), kHighlightQuery_scheme},
+		{"haskell", tree_sitter_haskell(), kHighlightQuery_haskell},
+		{"forth", tree_sitter_forth(), kHighlightQuery_forth},
+		{"joy", tree_sitter_joy(), kHighlightQuery_joy},
+	};
+	for (const auto& g : grammars) {
+		Highlighter h(g.language, g.query);
+		check(h.ok(), std::string(g.name) + " query compiles: " + h.error());
+	}
+	Highlighter none(nullptr, nullptr);
+	check(!none.ok() && none.highlight("x = 1").empty(), "no grammar, no highlights");
+}
+
+void testHighlightLua()
+{
+	Highlighter h(tree_sitter_lua(), kHighlightQuery_lua);
+	const std::string text = "-- melody\nlocal pitch = \"c4\"\nprint(42)\n";
+	const auto runs = h.highlight(text);
+	check(KindOf(runs, text, "-- melody") == Highlight::kComment, "lua comment");
+	check(KindOf(runs, text, "local") == Highlight::kKeyword, "lua keyword");
+	check(KindOf(runs, text, "\"c4\"") == Highlight::kString, "lua string");
+	check(KindOf(runs, text, "42") == Highlight::kNumber, "lua number");
+	check(KindOf(runs, text, "print") == Highlight::kFunction, "lua function call");
+	bool sorted = true;
+	for (size_t i = 1; i < runs.size(); ++i) sorted &= runs[i - 1].end <= runs[i].start;
+	check(sorted, "runs are sorted and do not overlap");
+}
+
+void testHighlightJoy()
+{
+	// joy-midi's dialect: \ line comments, which the vendored grammar adds to Joy's #.
+	Highlighter h(tree_sitter_joy(), kHighlightQuery_joy);
+	const std::string text = "\\ melody\n[c e g] play\n60 100 500 midi-note\n# classic Joy comment\n2 dup *\n";
+	const auto runs = h.highlight(text);
+	check(KindOf(runs, text, "\\ melody") == Highlight::kComment, "joy-midi \\ comment");
+	check(KindOf(runs, text, "# classic") == Highlight::kComment, "joy # comment");
+	check(KindOf(runs, text, "60") == Highlight::kNumber, "joy number");
+	check(KindOf(runs, text, "dup") == Highlight::kFunction, "joy builtin through #any-of?");
+	check(KindOf(runs, text, "play") == Highlight::kVariable, "joy word");
+}
+
+void testHighlightPredicates()
+{
+	// python's query colours every identifier a variable, then upper-case ones constants
+	// through #match?: the predicate must hold, and the later pattern must win.
+	Highlighter h(tree_sitter_python(), kHighlightQuery_python);
+	const std::string text = "TEMPO = 120\ntempo = 90\n";
+	const auto runs = h.highlight(text);
+	check(KindOf(runs, text, "TEMPO") == Highlight::kConstant, "#match? makes TEMPO a constant");
+	check(KindOf(runs, text, "tempo") == Highlight::kVariable, "tempo stays a variable");
+}
+
 } // namespace
 
 int main()
@@ -206,6 +296,11 @@ int main()
 	testClipRoundTrip();
 	testClipPlayback();
 	testLivePlayback();
+	testHighlightNames();
+	testHighlightQueries();
+	testHighlightLua();
+	testHighlightJoy();
+	testHighlightPredicates();
 	printf("%d failure(s)\n", gFailures);
 	return gFailures ? 1 : 0;
 }

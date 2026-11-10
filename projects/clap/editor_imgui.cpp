@@ -5,7 +5,10 @@
 
 #include "editor.hpp"
 #include "editor_logic.hpp"
+#include "highlight.hpp"
 #include "language.hpp"
+
+#include <TextEditor.h>
 
 #include <clap/ext/gui.h>
 
@@ -14,13 +17,74 @@
 
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
-#include <imgui_stdlib.h>
 
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <vector>
+
+// The plugin's tree-sitter grammar and highlight query (midi_langs_add_clap GRAMMAR), if any.
+#ifdef MIDI_LANGS_HIGHLIGHT_HEADER
+#include MIDI_LANGS_HIGHLIGHT_HEADER
+#define HIGHLIGHT_GRAMMAR MIDI_LANGS_GRAMMAR(), MIDI_LANGS_HIGHLIGHT_QUERY
+#else
+#define HIGHLIGHT_GRAMMAR nullptr, nullptr
+#endif
 
 namespace {
+
+using DocPos = TextEditor::DocPos;
+using Color = TextEditor::Color;
+
+// TextEditor positions are a line and a glyph index, one glyph per code point.
+// For each byte offset of text, plus its end, the position it falls at.
+std::vector<DocPos> Positions(const std::string& text)
+{
+	std::vector<DocPos> positions;
+	positions.reserve(text.size() + 1);
+	size_t line = 0, glyph = 0;
+	for (size_t i = 0; i < text.size(); ++i) {
+		positions.emplace_back(line, glyph);
+		if (text[i] == '\n') {
+			++line;
+			glyph = 0;
+		} else if (((unsigned char)text[i] & 0xC0) != 0x80 && (i + 1 == text.size() || ((unsigned char)text[i + 1] & 0xC0) != 0x80)) {
+			++glyph; // the last byte of a code point
+		}
+	}
+	positions.emplace_back(line, glyph);
+	return positions;
+}
+
+// The byte offset in text of a TextEditor position.
+size_t ByteOffset(const std::string& text, DocPos pos)
+{
+	size_t i = 0, line = 0;
+	while (i < text.size() && line < pos.line) {
+		if (text[i++] == '\n') ++line;
+	}
+	for (size_t glyph = 0; i < text.size() && text[i] != '\n' && glyph < pos.index; ++glyph) {
+		++i;
+		while (i < text.size() && ((unsigned char)text[i] & 0xC0) == 0x80) ++i;
+	}
+	return i;
+}
+
+Color EditorColor(Highlight kind)
+{
+	switch (kind) {
+	case Highlight::kKeyword: return Color::keyword;
+	case Highlight::kString: return Color::string;
+	case Highlight::kNumber: return Color::number;
+	case Highlight::kComment: return Color::comment;
+	case Highlight::kFunction: return Color::knownIdentifier;
+	case Highlight::kType: return Color::declaration;
+	case Highlight::kConstant: return Color::preprocessor;
+	case Highlight::kOperator: return Color::punctuation;
+	case Highlight::kVariable: return Color::identifier;
+	default: return Color::text;
+	}
+}
 
 const double kFramePeriod = 1.0 / 30.0;
 const uintptr_t kFrameTimer = 1;
@@ -87,7 +151,7 @@ bool IsTextType(const char* type)
 class ImGuiEditor : public Editor {
 public:
 	ImGuiEditor(EditorCallbacks callbacks, const EditorState& state, const LanguageInfo& language, PuglWorld* world)
-		: callbacks_(std::move(callbacks)), language_(language), world_(world), text_(state.text), udpOn_(state.udpOn), wrap_(state.wrap), live_(state.live), port_(state.port)
+		: callbacks_(std::move(callbacks)), language_(language), world_(world), highlighter_(HIGHLIGHT_GRAMMAR), udpOn_(state.udpOn), wrap_(state.wrap), live_(state.live), port_(state.port)
 	{
 		context_ = ImGui::CreateContext();
 		ImGui::SetCurrentContext(context_);
@@ -106,6 +170,12 @@ public:
 		};
 		ImGui::StyleColorsDark();
 		ImGui::GetStyle().FontSizeBase = 15.f;
+
+		// After the ImGui context exists.
+		editor_.SetText(state.text);
+		editor_.SetWordWrapEnabled(wrap_);
+		editor_.SetShowMiniMapEnabled(false);
+		if (highlighter_.ok()) editor_.SetColorizeCallback([this] { colorize(); });
 
 		view_ = puglNewView(world_);
 		puglSetHandle(view_, this);
@@ -175,8 +245,12 @@ public:
 	}
 
 	void setUdpState(bool on) override { udpOn_ = on; }
-	void setText(const std::string& text) override { text_ = text; }
-	void setWrap(bool on) override { wrap_ = on; }
+	void setText(const std::string& text) override { editor_.SetText(text); }
+	void setWrap(bool on) override
+	{
+		wrap_ = on;
+		editor_.SetWordWrapEnabled(on);
+	}
 	void setLive(bool on) override { live_ = on; }
 
 	void idle() override { puglUpdate(world_, 0.0); }
@@ -237,8 +311,9 @@ private:
 				break;
 			}
 			const bool enter = key.key == PUGL_KEY_ENTER || key.key == PUGL_KEY_PAD_ENTER;
-			if (down && enter && (key.state & kPrimaryMod) && (key.state & PUGL_MOD_SHIFT)) {
-				evalAll();
+			if (down && enter && (key.state & kPrimaryMod)) {
+				if (key.state & PUGL_MOD_SHIFT) evalAll();
+				else evalBlock_ = true; // drawn next frame; the editor never sees the key
 				break;
 			}
 			// Paste needs the clipboard first; pugl delivers it asynchronously, then the paste is replayed.
@@ -282,10 +357,21 @@ private:
 		return PUGL_SUCCESS;
 	}
 
-	// text_ is current while the field is active: imgui_stdlib writes each edit through.
 	void evalAll()
 	{
-		if (text_.find_first_not_of(" \t\r\n") != std::string::npos) callbacks_.eval(text_);
+		const std::string text = editor_.GetText();
+		if (text.find_first_not_of(" \t\r\n") != std::string::npos) callbacks_.eval(text);
+	}
+
+	// Called by TextEditor while rendering, after an edit: recolours the whole text.
+	void colorize()
+	{
+		const std::string text = editor_.GetText();
+		const std::vector<DocPos> at = Positions(text);
+		editor_.SetColor(DocPos(0, 0), at.back(), Color::text);
+		for (const HighlightRun& run : highlighter_.highlight(text)) {
+			editor_.SetColor(at[run.start], at[run.end], EditorColor(run.kind));
+		}
 	}
 
 	void setMods(PuglMods mods)
@@ -365,6 +451,9 @@ private:
 
 		const char* mod = io.ConfigMacOSXBehaviors ? "Cmd" : "Ctrl";
 		bool eval = ImGui::Button("Eval Block");
+		if (eval) refocusCode_ = true;
+		eval = eval || evalBlock_;
+		evalBlock_ = false;
 		ImGui::SetItemTooltip("%s+Return: selection, or the block around the caret", mod);
 		ImGui::SameLine();
 		if (ImGui::Button("Eval All")) evalAll();
@@ -374,7 +463,7 @@ private:
 		ImGui::SetItemTooltip("Ctrl+.: stop the running code and release all notes");
 		ImGui::SameLine();
 		if (ImGui::Button("Clear")) {
-			if (text_.empty()) log_.clear();
+			if (editor_.IsEmpty()) log_.clear();
 			else ImGui::OpenPopup("Clear editor and log?");
 		}
 		ImGui::SetItemTooltip("Empty the editor and the log");
@@ -393,19 +482,16 @@ private:
 		const float logHeight = ImGui::GetTextLineHeightWithSpacing() * 8;
 		const float codeHeight = ImGui::GetContentRegionAvail().y - logHeight - ImGui::GetStyle().ItemSpacing.y;
 		if (refocusCode_) {
-			ImGui::SetKeyboardFocusHere();
+			editor_.SetFocus();
 			refocusCode_ = false;
 		}
-		// Ctrl/Cmd+Return validates a multiline field (Return inserts a newline); EnterReturnsTrue reports it.
-		const ImGuiInputTextFlags flags = ImGuiInputTextFlags_AllowTabInput | ImGuiInputTextFlags_CallbackAlways
-		                                  | ImGuiInputTextFlags_EnterReturnsTrue | (wrap_ ? ImGuiInputTextFlags_WordWrap : 0);
-		if (ImGui::InputTextMultiline("##code", &text_, ImVec2(-1, codeHeight), flags, &ImGuiEditor::TrackCaret, this)) {
-			eval = true;
-			refocusCode_ = true;
-		}
-		if (ImGui::IsItemEdited()) callbacks_.textChanged(text_);
+		if (editor_.Render("##code", ImVec2(-1, codeHeight), ImGuiChildFlags_Borders)) callbacks_.textChanged(editor_.GetText());
 		if (eval) {
-			std::string code = SelectEvalCode(text_, selStart_, selEnd_, cursor_, language_.syntax);
+			const std::string text = editor_.GetText();
+			const TextEditor::DocSelection selection = editor_.GetMainCursorSelection();
+			const size_t caret = ByteOffset(text, editor_.GetMainCursorPosition());
+			std::string code = SelectEvalCode(text, (int)ByteOffset(text, selection.start), (int)ByteOffset(text, selection.end),
+			                                  (int)caret, language_.syntax);
 			if (!code.empty()) callbacks_.eval(code);
 		}
 
@@ -427,24 +513,14 @@ private:
 		if (!ImGui::BeginPopupModal("Clear editor and log?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
 		ImGui::TextUnformatted("The editor text cannot be restored.");
 		if (ImGui::Button("Clear")) {
-			text_.clear();
+			editor_.SetText("");
 			log_.clear();
-			cursor_ = selStart_ = selEnd_ = 0;
-			callbacks_.textChanged(text_);
+			callbacks_.textChanged("");
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
 		ImGui::EndPopup();
-	}
-
-	static int TrackCaret(ImGuiInputTextCallbackData* data)
-	{
-		auto* self = static_cast<ImGuiEditor*>(data->UserData);
-		self->cursor_ = data->CursorPos;
-		self->selStart_ = data->SelectionStart;
-		self->selEnd_ = data->SelectionEnd;
-		return 0;
 	}
 
 	EditorCallbacks callbacks_;
@@ -457,7 +533,8 @@ private:
 	unsigned width_ = kEditorWidth, height_ = kEditorHeight; // pixels
 	double lastTime_ = 0.;
 
-	std::string text_;
+	TextEditor editor_;
+	Highlighter highlighter_;
 	std::string log_;
 	std::string clipboard_;
 	bool udpOn_;
@@ -466,7 +543,7 @@ private:
 	unsigned port_;
 	bool scrollLog_ = false;
 	bool refocusCode_ = false;
-	int cursor_ = 0, selStart_ = 0, selEnd_ = 0;
+	bool evalBlock_ = false; // Ctrl/Cmd+Return seen; evaluated in the next draw
 };
 
 } // namespace

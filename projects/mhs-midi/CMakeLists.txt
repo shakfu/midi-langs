@@ -661,6 +661,7 @@ if(COMMAND midi_langs_add_clap)
     midi_langs_add_clap(mhs_midi_clap
         NAME mhs-midi
         CLASS_PREFIX MidiLangsMhsMidi
+        GRAMMAR haskell
         SOURCES ${MHS_PLUGIN_DIR}/mhs_clap.cpp
         LIBRARIES mhs_midi_plugin_core
     )

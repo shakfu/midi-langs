@@ -66,6 +66,8 @@ Script time is milliseconds. 500 ms is one beat, so a script at its default 120 
 
 A block is the paragraph around the caret (the lines between blank lines), or for s7 and guile, the top-level bracket group. Output, results and errors appear in the log pane. **Clear** empties the editor and the log. **Wrap** wraps long lines. On Linux the editor needs the host's CLAP timer support to redraw.
 
+The editor colours code with [tree-sitter](https://tree-sitter.github.io/) grammars: lua-midi (Lua), pktpy-midi (Python), s7-midi and guile-midi (Scheme), mhs-midi (Haskell), pforth-midi (Forth) and joy-midi (Joy, with joy-midi's `\` comments). alda-midi has no grammar, and stack-midi's chords would read as Forth comments, so those two show plain text. The editor also shows line numbers, matches brackets and closes them as you type, and has undo, multiple cursors and find (Ctrl+F, Cmd on macOS).
+
 ## UDP
 
 Each datagram is evaluated. The reply is the output, or `ok`:

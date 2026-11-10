@@ -118,6 +118,7 @@ if(COMMAND midi_langs_add_clap)
     midi_langs_add_clap(pforth_midi_clap
         NAME pforth-midi
         CLASS_PREFIX MidiLangsPforthMidi
+        GRAMMAR forth
         SOURCES pforth_clap.cpp pforth_glue.c
         LIBRARIES pforth_midi_core_sd
     )

@@ -1,0 +1,8 @@
+tree-sitter grammars for the plugin editor (projects/clap), all MIT, ABI 15.
+Per grammar: src/ (generated parser.c, scanner.c and its headers if any, tree_sitter/ headers), queries/highlights.scm, the licence.
+lua: 10fe005 (https://github.com/tree-sitter-grammars/tree-sitter-lua)
+python: 26855ea (https://github.com/tree-sitter/tree-sitter-python)
+scheme: 45c7246 (https://github.com/6cdh/tree-sitter-scheme)
+haskell: 97288e5 (https://github.com/tree-sitter/tree-sitter-haskell)
+forth: 7190f21 (https://github.com/AlexanderBrevig/tree-sitter-forth)
+joy: 987c297 (https://github.com/shakfu/joy, tree-sitter-joy), regenerated with tree-sitter 0.27.2 after one change to grammar.js: line comments start with \ as in joy-midi, as well as #. grammar.js is included to regenerate it.

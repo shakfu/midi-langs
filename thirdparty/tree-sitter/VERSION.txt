@@ -1,0 +1,2 @@
+tree-sitter v0.27.2 (3fb7be4, https://github.com/tree-sitter/tree-sitter), MIT.
+Subset: LICENSE, lib/include, lib/src. Built as one unit from lib/src/lib.c. Used by projects/clap (syntax highlighting).

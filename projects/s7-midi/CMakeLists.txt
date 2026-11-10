@@ -68,6 +68,7 @@ if(COMMAND midi_langs_add_clap)
     midi_langs_add_clap(s7_midi_clap
         NAME s7-midi
         CLASS_PREFIX MidiLangsS7Midi
+        GRAMMAR scheme
         SOURCES s7_clap.cpp
         LIBRARIES s7_midi_core
     )

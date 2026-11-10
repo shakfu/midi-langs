@@ -119,6 +119,7 @@ if(COMMAND midi_langs_add_clap)
     midi_langs_add_clap(guile_midi_clap
         NAME guile-midi
         CLASS_PREFIX MidiLangsGuileMidi
+        GRAMMAR scheme
         SOURCES guile_clap.cpp ${GUILE_PIPE2_COMPAT}
         LIBRARIES guile_midi_core
     )

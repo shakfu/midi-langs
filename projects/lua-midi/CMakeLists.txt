@@ -101,6 +101,7 @@ if(COMMAND midi_langs_add_clap)
     midi_langs_add_clap(lua_midi_clap
         NAME lua-midi
         CLASS_PREFIX MidiLangsLuaMidi
+        GRAMMAR lua
         SOURCES lua_clap.cpp
         LIBRARIES lua_midi_core
     )

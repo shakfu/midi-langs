@@ -76,6 +76,14 @@ The MicroHs runtime can neither run on the plugin's evaluator thread nor return 
 
 The alternative was running `mhs-midi` as a child process over a pipe. It was not chosen: script time would have to cross the pipe, and some hosts restrict child processes.
 
+## Editor
+
+`editor_imgui.cpp` draws the editor with ImGuiColorTextEdit (`thirdparty/imgui-color-text-edit`), not `ImGui::InputTextMultiline`, which draws all text in one colour. That widget colours text by its own line-by-line rules, which have no Scheme, Haskell, Forth or Lua 5.5 definitions. So the vendored copy has a small `midi-langs patch`: a callback that runs after its colorizer whenever the text changed, and `SetColor`, through which `highlight.cpp` applies tree-sitter's colours.
+
+`highlight.cpp` parses the whole text on each edit. Buffers are a few KB, so incremental parsing was not worth tracking edits for. It evaluates the queries' `#eq?`, `#match?` and `#any-of?` predicates, which tree-sitter's C API reports but leaves to the caller. Where captures overlap, the inner node wins, then the later pattern; the vendored `highlights.scm` files are written for that order. A plugin picks its grammar with `midi_langs_add_clap(... GRAMMAR <name>)`; the build turns each grammar's query into `highlight_<name>.h`.
+
+The Haskell grammar adds 3.8 MB to mhs-midi's plugin and 19 MB of generated C to `thirdparty/`.
+
 ## VST3
 
 `thirdparty/clap-wrapper` builds each VST3 from the same plugin code. Two layouts were possible:

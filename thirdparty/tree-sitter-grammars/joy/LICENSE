@@ -1,0 +1,3 @@
+tree-sitter-joy is MIT-licensed, as its package.json declares ("license": "MIT").
+Source: https://github.com/shakfu/joy, directory tree-sitter-joy. The repository's own LICENSE
+covers the Joy language implementation, not this grammar.

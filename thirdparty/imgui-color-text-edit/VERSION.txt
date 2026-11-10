@@ -1,0 +1,3 @@
+ImGuiColorTextEdit 43a3759 (https://github.com/goossens/ImGuiColorTextEdit), MIT. Needs C++20 and Dear ImGui 1.93.
+Subset: LICENSE, TextEditor.cpp, TextEditor.h, and a TextEditorLanguages.h of our own that registers no languages.
+midi-langs patch, marked in TextEditor.h and TextEditor.cpp: SetColorizeCallback and SetColor, so tree-sitter can colour glyphs after the built-in colorizer runs.
